@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: stockagent
+    runtime: docker
+    plan: free
+    branch: main
+    healthCheckPath: /healthz
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: DB_PATH
+        value: /tmp/stockagent.db
+      - key: WEB_HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: "10000"
+      - key: WEB_THREADS
+        value: "8"
+      - key: AUTO_OPEN_BROWSER
+        value: "false"
+      - key: RUN_TRADING_LOOP
+        value: "true"
+      - key: DRY_RUN
+        value: "true"
+      - key: ALLOW_LIVE_TRADING
+        value: "false"
+      - key: AI_PROVIDER
+        value: mock
+      - key: TICKERS
+        value: KRW-BTC,KRW-SOL
+      - key: INTERVAL_SECONDS
+        value: "600"

@@ -1,5 +1,7 @@
 # stockagent — 업비트 AI 자동매매 + 종목 정보 봇
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/seank007/stockagent)
+
 본인 전용 프로그램. 두 가지 역할을 한다.
 
 1. **주식·코인 자동매매** — 현재는 업비트(코인) 지원
@@ -77,6 +79,18 @@ python serve.py
 ```
 → production 서버(Waitress)로 실행한다. Docker 배포와 실거래 전환 절차는
 [`DEPLOYMENT.md`](DEPLOYMENT.md)를 참고.
+
+## 공개 배포
+
+GitHub 저장소 주소는 코드가 올라간 곳이고, 그 자체가 실행 중인 사이트는 아니다.
+브라우저에서 바로 접속되는 앱 주소는 Render 같은 서버에 배포한 뒤 생성되는
+`https://stockagent-....onrender.com` 형태의 URL이다.
+
+- 저장소: https://github.com/seank007/stockagent
+- Render 배포 시작: https://render.com/deploy?repo=https://github.com/seank007/stockagent
+
+기본 배포 설정은 안전하게 `DRY_RUN=true`, `ALLOW_LIVE_TRADING=false`, `AI_PROVIDER=mock`이다.
+즉 공개 서버에서 처음 뜨는 앱은 모의/데모 모드이며 업비트 실주문을 넣지 않는다.
 
 ## 주요 설정 (config.py)
 

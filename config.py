@@ -91,7 +91,9 @@ API_REASON_MAX_CHARS = _env_int("API_REASON_MAX_CHARS", 360)
 
 # --- 서버/배포 ---
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
-WEB_PORT = _env_int("WEB_PORT", _env_int("PORT", 8000))
+# Render/most hosts inject PORT at runtime. Keep WEB_PORT for local Docker, but
+# let PORT win when the hosting platform provides it.
+WEB_PORT = _env_int("PORT", _env_int("WEB_PORT", 8000))
 WEB_THREADS = _env_int("WEB_THREADS", 8)
 RUN_TRADING_LOOP = _env_bool("RUN_TRADING_LOOP", True)
 AUTO_OPEN_BROWSER = _env_bool("AUTO_OPEN_BROWSER", False)
