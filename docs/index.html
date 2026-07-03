@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>stockagent</title>
+  <style>
+    :root {
+      --bg: #070b0f;
+      --panel: #0d131b;
+      --panel-2: #101823;
+      --line: #223044;
+      --text: #e8edf5;
+      --muted: #7f8da3;
+      --gold: #f0bd38;
+      --green: #24d3aa;
+      --red: #ff5b73;
+      --blue: #77a7ff;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      letter-spacing: 0;
+    }
+
+    .ticker {
+      display: flex;
+      overflow: hidden;
+      border-bottom: 1px solid var(--line);
+      background: #090f16;
+      white-space: nowrap;
+    }
+
+    .ticker-track {
+      display: flex;
+      min-width: max-content;
+      animation: slide 26s linear infinite;
+    }
+
+    .tick {
+      display: inline-flex;
+      gap: 10px;
+      align-items: center;
+      min-width: 220px;
+      padding: 10px 22px;
+      border-right: 1px solid #1a2535;
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .tick b { color: var(--text); }
+    .up { color: var(--green); }
+    .down { color: var(--red); }
+
+    @keyframes slide {
+      from { transform: translateX(0); }
+      to { transform: translateX(-50%); }
+    }
+
+    main {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 42px 0 56px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 26px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(32px, 5vw, 72px);
+      line-height: .95;
+      color: var(--text);
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--gold);
+      font-size: 15px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .sub {
+      margin: 12px 0 0;
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    .status {
+      display: grid;
+      gap: 8px;
+      min-width: 260px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 8px;
+    }
+
+    .status span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .status strong {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 19px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 18px rgba(36, 211, 170, .75);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 24px 0 30px;
+    }
+
+    a.button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 0 16px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #111a26;
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 900;
+    }
+
+    a.button.primary {
+      border-color: rgba(36, 211, 170, .5);
+      background: var(--green);
+      color: #06100d;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.35fr .9fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .panel-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      color: var(--gold);
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .metric {
+      min-height: 106px;
+      padding: 18px;
+      border-right: 1px solid var(--line);
+    }
+
+    .metric:last-child { border-right: 0; }
+    .metric span {
+      display: block;
+      margin-bottom: 16px;
+      color: var(--gold);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: clamp(20px, 2.4vw, 30px);
+      line-height: 1.15;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 15px 18px;
+      border-bottom: 1px solid #172232;
+      text-align: right;
+      font-size: 15px;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    th:first-child, td:first-child { text-align: left; }
+    td:first-child strong { display: block; font-size: 18px; }
+    td:first-child span { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; }
+
+    .chart-wrap {
+      display: grid;
+      place-items: center;
+      min-height: 340px;
+      padding: 26px;
+      background: #0b1119;
+    }
+
+    .donut {
+      position: relative;
+      width: min(260px, 76vw);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: conic-gradient(var(--green) 0 64%, var(--gold) 64% 100%);
+    }
+
+    .donut::after {
+      content: "";
+      position: absolute;
+      inset: 34px;
+      border-radius: 50%;
+      background: var(--panel);
+    }
+
+    .donut-text {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      z-index: 1;
+      font-weight: 900;
+    }
+
+    .donut-text b {
+      display: block;
+      font-size: 28px;
+    }
+
+    .donut-text span {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .bars {
+      display: grid;
+      gap: 14px;
+      padding: 20px;
+      border-top: 1px solid var(--line);
+    }
+
+    .bar {
+      display: grid;
+      grid-template-columns: 46px 1fr 56px;
+      gap: 12px;
+      align-items: center;
+      color: var(--muted);
+      font-weight: 900;
+    }
+
+    .rail {
+      height: 5px;
+      background: #172232;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .fill {
+      display: block;
+      height: 100%;
+      background: var(--green);
+    }
+
+    .fill.gold { background: var(--gold); }
+
+    .notice {
+      margin-top: 20px;
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-2);
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 14px;
+    }
+
+    @media (max-width: 880px) {
+      main { width: min(100vw - 22px, 1180px); padding-top: 28px; }
+      header { display: grid; }
+      .status { min-width: 0; }
+      .grid { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .metric:nth-child(2) { border-right: 0; }
+      .metric:nth-child(1), .metric:nth-child(2) { border-bottom: 1px solid var(--line); }
+      th, td { padding: 13px 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="ticker" aria-label="market ticker">
+    <div class="ticker-track" id="tickerTrack"></div>
+  </div>
+
+  <main>
+    <header>
+      <div>
+        <p class="eyebrow">GitHub Pages Deployment</p>
+        <h1>stockagent</h1>
+        <p class="sub">
+          GitHub에서 먼저 열리도록 배포한 공개 페이지입니다. Python/Flask 자동매매 서버는 GitHub Pages에서 실행되지 않으므로 이 화면은 안전한 정적 프리뷰로 동작합니다.
+        </p>
+      </div>
+      <div class="status" aria-label="deployment status">
+        <span>Deploy Status</span>
+        <strong><i class="dot" aria-hidden="true"></i> GitHub Pages Live</strong>
+      </div>
+    </header>
+
+    <nav class="actions" aria-label="links">
+      <a class="button primary" href="https://github.com/seank007/stockagent">GitHub Repository</a>
+      <a class="button" href="https://render.com/deploy?repo=https://github.com/seank007/stockagent">Run Full Server</a>
+      <a class="button" href="https://github.com/seank007/stockagent/blob/main/DEPLOYMENT.md">Deployment Guide</a>
+    </nav>
+
+    <section class="grid">
+      <article class="panel">
+        <div class="panel-title">
+          <span>My Coins</span>
+          <span>DRY_RUN</span>
+        </div>
+        <div class="metrics">
+          <div class="metric">
+            <span>COIN VALUE</span>
+            <strong id="coinValue">120,366 원</strong>
+          </div>
+          <div class="metric">
+            <span>UNREALIZED PNL</span>
+            <strong class="down">-180,442 원</strong>
+          </div>
+          <div class="metric">
+            <span>TOTAL RETURN</span>
+            <strong class="down">-59.99%</strong>
+          </div>
+          <div class="metric">
+            <span>CASH</span>
+            <strong>69 원</strong>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Asset</th>
+              <th>Value / Qty</th>
+              <th>Avg</th>
+              <th>PnL</th>
+              <th>Weight</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>SOL</strong><span>KRW-SOL</span></td>
+              <td>77,740 원<br><span>0.634091 개</span></td>
+              <td>362,436 원</td>
+              <td class="down">-152,078<br><span>-66.17%</span></td>
+              <td>64.6%</td>
+            </tr>
+            <tr>
+              <td><strong>BTC</strong><span>KRW-BTC</span></td>
+              <td>42,626 원<br><span>0.000457 개</span></td>
+              <td>155,373,956 원</td>
+              <td class="down">-28,364<br><span>-39.96%</span></td>
+              <td>35.4%</td>
+            </tr>
+          </tbody>
+        </table>
+      </article>
+
+      <aside class="panel">
+        <div class="panel-title">
+          <span>Allocation</span>
+          <span>SOL 64.6%</span>
+        </div>
+        <div class="chart-wrap">
+          <div class="donut" role="img" aria-label="portfolio allocation chart">
+            <div class="donut-text">
+              <div>
+                <b>120,366</b>
+                <span>coin value</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bars">
+          <div class="bar"><span class="up">SOL</span><div class="rail"><i class="fill" style="width:64.6%"></i></div><span>64.6%</span></div>
+          <div class="bar"><span style="color:var(--gold)">BTC</span><div class="rail"><i class="fill gold" style="width:35.4%"></i></div><span>35.4%</span></div>
+        </div>
+      </aside>
+    </section>
+
+    <div class="notice">
+      GitHub Pages 배포는 정적 사이트라서 실제 업비트 주문, 계좌 조회, Flask API, AI 자동매매 루프는 실행하지 않습니다.
+      실서버 실행은 Docker/Render/VPS 배포가 필요하며, 기본 설정은 모의매매입니다.
+    </div>
+  </main>
+
+  <script>
+    const prices = [
+      ["BTC", 93278000, 0.35],
+      ["ETH", 2593000, 1.05],
+      ["SOL", 122700, 0.74],
+      ["XRP", 1663, 1.28],
+      ["DOGE", 114, 1.79],
+      ["ADA", 248, 1.64]
+    ];
+
+    function renderTicker() {
+      const track = document.getElementById("tickerTrack");
+      const items = [...prices, ...prices].map(([symbol, price, change]) => {
+        const drift = Math.round((Math.random() - .48) * price * .001);
+        const next = Math.max(1, price + drift);
+        const cls = change >= 0 ? "up" : "down";
+        const sign = change >= 0 ? "+" : "";
+        return `<div class="tick"><span>${symbol}</span><b>${next.toLocaleString("ko-KR")}</b><span class="${cls}">${sign}${change.toFixed(2)}%</span></div>`;
+      }).join("");
+      track.innerHTML = items;
+      document.getElementById("coinValue").textContent = (120366 + Math.round(Math.random() * 300 - 120)).toLocaleString("ko-KR") + " 원";
+    }
+
+    renderTicker();
+    setInterval(renderTicker, 5000);
+  </script>
+</body>
+</html>
