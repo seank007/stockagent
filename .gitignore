@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.log
+data/
+stockagent.db
+stockagent.db-shm
+stockagent.db-wal

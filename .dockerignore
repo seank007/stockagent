@@ -1,0 +1,11 @@
+.env
+.venv
+.venv.bak.314
+__pycache__
+*.pyc
+*.log
+stockagent.db
+stockagent.db-shm
+stockagent.db-wal
+data
+.git
