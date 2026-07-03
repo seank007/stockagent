@@ -335,6 +335,8 @@ STATIC_API = f"""
   }};
 }})();
 </script>
+<!-- 실시간 뉴스 수집기: 목업 fetch 다음에 로드되어 코인/주식 뉴스를 실제 RSS로 대체 -->
+<script src="/stockagent/news-live.js"></script>
 """
 
 
