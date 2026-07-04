@@ -420,7 +420,9 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
     "KRW-BTC": 93005000, "KRW-ETH": 2586000, "KRW-SOL": 122000,
     "KRW-XRP": 1660, "KRW-DOGE": 113, "KRW-ADA": 249,
     "KRW-SUI": 3780, "KRW-LINK": 19800, "KRW-AVAX": 31200,
-    "KRW-DOT": 5520, "KRW-TRX": 468, "KRW-BCH": 739000
+    "KRW-DOT": 5520, "KRW-TRX": 468, "KRW-BCH": 739000,
+    "005930": 74200, "000660": 183500, "035420": 215000,
+    "005380": 248000, "035720": 54800
   };
   const CHANGES = {
     "KRW-BTC": 0.06, "KRW-ETH": 0.78, "KRW-SOL": 0.16,
@@ -599,7 +601,8 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
     if (path === "/api/manual_order") return {...manualOrderPreview(init), result:{dry_run:true}, portfolio: clone(DEMO_PORTFOLIO)};
     if (path === "/api/decisions") return {items:state().history};
     if (path === "/api/trades") return {items:[]};
-    if (path === "/api/candles" || path === "/api/stocks/candles") return candles(params.get("ticker") || "KRW-BTC", params.get("interval") || params.get("timeframe") || "minute60", params.get("count") || 120);
+    if (path === "/api/candles") return candles(params.get("ticker") || "KRW-BTC", params.get("interval") || "minute60", params.get("count") || 120);
+    if (path === "/api/stocks/candles") return candles(params.get("code") || "005930", params.get("timeframe") || "day", params.get("count") || 120);
     if (path === "/api/coin/quote") return {ticker:params.get("ticker") || "KRW-BTC", price:priceFor(params.get("ticker")), timestamp:now()};
     if (path === "/api/coin/orderbook") return orderbook(params.get("ticker") || "KRW-BTC");
     if (path === "/api/coin/mini_charts") {
@@ -628,6 +631,7 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
   };
 })();
 </script>
+<!-- 실시간 뉴스 수집기: 목업 fetch 다음에 로드되어 코인/주식 뉴스를 실제 RSS로 대체 -->
 <script src="/stockagent/news-live.js"></script>
 
 

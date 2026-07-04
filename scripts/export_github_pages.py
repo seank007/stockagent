@@ -343,7 +343,7 @@ STATIC_API = f"""
 """
 
 
-def page(html: str, initial_portfolio: bool = False) -> str:
+def page(html: str, initial_portfolio: bool = False, stocks_live: bool = False) -> str:
     if initial_portfolio:
         payload = json.dumps(DEMO_PORTFOLIO, ensure_ascii=False).replace("</", "<\\/")
         html = html.replace(
@@ -363,6 +363,13 @@ def page(html: str, initial_portfolio: bool = False) -> str:
         '<script src="/stockagent/chart-hts.js"></script>\n</body>',
         1,
     )
+    if stocks_live:
+        # 실시간 주식 시세(Yahoo Finance + CORS 프록시): 목업·chart-hts 다음에 로드
+        html = html.replace(
+            "</body>",
+            '<script src="/stockagent/stocks-live.js"></script>\n</body>',
+            1,
+        )
     return html
 
 
@@ -374,7 +381,7 @@ def write(path: Path, html: str) -> None:
 def main() -> None:
     write(DOCS / "index.html", page(web.COIN_HTML, initial_portfolio=True))
     write(DOCS / "coin" / "index.html", page(web.COIN_HTML, initial_portfolio=True))
-    write(DOCS / "stocks" / "index.html", page(web.STOCKS_HTML))
+    write(DOCS / "stocks" / "index.html", page(web.STOCKS_HTML, stocks_live=True))
     write(DOCS / "assets" / "index.html", page(web.DASHBOARD_HTML))
     write(DOCS / "analyze" / "index.html", page(web.ANALYZE_HTML))
     write(
