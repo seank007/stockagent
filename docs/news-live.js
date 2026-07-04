@@ -334,12 +334,12 @@
     return p;
   }
 
-  function cached(kind, feeds, limit, force) {
+  function cached(kind, feeds, limit, force, onPartial) {
     var now = Date.now();
     if (!force && _cache[kind] && (now - _cache[kind + "At"]) < CACHE_MS) {
       return Promise.resolve(_cache[kind]);
     }
-    var pending = refreshCache(kind, feeds, limit);
+    var pending = refreshCache(kind, feeds, limit, onPartial);
     // 이전 데이터가 있으면 그것부터 즉시 반환 (갱신은 백그라운드 → 다음 폴링에 반영)
     if (!force && _cache[kind] && _cache[kind].items && _cache[kind].items.length) {
       return Promise.resolve(_cache[kind]);
@@ -399,7 +399,20 @@
 
     if (path === "/api/coin/news") {
       var climit = params ? parseInt(params.get("limit"), 10) || 90 : 90;
-      return cached("coin", COIN_FEEDS, Math.max(climit, 90), force).then(function (payload) {
+      var onPartial = function(partial) {
+        if (typeof window.renderCoinNews === "function") {
+          window._coinNewsItems = partial.items || [];
+          window._coinNewsSources = partial.sources || [];
+          window._coinNewsErrors = partial.errors || [];
+          window._coinNewsTotalCount = partial.total_count || window._coinNewsItems.length;
+          window._coinNewsLoaded = true;
+          if (typeof window.renderCoinNewsSourceFilter === "function") window.renderCoinNewsSourceFilter();
+          if (typeof window.renderCoinNewsSources === "function") window.renderCoinNewsSources(partial);
+          window.renderCoinNews();
+          if (window._coinNewsMapOpen && typeof window.renderCoinNewsMap === "function") window.renderCoinNewsMap();
+        }
+      };
+      return cached("coin", COIN_FEEDS, Math.max(climit, 90), force, onPartial).then(function (payload) {
         if (!payload.items.length) return nativeFetch(input, init); // 목업 폴백
         return jsonResponse(payload);
       }).catch(function () { return nativeFetch(input, init); });
