@@ -27,6 +27,22 @@
   var FEED_DEADLINE_MS = 9000;  // 피드 1개당 총 상한(죽은 소스가 전체를 지연시키지 않도록)
   var CACHE_MS = 30000;
 
+  // localStorage: 마지막 뉴스와 성공 프록시를 저장해 재방문 시 즉시 그린다.
+  var LSN = {
+    get: function (k, fallback) {
+      try { var v = localStorage.getItem("sa.news." + k); return v == null ? fallback : JSON.parse(v); }
+      catch (e) { return fallback; }
+    },
+    set: function (k, v) {
+      try { localStorage.setItem("sa.news." + k, JSON.stringify(v)); } catch (e) {}
+    }
+  };
+  var goodProxyIdx = Number(LSN.get("proxy", 0)) || 0;
+  function orderedProxies() {
+    return PROXIES.map(function (p, i) { return { proxy: p, idx: i }; })
+      .sort(function (a, b) { return (a.idx === goodProxyIdx ? 0 : 1) - (b.idx === goodProxyIdx ? 0 : 1); });
+  }
+
   function gnews(query, korean) {
     var tail = korean ? "hl=ko&gl=KR&ceid=KR:ko" : "hl=en-US&gl=US&ceid=US:en";
     return "https://news.google.com/rss/search?q=" + encodeURIComponent(query) + "&" + tail;
@@ -111,14 +127,19 @@
   }
 
   // 프록시를 순서대로 시도해 최초로 성공한 피드 XML 텍스트를 반환.
+  // 최근에 성공한 프록시부터 시도한다(죽은 프록시 대기 시간 제거).
   function fetchFeedText(feedUrl) {
+    var order = orderedProxies();
     var idx = 0;
     function attempt() {
-      if (idx >= PROXIES.length) return Promise.reject(new Error("모든 프록시 실패"));
-      var proxy = PROXIES[idx++];
-      return fetchWithTimeout(proxy.build(feedUrl), proxy.json)
+      if (idx >= order.length) return Promise.reject(new Error("모든 프록시 실패"));
+      var entry = order[idx++];
+      return fetchWithTimeout(entry.proxy.build(feedUrl), entry.proxy.json)
         .then(function (text) {
-          if (looksLikeFeed(text)) return text;
+          if (looksLikeFeed(text)) {
+            if (goodProxyIdx !== entry.idx) { goodProxyIdx = entry.idx; LSN.set("proxy", entry.idx); }
+            return text;
+          }
           throw new Error("피드 형식 아님");
         })
         .catch(function () { return attempt(); });
@@ -234,7 +255,34 @@
 
   // 여러 피드를 병렬 수집 → 병합 · 중복제거 · 시간정렬.
   // 죽은 소스가 전체를 지연시키지 않도록 피드 1개당 총 상한(FEED_DEADLINE_MS)을 건다.
-  function aggregate(feeds, limit) {
+  // onPartial이 있으면 피드가 도착할 때마다 중간 결과를 넘긴다(점진 렌더링).
+  function buildPayload(settled, limit) {
+    var items = [], sources = [], errors = [], seen = {};
+    settled.forEach(function (r) {
+      var added = 0;
+      r.rows.forEach(function (row) {
+        var key = normTitle(row.title);
+        if (!key || seen[key]) return;
+        seen[key] = 1; items.push(row); added++;
+      });
+      sources.push({ name: r.feed.name, count: added, ok: !r.error && added > 0 });
+      if (r.error) errors.push({ source: r.feed.name, error: r.error });
+    });
+    items.sort(function (a, b) { return (b.published_ts || 0) - (a.published_ts || 0); });
+    var stamp = new Date().toISOString();
+    return {
+      items: items.slice(0, limit || 90),
+      total_count: items.length,
+      sources: sources,
+      errors: errors,
+      generated_at: stamp,
+      fetched_at: stamp,
+      latest_source: items[0] ? items[0].source : null
+    };
+  }
+
+  function aggregate(feeds, limit, onPartial) {
+    var settled = [];
     var tasks = feeds.map(function (feed) {
       var work = feed.via === "rss2json"
         ? fetchViaRss2Json(feed)
@@ -245,46 +293,37 @@
         return { feed: feed, rows: rows, error: rows.length ? null : "항목 없음" };
       }).catch(function (e) {
         return { feed: feed, rows: [], error: (e && e.message) || "응답 없음" };
+      }).then(function (r) {
+        settled.push(r);
+        // 항목이 있는 피드가 도착할 때마다 중간 결과 전달
+        if (onPartial && r.rows.length) {
+          try { onPartial(buildPayload(settled, limit)); } catch (e) {}
+        }
+        return r;
       });
     });
-
-    return Promise.all(tasks).then(function (settled) {
-      var items = [], sources = [], errors = [], seen = {};
-      settled.forEach(function (r) {
-        var added = 0;
-        r.rows.forEach(function (row) {
-          var key = normTitle(row.title);
-          if (!key || seen[key]) return;
-          seen[key] = 1; items.push(row); added++;
-        });
-        sources.push({ name: r.feed.name, count: added, ok: !r.error && added > 0 });
-        if (r.error) errors.push({ source: r.feed.name, error: r.error });
-      });
-      items.sort(function (a, b) { return (b.published_ts || 0) - (a.published_ts || 0); });
-      var stamp = new Date().toISOString();
-      return {
-        items: items.slice(0, limit || 90),
-        total_count: items.length,
-        sources: sources,
-        errors: errors,
-        generated_at: stamp,
-        fetched_at: stamp,
-        latest_source: items[0] ? items[0].source : null
-      };
-    });
+    return Promise.all(tasks).then(function () { return buildPayload(settled, limit); });
   }
 
   // ---- 캐시 래퍼 -------------------------------------------------------------
-  var _cache = { coin: null, coinAt: 0, stock: null, stockAt: 0 };
-  function cached(kind, feeds, limit, force) {
-    var now = Date.now();
-    var atKey = kind + "At";
-    if (!force && _cache[kind] && (now - _cache[atKey]) < CACHE_MS) {
-      return Promise.resolve(_cache[kind]);
-    }
-    if (!force && _cache[kind + "Pending"]) return _cache[kind + "Pending"];
-    var p = aggregate(feeds, limit).then(function (payload) {
-      if (payload.items.length) { _cache[kind] = payload; _cache[atKey] = Date.now(); }
+  // 메모리 캐시 + localStorage 영속화(stale-while-revalidate):
+  // 이전 방문의 뉴스가 있으면 즉시 반환하고 뒤에서 갱신한다.
+  var _cache = {
+    coin: LSN.get("coin", null), coinAt: Number(LSN.get("coinAt", 0)) || 0,
+    stock: LSN.get("stock", null), stockAt: Number(LSN.get("stockAt", 0)) || 0
+  };
+
+  function storeCache(kind, payload) {
+    _cache[kind] = payload;
+    _cache[kind + "At"] = Date.now();
+    LSN.set(kind, payload);
+    LSN.set(kind + "At", _cache[kind + "At"]);
+  }
+
+  function refreshCache(kind, feeds, limit, onPartial) {
+    if (_cache[kind + "Pending"]) return _cache[kind + "Pending"];
+    var p = aggregate(feeds, limit, onPartial).then(function (payload) {
+      if (payload.items.length) storeCache(kind, payload);
       _cache[kind + "Pending"] = null;
       return payload.items.length ? payload : (_cache[kind] || payload);
     }).catch(function () {
@@ -293,6 +332,19 @@
     });
     _cache[kind + "Pending"] = p;
     return p;
+  }
+
+  function cached(kind, feeds, limit, force) {
+    var now = Date.now();
+    if (!force && _cache[kind] && (now - _cache[kind + "At"]) < CACHE_MS) {
+      return Promise.resolve(_cache[kind]);
+    }
+    var pending = refreshCache(kind, feeds, limit);
+    // 이전 데이터가 있으면 그것부터 즉시 반환 (갱신은 백그라운드 → 다음 폴링에 반영)
+    if (!force && _cache[kind] && _cache[kind].items && _cache[kind].items.length) {
+      return Promise.resolve(_cache[kind]);
+    }
+    return pending;
   }
 
   // ---- 코인 뉴스 AI 요약(정적: 라이브 데이터에서 간이 생성) -----------------
@@ -455,18 +507,31 @@
   }
 
   var _stockLoading = false;
+  function applyStockPayload(payload) {
+    _stock.items = payload.items || [];
+    _stock.sources = payload.sources || [];
+    _stock.errors = payload.errors || [];
+    renderStockNews();
+    renderStockSources();
+  }
+
   function loadStockNews(force) {
     if (_stockLoading) return;
     _stockLoading = true;
+    // 1) 이전 방문 캐시가 있으면 0초에 먼저 그린다
+    if (!_stock.items.length && _cache.stock && _cache.stock.items && _cache.stock.items.length) {
+      applyStockPayload(_cache.stock);
+    }
     var note = document.getElementById("stock-news-note");
     if (note && !_stock.items.length) { note.textContent = "뉴스를 불러오는 중입니다."; note.style.color = "#5a6577"; }
-    cached("stock", STOCK_FEEDS, 90, force).then(function (payload) {
-      _stock.items = payload.items || [];
-      _stock.sources = payload.sources || [];
-      _stock.errors = payload.errors || [];
-      renderStockNews();
-      renderStockSources();
-    }).catch(function () {}).then(function () { _stockLoading = false; });
+    // 2) 캐시가 신선하면 그대로, 아니면 피드가 도착하는 대로 점진 렌더링
+    var fresh = !force && _cache.stock && (Date.now() - _cache.stockAt) < CACHE_MS;
+    var work = fresh
+      ? Promise.resolve(_cache.stock)
+      : refreshCache("stock", STOCK_FEEDS, 90, function (partial) {
+          if (partial.items.length >= _stock.items.length) applyStockPayload(partial);
+        });
+    work.then(applyStockPayload).catch(function () {}).then(function () { _stockLoading = false; });
   }
 
   function buildStockNewsSection() {
