@@ -1,36 +1,54 @@
 /*
  * stocks-live.js — GitHub Pages(정적)에서 실시간 주식 시세를 붙이는 스크립트.
  *
- * 서버가 없으므로 Yahoo Finance 공개 chart/spark API를 news-live.js와 같은
- * CORS 프록시 폴백 체인으로 브라우저에서 직접 호출한다. 한국(.KS/.KQ)·미국·
- * 해외 지수·환율을 모두 지원하며, 기존 UI가 호출하는 /api/stocks/quote ·
- * /api/stocks/candles · /api/ticker_quotes 목업 응답을 실데이터로 대체한다.
+ * 서버가 없으므로 Yahoo Finance 공개 chart/spark/search API를 CORS 프록시로
+ * 브라우저에서 직접 호출한다. 한국(.KS/.KQ)·미국·유럽·홍콩·일본·지수·환율을
+ * 지원하며, 기존 UI가 호출하는 /api/stocks/quote · /api/stocks/candles ·
+ * /api/ticker_quotes 목업 응답을 실데이터로 대체한다.
  *
- * 이 스크립트는 정적 목업(fetch 오버라이드)·news-live.js "다음"에 로드되어
- * fetch를 한 번 더 감싼다. 라이브 호출이 실패하면 목업 응답으로 폴백한다.
- * 추가로 주식 페이지에는 지수/한국/미국 실시간 마켓 보드를 주입한다.
+ * 속도: 프록시를 순차가 아니라 0.7초 간격 헤지 병렬로 레이스시키고, 성공한
+ * 프록시·심볼 해석·마지막 보드 시세를 localStorage에 저장해 재방문 시 즉시
+ * 그린 뒤 백그라운드로 갱신한다.
+ *
+ * UI: 첫 화면은 즐겨찾기(★ 토글, 저장됨)만 보여주고, HTS처럼 국가별 마켓
+ * 탭(한국/미국/유럽/홍콩·중국/일본/지수·환율)과 전종목 실시간 검색을 제공한다.
+ *
+ * 이 스크립트는 정적 목업(fetch 오버라이드)·news-live.js·chart-hts.js "다음"에
+ * 로드된다. 라이브 호출이 실패하면 목업 응답으로 폴백한다.
  */
 (function () {
   "use strict";
 
   var prevFetch = window.fetch.bind(window);
 
-  // ---- 공개 CORS 프록시 (news-live.js와 동일한 폴백 체인) -------------------
+  // ---- 공개 CORS 프록시 ------------------------------------------------------
   var PROXIES = [
-    { build: function (u) { return "https://api.codetabs.com/v1/proxy/?quest=" + encodeURIComponent(u); } },
     { build: function (u) { return "https://corsproxy.io/?url=" + encodeURIComponent(u); } },
     { build: function (u) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(u); } },
+    { build: function (u) { return "https://api.codetabs.com/v1/proxy/?quest=" + encodeURIComponent(u); } },
     { build: function (u) { return "https://api.allorigins.win/get?url=" + encodeURIComponent(u); }, wrapped: true },
     { build: function (u) { return "https://thingproxy.freeboard.io/fetch/" + u; } }
   ];
   var HOSTS = ["https://query1.finance.yahoo.com", "https://query2.finance.yahoo.com"];
-  var TRY_TIMEOUT_MS = 6500;
-  var TOTAL_DEADLINE_MS = 16000;
-  var QUOTE_TTL = 45000;        // 인트라데이(시세) 캐시
-  var HIST_TTL = 5 * 60000;     // 일/주/월봉 캐시
-  var BOARD_REFRESH_MS = 60000; // 마켓 보드 갱신 주기
+  var TRY_TIMEOUT_MS = 7000;
+  var HEDGE_DELAY_MS = 700;      // 앞 시도가 안 끝나면 0.7초 뒤 다음 프록시도 병렬 발사
+  var TOTAL_DEADLINE_MS = 20000;
+  var QUOTE_TTL = 45000;
+  var HIST_TTL = 5 * 60000;
+  var BOARD_REFRESH_MS = 60000;
 
-  // ---- 종목/지수 사전 --------------------------------------------------------
+  // ---- localStorage ----------------------------------------------------------
+  var LS = {
+    get: function (k, fallback) {
+      try { var v = localStorage.getItem("sa." + k); return v == null ? fallback : JSON.parse(v); }
+      catch (e) { return fallback; }
+    },
+    set: function (k, v) {
+      try { localStorage.setItem("sa." + k, JSON.stringify(v)); } catch (e) {}
+    }
+  };
+
+  // ---- 마켓 사전 (탭별 대표 종목 — 그 외 전 종목은 검색으로) -------------------
   var KR_STOCKS = [
     ["005930", "삼성전자"], ["000660", "SK하이닉스"], ["373220", "LG에너지솔루션"],
     ["207940", "삼성바이오로직스"], ["005380", "현대차"], ["000270", "기아"],
@@ -40,29 +58,83 @@
   var US_STOCKS = [
     ["AAPL", "애플"], ["MSFT", "마이크로소프트"], ["NVDA", "엔비디아"],
     ["GOOGL", "알파벳"], ["AMZN", "아마존"], ["TSLA", "테슬라"],
-    ["META", "메타"], ["AVGO", "브로드컴"], ["NFLX", "넷플릭스"], ["AMD", "AMD"]
+    ["META", "메타"], ["AVGO", "브로드컴"], ["NFLX", "넷플릭스"],
+    ["AMD", "AMD"], ["JPM", "JP모건"], ["BRK-B", "버크셔B"]
+  ];
+  var EU_STOCKS = [
+    ["ASML.AS", "ASML"], ["SAP.DE", "SAP"], ["MC.PA", "LVMH"],
+    ["NOVO-B.CO", "노보노디스크"], ["NESN.SW", "네슬레"], ["SIE.DE", "지멘스"],
+    ["TTE.PA", "토탈에너지스"], ["AZN.L", "아스트라제네카"], ["SHEL.L", "쉘"],
+    ["AIR.PA", "에어버스"], ["RACE.MI", "페라리"], ["HSBA.L", "HSBC(런던)"]
+  ];
+  var HK_STOCKS = [
+    ["0700.HK", "텐센트"], ["9988.HK", "알리바바"], ["3690.HK", "메이투안"],
+    ["1810.HK", "샤오미"], ["1299.HK", "AIA"], ["0941.HK", "차이나모바일"],
+    ["2318.HK", "핑안보험"], ["9618.HK", "징둥닷컴"], ["1211.HK", "BYD"],
+    ["0005.HK", "HSBC"], ["0388.HK", "홍콩거래소"], ["2020.HK", "안타스포츠"]
+  ];
+  var JP_STOCKS = [
+    ["7203.T", "도요타"], ["6758.T", "소니"], ["9984.T", "소프트뱅크G"],
+    ["6861.T", "키엔스"], ["8035.T", "도쿄일렉트론"], ["7974.T", "닌텐도"],
+    ["9983.T", "패스트리테일링"], ["8306.T", "미쓰비시UFJ"], ["4063.T", "신에츠화학"],
+    ["6501.T", "히타치"], ["7267.T", "혼다"], ["6902.T", "덴소"]
   ];
   var INDICES = [
     ["^KS11", "코스피"], ["^KQ11", "코스닥"], ["^GSPC", "S&P 500"],
     ["^IXIC", "나스닥"], ["^DJI", "다우존스"], ["^SOX", "필라델피아 반도체"],
-    ["^N225", "닛케이 225"], ["^HSI", "항셍"], ["KRW=X", "원/달러"]
+    ["^N225", "닛케이 225"], ["^HSI", "항셍"], ["^GDAXI", "DAX"],
+    ["^FTSE", "FTSE 100"], ["KRW=X", "원/달러"], ["EURKRW=X", "원/유로"]
   ];
+
   var NAME_OF = {};
-  KR_STOCKS.concat(US_STOCKS, INDICES).forEach(function (p) { NAME_OF[p[0]] = p[1]; });
+  [KR_STOCKS, US_STOCKS, EU_STOCKS, HK_STOCKS, JP_STOCKS, INDICES].forEach(function (list) {
+    list.forEach(function (p) { NAME_OF[p[0]] = p[1]; });
+  });
+  // 검색으로 추가한 종목 이름(localStorage 유지)
+  var EXTRA_NAMES = LS.get("names", {});
+  function nameOf(code) { return NAME_OF[code] || EXTRA_NAMES[code] || code; }
+  function rememberName(code, name) {
+    if (!name || NAME_OF[code] || EXTRA_NAMES[code]) return;
+    EXTRA_NAMES[code] = name;
+    LS.set("names", EXTRA_NAMES);
+  }
 
-  // 상단 티커 테이프에 흐르는 심볼(마켓 보드 캐시에서 공급)
-  var TAPE_CODES = ["^KS11", "^KQ11", "^GSPC", "^IXIC", "^DJI", "^N225", "KRW=X",
-    "005930", "000660", "NVDA", "AAPL", "TSLA"];
-  // 마켓 보드 구성
-  var BOARD_GROUPS = [
-    { label: "지수 · 환율", items: INDICES },
-    { label: "한국 주식", items: KR_STOCKS.slice(0, 6) },
-    { label: "미국 주식", items: US_STOCKS.slice(0, 6) }
+  // ---- 마켓 탭 ----------------------------------------------------------------
+  var DEFAULT_FAVS = ["005930", "000660", "AAPL", "NVDA", "TSLA", "^KS11", "^IXIC", "KRW=X"];
+  function getFavs() {
+    var favs = LS.get("favs", null);
+    return Array.isArray(favs) && favs.length ? favs : DEFAULT_FAVS.slice();
+  }
+  function isFav(code) { return getFavs().indexOf(code) !== -1; }
+  function toggleFav(code) {
+    var favs = getFavs();
+    var i = favs.indexOf(code);
+    if (i === -1) favs.push(code); else favs.splice(i, 1);
+    LS.set("favs", favs);
+    return i === -1;
+  }
+
+  var MARKET_TABS = [
+    { id: "favs", label: "★ 즐겨찾기", codes: getFavs },
+    { id: "kr", label: "한국", codes: function () { return KR_STOCKS.map(function (p) { return p[0]; }); } },
+    { id: "us", label: "미국", codes: function () { return US_STOCKS.map(function (p) { return p[0]; }); } },
+    { id: "eu", label: "유럽", codes: function () { return EU_STOCKS.map(function (p) { return p[0]; }); } },
+    { id: "hk", label: "홍콩·중국", codes: function () { return HK_STOCKS.map(function (p) { return p[0]; }); } },
+    { id: "jp", label: "일본", codes: function () { return JP_STOCKS.map(function (p) { return p[0]; }); } },
+    { id: "idx", label: "지수·환율", codes: function () { return INDICES.map(function (p) { return p[0]; }); } }
   ];
-  var BOARD_CODES = [];
-  BOARD_GROUPS.forEach(function (g) { g.items.forEach(function (p) { BOARD_CODES.push(p[0]); }); });
+  var activeTab = LS.get("tab", "favs");
+  if (!MARKET_TABS.some(function (t) { return t.id === activeTab; })) activeTab = "favs";
 
-  // ---- HTTP 유틸 -------------------------------------------------------------
+  // 테이프: 즐겨찾기 + 핵심 지수
+  var TAPE_CORE = ["^KS11", "^GSPC", "^IXIC", "KRW=X"];
+  function tapeCodes() {
+    var codes = getFavs().slice();
+    TAPE_CORE.forEach(function (c) { if (codes.indexOf(c) === -1) codes.push(c); });
+    return codes.slice(0, 14);
+  }
+
+  // ---- HTTP: 헤지 병렬 레이스 ---------------------------------------------------
   function fetchWithTimeout(url, wrapped) {
     var ctrl = new AbortController();
     var timer = setTimeout(function () { ctrl.abort(); }, TRY_TIMEOUT_MS);
@@ -83,17 +155,6 @@
       .catch(function (e) { clearTimeout(timer); throw e; });
   }
 
-  function withDeadline(promise, ms) {
-    return new Promise(function (resolve, reject) {
-      var to = setTimeout(function () { reject(new Error("deadline")); }, ms);
-      promise.then(
-        function (v) { clearTimeout(to); resolve(v); },
-        function (e) { clearTimeout(to); reject(e); }
-      );
-    });
-  }
-
-  // spark API 구형 응답: {"AAPL": {symbol, close:[...], previousClose, ...}, ...}
   function looksLikeSparkMap(json) {
     if (!json || typeof json !== "object" || Array.isArray(json)) return false;
     var keys = Object.keys(json);
@@ -102,39 +163,68 @@
     return !!(v && typeof v === "object" && Array.isArray(v.close));
   }
 
-  // 프록시×호스트를 순차 폴백하며 Yahoo JSON을 가져온다.
-  // 성공한 프록시를 기억해 다음 호출부터 우선 시도한다(죽은 프록시 헛시도 방지).
-  var goodProxyIdx = 0;
+  function validYahoo(json) {
+    return !!(json && (json.chart || json.spark || json.quotes || json.finance || looksLikeSparkMap(json)));
+  }
+
+  var goodProxyIdx = Number(LS.get("proxy", 0)) || 0;
+
+  // 성공 프록시 우선 + 0.7초 간격 헤지 병렬. 최초 성공이 이긴다.
   function fetchYahoo(pathQuery) {
     var attempts = [];
     PROXIES.forEach(function (proxy, pi) {
       HOSTS.forEach(function (host) {
-        // 프록시측 캐시 회피용 30초 단위 버스터
-        var url = host + pathQuery + "&ts=" + Math.floor(Date.now() / 30000);
+        var url = host + pathQuery + (pathQuery.indexOf("?") === -1 ? "?" : "&") +
+          "ts=" + Math.floor(Date.now() / 30000); // 프록시측 캐시 회피(30초 단위)
         attempts.push({ proxy: proxy, proxyIdx: pi, url: url });
       });
     });
     attempts.sort(function (a, b) {
       return (a.proxyIdx === goodProxyIdx ? 0 : 1) - (b.proxyIdx === goodProxyIdx ? 0 : 1);
     });
-    var idx = 0;
-    function attempt() {
-      if (idx >= attempts.length) return Promise.reject(new Error("모든 프록시 실패"));
-      var a = attempts[idx++];
-      return fetchWithTimeout(a.proxy.build(a.url), a.proxy.wrapped)
-        .then(function (json) {
-          if (json && (json.chart || json.spark || looksLikeSparkMap(json))) return json;
-          throw new Error("야후 응답 아님");
-        })
-        .then(function (json) { goodProxyIdx = a.proxyIdx; return json; })
-        .catch(function () { return attempt(); });
-    }
-    return withDeadline(attempt(), TOTAL_DEADLINE_MS);
+    return new Promise(function (resolve, reject) {
+      var settled = false, next = 0, failed = 0, timers = [];
+      var deadline = setTimeout(function () { fail(new Error("deadline")); }, TOTAL_DEADLINE_MS);
+      function done(json, proxyIdx) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(deadline);
+        timers.forEach(clearTimeout);
+        goodProxyIdx = proxyIdx;
+        LS.set("proxy", proxyIdx);
+        resolve(json);
+      }
+      function fail(err) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(deadline);
+        timers.forEach(clearTimeout);
+        reject(err);
+      }
+      function launchNext() {
+        if (settled || next >= attempts.length) return;
+        var a = attempts[next++];
+        fetchWithTimeout(a.proxy.build(a.url), a.proxy.wrapped)
+          .then(function (json) {
+            if (!validYahoo(json)) throw new Error("야후 응답 아님");
+            done(json, a.proxyIdx);
+          })
+          .catch(function () {
+            failed++;
+            if (failed >= attempts.length) fail(new Error("모든 프록시 실패"));
+            else launchNext(); // 실패 즉시 다음 시도
+          });
+      }
+      launchNext();
+      for (var k = 1; k < attempts.length; k++) {
+        timers.push(setTimeout(launchNext, HEDGE_DELAY_MS * k));
+      }
+    });
   }
 
-  // ---- 차트 캐시 + 심볼 해석 --------------------------------------------------
-  var chartCache = {};  // "SYM|range|interval" → {t, result}
-  var RESOLVED = {};    // 입력 코드 → 야후 심볼 (예: "005930" → "005930.KS")
+  // ---- 차트 캐시 + 심볼 해석 ------------------------------------------------------
+  var chartCache = {};
+  var RESOLVED = LS.get("resolved", {}); // "005930" → "005930.KS" 등
 
   function chartResultOf(json) {
     var r = json && json.chart && json.chart.result && json.chart.result[0];
@@ -156,7 +246,6 @@
     });
   }
 
-  // 입력 코드(6자리 한국코드/미국티커/^지수)를 야후 심볼로 바꿔 차트를 가져온다.
   function resolveChart(code, range, interval, ttl) {
     var candidates;
     if (RESOLVED[code]) candidates = [RESOLVED[code]];
@@ -167,13 +256,16 @@
       if (idx >= candidates.length) return Promise.reject(new Error(code + " 조회 실패"));
       var sym = candidates[idx++];
       return getChart(sym, range, interval, ttl)
-        .then(function (result) { RESOLVED[code] = sym; return { symbol: sym, result: result }; })
+        .then(function (result) {
+          if (RESOLVED[code] !== sym) { RESOLVED[code] = sym; LS.set("resolved", RESOLVED); }
+          return { symbol: sym, result: result };
+        })
         .catch(function (e) { if (idx < candidates.length) return attempt(); throw e; });
     }
     return attempt();
   }
 
-  // ---- 지표 계산 --------------------------------------------------------------
+  // ---- 지표 계산 ------------------------------------------------------------------
   function sma(values, period) {
     return values.map(function (_, i) {
       if (i + 1 < period) return null;
@@ -196,20 +288,41 @@
     });
   }
 
-  // ---- 표시 형식 ---------------------------------------------------------------
+  // ---- 표시 형식 --------------------------------------------------------------------
   function fmtNum(v, digits) {
     if (v == null || isNaN(v)) return "—";
-    return Number(v).toLocaleString("ko-KR", { maximumFractionDigits: digits, minimumFractionDigits: digits > 0 && Math.abs(v) < 10000 ? Math.min(digits, 2) : 0 });
+    return Number(v).toLocaleString("ko-KR", {
+      maximumFractionDigits: digits,
+      minimumFractionDigits: digits > 0 && Math.abs(v) < 10000 ? Math.min(digits, 2) : 0
+    });
   }
+
+  var CUR_SIGN = { USD: "$", EUR: "€", GBP: "£", HKD: "HK$", CNY: "¥", TWD: "NT$" };
 
   function priceLabel(code, v, currency, signed) {
     if (v == null || isNaN(v)) return "—";
     var sign = signed && v > 0 ? "+" : "";
     if (code && code.charAt(0) === "^") return sign + fmtNum(v, 2);
-    if (currency === "USD") return sign + "$" + fmtNum(Math.abs(v) * (v < 0 ? -1 : 1), 2).replace("-", "-");
-    if (currency === "JPY") return sign + fmtNum(v, 0) + " 엔";
     if (currency === "KRW") return sign + fmtNum(v, Math.abs(v) < 10000 ? 2 : 0) + " 원";
+    if (currency === "JPY") return sign + fmtNum(v, 0) + " 엔";
+    if (currency === "GBp") return sign + fmtNum(v, 2) + "p"; // 런던: 펜스 단위
+    if (currency === "DKK" || currency === "SEK" || currency === "NOK") return sign + fmtNum(v, 2) + " kr";
+    if (currency === "CHF") return sign + "CHF " + fmtNum(v, 2);
+    if (CUR_SIGN[currency]) return sign + CUR_SIGN[currency] + fmtNum(v, 2);
     return sign + fmtNum(v, 2) + (currency ? " " + currency : "");
+  }
+
+  function currencyHint(code) {
+    if (/^\d{6}$/.test(code) || /\.(KS|KQ)$/.test(code) || code === "KRW=X" || code === "EURKRW=X") return "KRW";
+    if (code.charAt(0) === "^") return "";
+    if (/\.HK$/.test(code)) return "HKD";
+    if (/\.T$/.test(code)) return "JPY";
+    if (/\.CO$/.test(code)) return "DKK";
+    if (/\.(ST|SS)?ST$/.test(code)) return "SEK";
+    if (/\.SW$/.test(code)) return "CHF";
+    if (/\.(DE|PA|AS|MI|MC|BR|HE|IR|VI)$/.test(code)) return "EUR";
+    if (/\.L$/.test(code)) return "GBp";
+    return "USD";
   }
 
   function marketStatus(meta) {
@@ -228,7 +341,7 @@
     return null;
   }
 
-  // ---- /api/stocks/quote -------------------------------------------------------
+  // ---- /api/stocks/quote ---------------------------------------------------------
   function buildQuote(code, symbol, r) {
     var meta = r.meta;
     var q0 = (r.indicators && r.indicators.quote && r.indicators.quote[0]) || {};
@@ -236,15 +349,15 @@
     var prev = meta.chartPreviousClose != null ? meta.chartPreviousClose : meta.previousClose;
     var change = prev != null ? price - prev : 0;
     var pct = prev ? (change / prev) * 100 : null;
-    var cur = meta.currency || "";
+    var cur = meta.currency || currencyHint(code);
     var open = firstNonNull(q0.open);
     var status = marketStatus(meta);
     var updated = meta.regularMarketTime
       ? new Date(meta.regularMarketTime * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })
       : "—";
-    var name = NAME_OF[code] || meta.shortName || meta.longName || code;
+    rememberName(code, meta.shortName || meta.longName);
     return {
-      code: code, symbol: symbol, name: name,
+      code: code, symbol: symbol, name: nameOf(code),
       price: price, change: change, change_pct: pct == null ? null : Number(pct.toFixed(2)),
       currency: cur, status: status,
       price_text: priceLabel(code, price, cur),
@@ -268,7 +381,7 @@
     };
   }
 
-  // ---- /api/stocks/candles -------------------------------------------------------
+  // ---- /api/stocks/candles --------------------------------------------------------
   var FRAME_PARAMS = {
     day: { range: "1y", interval: "1d", ttl: HIST_TTL },
     week: { range: "5y", interval: "1wk", ttl: HIST_TTL },
@@ -296,14 +409,14 @@
     };
   }
 
-  // ---- 마켓 보드/테이프 데이터 (spark 배치 → 실패 시 개별 chart 폴백) ------------
-  var boardCache = {};   // code → {price, prev, change_pct, closes, currency, t}
+  // ---- 보드 데이터 (spark 배치, 요청당 심볼 20개 제한 → 18개씩) ----------------------
+  var boardCache = LS.get("board", {}); // code → {price, change_pct, closes, currency, t}
   var boardUpdatedAt = null;
   var boardLoading = false;
 
   function yahooSymbolFor(code) {
     if (RESOLVED[code]) return RESOLVED[code];
-    if (/^\d{6}$/.test(code)) return code + ".KS"; // 보드 종목은 전부 KOSPI
+    if (/^\d{6}$/.test(code)) return code + ".KS";
     return code;
   }
 
@@ -312,36 +425,18 @@
     return m ? m[1] : sym;
   }
 
-  // 야후 응답에 통화 정보가 없을 때(spark 맵 포맷) 코드로 추정한다.
-  function currencyHint(code) {
-    if (/^\d{6}$/.test(code) || code === "KRW=X") return "KRW";
-    if (code.charAt(0) === "^") return "";
-    return "USD";
-  }
-
   function storeBoardEntry(code, meta, closes) {
     var clean = (closes || []).filter(function (v) { return v != null; });
     var price = meta.regularMarketPrice != null ? meta.regularMarketPrice : clean[clean.length - 1];
     var prev = meta.chartPreviousClose != null ? meta.chartPreviousClose : meta.previousClose;
     if (price == null) return;
     boardCache[code] = {
-      price: price, prev: prev,
+      price: price,
       change_pct: prev ? ((price - prev) / prev) * 100 : 0,
-      closes: clean,
-      currency: meta.currency || currencyHint(code), t: Date.now()
+      closes: clean.length > 48 ? clean.filter(function (_, i) { return i % Math.ceil(clean.length / 48) === 0; }).concat([clean[clean.length - 1]]) : clean,
+      currency: meta.currency || currencyHint(code),
+      t: Date.now()
     };
-  }
-
-  // spark는 요청당 심볼 20개 제한 → 18개씩 나눠 병렬 요청한다.
-  function refreshBoardViaSpark() {
-    var symbols = BOARD_CODES.map(yahooSymbolFor);
-    var chunks = [];
-    for (var i = 0; i < symbols.length; i += 18) chunks.push(symbols.slice(i, i + 18));
-    return Promise.all(chunks.map(sparkChunk)).then(function (counts) {
-      var total = counts.reduce(function (a, b) { return a + b; }, 0);
-      if (!total) throw new Error("spark 비어있음");
-      return true;
-    });
   }
 
   function sparkChunk(symbols) {
@@ -351,7 +446,6 @@
       var stored = 0;
       var results = (json.spark && json.spark.result) || [];
       if (results.length) {
-        // 신형 포맷: {spark:{result:[{symbol, response:[{meta, indicators}]}]}}
         results.forEach(function (item) {
           var resp = item.response && item.response[0];
           if (!resp || !resp.meta) return;
@@ -361,7 +455,6 @@
           stored++;
         });
       } else if (looksLikeSparkMap(json)) {
-        // 구형 포맷: {"005930.KS": {close:[...], previousClose, chartPreviousClose}, ...}
         Object.keys(json).forEach(function (sym) {
           var v = json[sym];
           if (!v || !Array.isArray(v.close)) return;
@@ -375,38 +468,45 @@
     }).catch(function () { return 0; });
   }
 
-  function refreshBoardViaCharts() {
-    // spark 폴백: 테이프 우선순위 12심볼만 개별 조회(4개씩 순차)
-    var codes = TAPE_CODES.slice();
-    function chunkRun(start) {
-      if (start >= codes.length) return Promise.resolve(true);
-      var slice = codes.slice(start, start + 4).map(function (code) {
+  function refreshCodes(codes) {
+    var symbols = [];
+    codes.forEach(function (c) {
+      var s = yahooSymbolFor(c);
+      if (symbols.indexOf(s) === -1) symbols.push(s);
+    });
+    var chunks = [];
+    for (var i = 0; i < symbols.length; i += 18) chunks.push(symbols.slice(i, i + 18));
+    return Promise.all(chunks.map(sparkChunk)).then(function () {
+      // spark가 빠뜨린 심볼(예: .KQ 종목을 .KS로 요청)만 개별 폴백 (최대 6개)
+      var missing = codes.filter(function (c) { return !boardCache[c]; }).slice(0, 6);
+      return Promise.all(missing.map(function (code) {
         return resolveChart(code, "1d", "15m", QUOTE_TTL).then(function (r) {
           var q0 = (r.result.indicators && r.result.indicators.quote && r.result.indicators.quote[0]) || {};
           storeBoardEntry(code, r.result.meta, q0.close || []);
         }).catch(function () {});
-      });
-      return Promise.all(slice).then(function () { return chunkRun(start + 4); });
-    }
-    return chunkRun(0);
+      }));
+    });
   }
 
   function refreshBoard(force) {
-    // 백그라운드 탭에서는 주기 갱신을 쉬되, 최초 로드(force)는 항상 실행한다.
     if (boardLoading || (document.hidden && !force)) return Promise.resolve(false);
     boardLoading = true;
-    return refreshBoardViaSpark()
-      .catch(function () { return refreshBoardViaCharts(); })
-      .then(function (ok) {
+    var tab = MARKET_TABS.filter(function (t) { return t.id === activeTab; })[0] || MARKET_TABS[0];
+    var codes = tab.codes().slice();
+    tapeCodes().forEach(function (c) { if (codes.indexOf(c) === -1) codes.push(c); });
+    return refreshCodes(codes)
+      .then(function () {
         boardUpdatedAt = new Date();
+        LS.set("board", boardCache);
         renderBoard();
-        return ok;
+        if (typeof window.loadTickerTape === "function" && !document.hidden) window.loadTickerTape();
+        return true;
       })
       .catch(function () { return false; })
       .then(function (v) { boardLoading = false; return v; });
   }
 
-  // ---- fetch 오버라이드 -----------------------------------------------------------
+  // ---- fetch 오버라이드 ---------------------------------------------------------------
   function jsonResponse(obj) {
     return new Response(JSON.stringify(obj), {
       status: 200, headers: { "Content-Type": "application/json; charset=utf-8" }
@@ -436,11 +536,11 @@
 
   function liveTape() {
     var items = [];
-    TAPE_CODES.forEach(function (code) {
+    tapeCodes().forEach(function (code) {
       var e = boardCache[code];
       if (!e) return;
       items.push({
-        sym: NAME_OF[code] || code,
+        sym: nameOf(code),
         price: e.price, chg_pct: Number((e.change_pct || 0).toFixed(2)),
         px_text: priceLabel(code, e.price, e.currency)
       });
@@ -464,7 +564,7 @@
     return prevFetch(input, init);
   };
 
-  // ==== 이하 주식 페이지 전용 UI (다른 페이지에서는 아무 것도 하지 않음) ==========
+  // ==== 이하 주식 페이지 전용 UI ========================================================
   if (!document.getElementById("stockSvg")) return;
 
   function esc(v) {
@@ -473,7 +573,28 @@
     });
   }
 
-  // ---- 입력창: 미국 티커/지수 심볼 허용 --------------------------------------------
+  // ---- 추가 스타일 ----------------------------------------------------------------------
+  (function injectStyle() {
+    var st = document.createElement("style");
+    st.textContent =
+      ".sa-star{cursor:pointer;color:#3a4658;font-size:13px;line-height:1;padding:1px 4px;user-select:none}" +
+      ".sa-star.on{color:#e0b341}" +
+      ".sa-star:hover{color:#f0c85e}" +
+      ".sa-search-wrap{position:relative}" +
+      ".sa-search-results{position:absolute;top:calc(100% + 5px);right:0;z-index:40;width:360px;max-height:330px;" +
+      "overflow:auto;background:#0d1219;border:1px solid #2a3442;border-radius:5px;box-shadow:0 10px 30px rgba(0,0,0,.55)}" +
+      ".sa-search-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;" +
+      "padding:9px 11px;border-bottom:1px solid #11161f;cursor:pointer;font-size:11.5px}" +
+      ".sa-search-row:last-child{border-bottom:none}" +
+      ".sa-search-row:hover{background:#101720}" +
+      ".sa-search-row .nm{color:#e6ebf2;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+      ".sa-search-row .sub{color:#5a6577;font-size:10px;margin-top:2px}" +
+      ".sa-search-row .ex{color:#8a95a8;font-size:10px;white-space:nowrap}" +
+      ".sa-empty-note{padding:14px;color:#5a6577;font-size:11px}";
+    document.head.appendChild(st);
+  })();
+
+  // ---- 입력창: 글로벌 심볼 허용 -----------------------------------------------------------
   window.stockCode = function () {
     var el = document.getElementById("stock-code");
     var code = cleanCode(el ? el.value : "");
@@ -483,10 +604,10 @@
   var codeInput = document.getElementById("stock-code");
   if (codeInput) {
     codeInput.setAttribute("inputmode", "text");
-    codeInput.placeholder = "005930 · AAPL · ^GSPC";
+    codeInput.placeholder = "005930 · AAPL · 0700.HK";
   }
 
-  // ---- 시세 패널 렌더러 교체 (통화별 표기 + 실데이터 필드) ---------------------------
+  // ---- 시세 패널 렌더러 교체 ---------------------------------------------------------------
   window.renderStockQuote = function (q) {
     var change = Number(q.change || 0);
     var pct = q.change_pct == null ? null : Number(q.change_pct);
@@ -519,7 +640,7 @@
     if (flowEl) flowEl.textContent = q.flow_note || "—";
   };
 
-  // ---- 티커 테이프 렌더러 교체 (통화별 표기 지원) -------------------------------------
+  // ---- 티커 테이프 렌더러 교체 ---------------------------------------------------------------
   window.renderTickerTape = function (items) {
     var tape = document.getElementById("tape");
     if (!tape || !items || !items.length) return;
@@ -534,14 +655,14 @@
     tape.innerHTML = items.map(cell).join("") + items.map(cell).join("");
   };
 
-  // ---- 종목 프리셋: 한국/미국/지수 그룹 -----------------------------------------------
+  // ---- 종목 프리셋(우상단 select): 마켓별 그룹 -------------------------------------------------
   (function buildPresets() {
     var sel = document.getElementById("stock-preset");
     if (!sel) return;
     var groups = [
-      { label: "한국 주식", items: KR_STOCKS },
-      { label: "미국 주식", items: US_STOCKS },
-      { label: "지수 · 환율", items: INDICES }
+      { label: "한국", items: KR_STOCKS }, { label: "미국", items: US_STOCKS },
+      { label: "유럽", items: EU_STOCKS }, { label: "홍콩·중국", items: HK_STOCKS },
+      { label: "일본", items: JP_STOCKS }, { label: "지수·환율", items: INDICES }
     ];
     sel.innerHTML = groups.map(function (g) {
       return '<optgroup label="' + esc(g.label) + '">' + g.items.map(function (p) {
@@ -551,7 +672,7 @@
     sel.value = "005930";
   })();
 
-  // ---- 글로벌 마켓 보드 주입 -----------------------------------------------------------
+  // ---- 마켓 보드 (탭 + 검색 + 즐겨찾기) --------------------------------------------------------
   function sparkPath(closes, w, h) {
     var vals = (closes || []).filter(function (v) { return v != null; });
     if (vals.length < 2) return "";
@@ -571,16 +692,48 @@
     if (!statGrid || document.getElementById("global-board")) return;
     var wrap = document.createElement("div");
     wrap.id = "global-board";
-    var inner = '<div class="section-line" style="margin-top:2px">' +
-      '<div class="section-title">글로벌 마켓 라이브</div>' +
-      '<span class="coin-market-count" id="global-board-upd">불러오는 중…</span></div>';
-    BOARD_GROUPS.forEach(function (g, gi) {
-      inner += '<div class="coin-board-sub" style="margin:0 0 7px">' + esc(g.label) + "</div>" +
-        '<div class="coin-market-board-grid" data-board-group="' + gi + '"></div>';
-    });
-    wrap.innerHTML = inner;
+    wrap.innerHTML =
+      '<div class="section-line" style="margin-top:2px;flex-wrap:wrap;gap:10px">' +
+      '  <div class="coin-section-title">' +
+      '    <div class="section-title" style="margin:0">글로벌 마켓 라이브</div>' +
+      '    <div class="coin-section-nav" id="sa-tabs"></div>' +
+      "  </div>" +
+      '  <div class="inline-tools sa-search-wrap">' +
+      '    <input class="news-search" id="sa-search" placeholder="전 세계 종목 검색 (삼성, apple, 0700...)" autocomplete="off">' +
+      '    <span class="coin-market-count" id="global-board-upd">—</span>' +
+      '    <div class="sa-search-results" id="sa-search-results" hidden></div>' +
+      "  </div>" +
+      "</div>" +
+      '<div class="coin-market-board-grid" id="sa-board-grid" style="grid-template-columns:repeat(6,minmax(0,1fr))"></div>';
     statGrid.parentNode.insertBefore(wrap, statGrid.nextSibling);
+
+    // 탭
+    var tabsEl = wrap.querySelector("#sa-tabs");
+    tabsEl.innerHTML = MARKET_TABS.map(function (t) {
+      return '<button class="coin-section-btn' + (t.id === activeTab ? " on" : "") +
+        '" data-market-tab="' + t.id + '">' + esc(t.label) + "</button>";
+    }).join("");
+    tabsEl.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-market-tab]");
+      if (!btn) return;
+      activeTab = btn.getAttribute("data-market-tab");
+      LS.set("tab", activeTab);
+      tabsEl.querySelectorAll(".coin-section-btn").forEach(function (b) {
+        b.classList.toggle("on", b === btn);
+      });
+      renderBoard();
+      refreshBoard(true);
+    });
+
+    // 카드 클릭(차트 로드) + 별(즐겨찾기)
     wrap.addEventListener("click", function (e) {
+      var star = e.target.closest("[data-star]");
+      if (star) {
+        e.stopPropagation();
+        toggleFav(star.getAttribute("data-star"));
+        renderBoard();
+        return;
+      }
       var card = e.target.closest("[data-board-code]");
       if (!card) return;
       var input = document.getElementById("stock-code");
@@ -589,58 +742,207 @@
       var chart = document.getElementById("stockSvg");
       if (chart) chart.scrollIntoView({ behavior: "smooth", block: "center" });
     });
+
+    setupSearch(wrap);
+  }
+
+  function cardHtml(code) {
+    var name = nameOf(code), e = boardCache[code];
+    var star = '<span class="sa-star' + (isFav(code) ? " on" : "") + '" data-star="' +
+      esc(code) + '" title="즐겨찾기">' + (isFav(code) ? "★" : "☆") + "</span>";
+    if (!e) {
+      return '<button class="coin-mini-card" data-board-code="' + esc(code) + '">' +
+        '<div class="coin-mini-head"><div><div class="coin-mini-symbol">' + esc(name) + "</div>" +
+        '<div class="coin-mini-name">' + esc(code) + "</div></div>" +
+        '<div style="margin-left:auto">' + star + "</div></div>" +
+        '<div class="coin-mini-price muted">로딩…</div></button>';
+    }
+    var up = (e.change_pct || 0) >= 0;
+    var col = up ? "#1fd6a8" : "#ff5d6c";
+    var path = sparkPath(e.closes, 200, 58);
+    return '<button class="coin-mini-card" data-board-code="' + esc(code) + '">' +
+      '<div class="coin-mini-head"><div>' +
+      '<div class="coin-mini-symbol">' + esc(name) + "</div>" +
+      '<div class="coin-mini-name">' + esc(code) + "</div></div>" +
+      '<div style="margin-left:auto;display:flex;align-items:center;gap:4px">' +
+      '<div class="coin-mini-change ' + (up ? "up" : "down") + '">' + (up ? "+" : "") +
+      Number(e.change_pct || 0).toFixed(2) + "%</div>" + star + "</div></div>" +
+      '<div class="coin-mini-price">' + esc(priceLabel(code, e.price, e.currency)) + "</div>" +
+      '<svg class="coin-mini-chart" viewBox="0 0 200 58" preserveAspectRatio="none">' +
+      (path ? '<path d="' + path + '" fill="none" stroke="' + col + '" stroke-width="1.6" vector-effect="non-scaling-stroke"></path>' : "") +
+      "</svg></button>";
   }
 
   function renderBoard() {
+    var grid = document.getElementById("sa-board-grid");
+    if (!grid) return;
     var updEl = document.getElementById("global-board-upd");
-    if (updEl && boardUpdatedAt) {
-      updEl.textContent = "갱신 " + boardUpdatedAt.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    if (updEl) {
+      updEl.textContent = boardUpdatedAt
+        ? "갱신 " + boardUpdatedAt.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+        : "이전 시세 표시 중 · 갱신 대기";
     }
-    BOARD_GROUPS.forEach(function (g, gi) {
-      var grid = document.querySelector('[data-board-group="' + gi + '"]');
-      if (!grid) return;
-      grid.innerHTML = g.items.map(function (p) {
-        var code = p[0], name = p[1], e = boardCache[code];
-        if (!e) {
-          return '<button class="coin-mini-card" data-board-code="' + esc(code) + '">' +
-            '<div class="coin-mini-head"><div><div class="coin-mini-symbol">' + esc(name) + "</div>" +
-            '<div class="coin-mini-name">' + esc(code) + '</div></div></div>' +
-            '<div class="coin-mini-price muted">로딩…</div></button>';
-        }
-        var up = (e.change_pct || 0) >= 0;
-        var col = up ? "#1fd6a8" : "#ff5d6c";
-        var path = sparkPath(e.closes, 200, 58);
-        return '<button class="coin-mini-card" data-board-code="' + esc(code) + '">' +
-          '<div class="coin-mini-head"><div>' +
-          '<div class="coin-mini-symbol">' + esc(name) + "</div>" +
-          '<div class="coin-mini-name">' + esc(code) + "</div></div>" +
-          '<div class="coin-mini-change ' + (up ? "up" : "down") + '">' + (up ? "+" : "") +
-          Number(e.change_pct || 0).toFixed(2) + "%</div></div>" +
-          '<div class="coin-mini-price">' + esc(priceLabel(code, e.price, e.currency)) + "</div>" +
-          '<svg class="coin-mini-chart" viewBox="0 0 200 58" preserveAspectRatio="none">' +
-          (path ? '<path d="' + path + '" fill="none" stroke="' + col + '" stroke-width="1.6" vector-effect="non-scaling-stroke"></path>' : "") +
-          "</svg></button>";
-      }).join("");
+    var tab = MARKET_TABS.filter(function (t) { return t.id === activeTab; })[0] || MARKET_TABS[0];
+    var codes = tab.codes();
+    if (!codes.length) {
+      grid.innerHTML = '<div class="sa-empty-note">즐겨찾기가 비어 있습니다. 카드나 검색 결과의 ☆를 눌러 추가하세요.</div>';
+      return;
+    }
+    grid.innerHTML = codes.map(cardHtml).join("");
+  }
+
+  // ---- 전종목 검색 (Yahoo search API) ------------------------------------------------------------
+  var SEARCH_TYPES = { EQUITY: "주식", ETF: "ETF", INDEX: "지수", CURRENCY: "환율", CRYPTOCURRENCY: "코인" };
+
+  // 큐레이션 사전에서 한글명/코드 부분일치 (야후는 한글 검색이 약해서 로컬 우선)
+  function localMatches(q) {
+    var needle = q.toLowerCase();
+    var out = [];
+    var seen = {};
+    var scan = function (code, name) {
+      if (seen[code]) return;
+      if (String(name).toLowerCase().indexOf(needle) !== -1 ||
+          String(code).toLowerCase().indexOf(needle) !== -1) {
+        seen[code] = true;
+        out.push({ symbol: code, name: name, exch: "", type: "저장됨" });
+      }
+    };
+    Object.keys(NAME_OF).forEach(function (c) { scan(c, NAME_OF[c]); });
+    Object.keys(EXTRA_NAMES).forEach(function (c) { scan(c, EXTRA_NAMES[c]); });
+    return out.slice(0, 6);
+  }
+
+  function remoteSearch(q) {
+    var path = "/v1/finance/search?q=" + encodeURIComponent(q) +
+      "&quotesCount=12&newsCount=0&listsCount=0&lang=ko-KR&region=KR";
+    return fetchYahoo(path).then(function (json) {
+      return (json.quotes || []).filter(function (t) {
+        return t.symbol && SEARCH_TYPES[t.quoteType];
+      }).map(function (t) {
+        return {
+          symbol: codeOfSymbol(t.symbol),
+          name: t.shortname || t.longname || t.symbol,
+          exch: t.exchDisp || t.exchange || "",
+          type: SEARCH_TYPES[t.quoteType]
+        };
+      });
     });
   }
 
-  // ---- 하단 안내 문구 -------------------------------------------------------------------
-  var foot = document.getElementById("foot");
-  if (foot) {
-    foot.textContent = "실시간 시세: Yahoo Finance(한국 .KS/.KQ · 미국 · 지수 · 환율) · " +
-      "CORS 프록시 경유 · 거래소별 최대 15~20분 지연 가능 · 뉴스: 실시간 RSS";
+  function dedupeResults(items) {
+    var seen = {};
+    return items.filter(function (it) {
+      if (seen[it.symbol]) return false;
+      seen[it.symbol] = true;
+      return true;
+    });
   }
 
-  // ---- 시작: 보드 주입 + 즉시 실데이터 재조회 + 주기 갱신 -------------------------------
-  injectBoardSection();
-  renderBoard();
-  refreshBoard(true).then(function () {
-    if (typeof window.loadTickerTape === "function") window.loadTickerTape();
+  function setupSearch(wrap) {
+    var input = wrap.querySelector("#sa-search");
+    var panel = wrap.querySelector("#sa-search-results");
+    var timer = null, lastQuery = "";
+
+    function close() { panel.hidden = true; }
+
+    function renderResults(items, q) {
+      if (!items.length) {
+        panel.innerHTML = '<div class="sa-empty-note">"' + esc(q) + '" 검색 결과 없음</div>';
+        panel.hidden = false;
+        return;
+      }
+      panel.innerHTML = items.map(function (it) {
+        return '<div class="sa-search-row" data-search-code="' + esc(it.symbol) + '" data-search-name="' + esc(it.name) + '">' +
+          "<div><div class=\"nm\">" + esc(it.name) + '</div><div class="sub">' + esc(it.symbol) + "</div></div>" +
+          '<span class="ex">' + esc(it.exch) + " · " + esc(it.type) + "</span>" +
+          '<span class="sa-star' + (isFav(it.symbol) ? " on" : "") + '" data-search-star="' + esc(it.symbol) + '">' +
+          (isFav(it.symbol) ? "★" : "☆") + "</span></div>";
+      }).join("");
+      panel.hidden = false;
+    }
+
+    input.addEventListener("input", function () {
+      var q = input.value.trim();
+      clearTimeout(timer);
+      if (q.length < 1) { close(); return; }
+      timer = setTimeout(function () {
+        lastQuery = q;
+        // 1) 로컬 사전 매칭은 즉시 표시 (야후 응답을 기다리지 않는다)
+        var local = localMatches(q);
+        if (local.length) renderResults(local, q);
+        else {
+          panel.innerHTML = '<div class="sa-empty-note">검색 중…</div>';
+          panel.hidden = false;
+        }
+        // 2) 야후 전종목 검색 결과가 도착하면 병합해 다시 그린다
+        remoteSearch(q).then(function (remote) {
+          if (q !== lastQuery) return;
+          var items = dedupeResults(local.concat(remote));
+          items.forEach(function (it) { rememberName(it.symbol, it.name); });
+          renderResults(items, q);
+        }).catch(function () {
+          if (q === lastQuery && !local.length) {
+            panel.innerHTML = '<div class="sa-empty-note">검색 실패 — 잠시 후 다시 시도하세요.</div>';
+          }
+        });
+      }, 350);
+    });
+
+    panel.addEventListener("click", function (e) {
+      var star = e.target.closest("[data-search-star]");
+      if (star) {
+        e.stopPropagation();
+        var code = star.getAttribute("data-search-star");
+        var on = toggleFav(code);
+        star.classList.toggle("on", on);
+        star.textContent = on ? "★" : "☆";
+        renderBoard();
+        refreshBoard(true);
+        return;
+      }
+      var row = e.target.closest("[data-search-code]");
+      if (!row) return;
+      var sym = row.getAttribute("data-search-code");
+      rememberName(sym, row.getAttribute("data-search-name"));
+      var codeEl = document.getElementById("stock-code");
+      if (codeEl) codeEl.value = sym;
+      if (typeof window.loadStock === "function") window.loadStock();
+      close();
+      var chart = document.getElementById("stockSvg");
+      if (chart) chart.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+
+    document.addEventListener("click", function (e) {
+      if (!wrap.querySelector(".sa-search-wrap").contains(e.target)) close();
+    });
+    input.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+  }
+
+  // ---- 하단 안내 ----------------------------------------------------------------------------------
+  var foot = document.getElementById("foot");
+  if (foot) {
+    foot.textContent = "실시간 시세: Yahoo Finance(한국·미국·유럽·홍콩·일본·지수·환율) · " +
+      "CORS 프록시 경유 · 거래소별 최대 15~20분 지연 가능 · ★ 즐겨찾기는 이 브라우저에 저장";
+  }
+
+  // ---- 시작 --------------------------------------------------------------------------------------
+  // 목업이 이미 그린 가짜 시세가 헷갈리지 않도록 즉시 로딩 표시로 바꾼다.
+  ["stock-price", "stock-change", "stock-rsi"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = "로딩…";
   });
+  var stEl0 = document.getElementById("stock-status");
+  if (stEl0) stEl0.textContent = "로딩…";
+
+  injectBoardSection();
+  renderBoard();                    // localStorage 캐시가 있으면 즉시 그려짐
+  if (Object.keys(boardCache).length && typeof window.loadTickerTape === "function") {
+    liveTape().then(function () { window.loadTickerTape(); }).catch(function () {});
+  }
+  refreshBoard(true);
   setInterval(function () { refreshBoard(false); }, BOARD_REFRESH_MS);
   document.addEventListener("visibilitychange", function () {
     if (!document.hidden) refreshBoard(false);
   });
-  // 페이지 로드시 목업으로 이미 그려졌으므로 실데이터로 한 번 더 그린다.
   if (typeof window.loadStock === "function") window.loadStock();
 })();
