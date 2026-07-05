@@ -4012,14 +4012,30 @@ function closeTradeHistoryModal() {{
 }}
 
 async function openTradeHistoryModal() {{
-  const modal = document.getElementById("trade-history-modal");
-  const rowsContainer = document.getElementById("trade-history-rows");
-  if (!modal || !rowsContainer) return;
-  modal.hidden = false;
-  rowsContainer.innerHTML = "로딩 중...";
   try {{
-    const res = await fetch("/api/trades?limit=50");
-    if (!res.ok) throw new Error("HTTP " + res.status + " " + await res.text());
+    const modal = document.getElementById("trade-history-modal");
+    const rowsContainer = document.getElementById("trade-history-rows");
+    if (!modal || !rowsContainer) return;
+    modal.hidden = false;
+    rowsContainer.innerHTML = "로딩 중...";
+
+    let res;
+    try {{
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      res = await fetch("/api/trades?limit=50", {{ signal: controller.signal }});
+      clearTimeout(timeoutId);
+    }} catch (e) {{
+      rowsContainer.innerHTML = "<div class='muted' style='color:#ff8a93'>네트워크 오류(타임아웃 등): " + escapeHtml(e.message) + "</div>";
+      return;
+    }}
+
+    if (!res.ok) {{
+      const txt = await res.text().catch(()=>"");
+      rowsContainer.innerHTML = "<div class='muted' style='color:#ff8a93'>HTTP " + res.status + " " + escapeHtml(txt) + "</div>";
+      return;
+    }}
+
     const data = await res.json();
     const trades = data.items || [];
     if (trades.length === 0) {{
@@ -4029,7 +4045,7 @@ async function openTradeHistoryModal() {{
     rowsContainer.innerHTML = trades.map(t => {{
       const act = String(t.side || "").toUpperCase();
       const cls = act === "BUY" ? "up" : act === "SELL" ? "down" : "muted";
-      const time = t.timestamp ? new Date(t.timestamp).toLocaleString("ko-KR", {{ month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }}) : "—";
+      const time = t.ts ? new Date(t.ts).toLocaleString("ko-KR", {{ month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }}) : (t.timestamp ? new Date(t.timestamp).toLocaleString("ko-KR", {{ month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }}) : "—");
       return `<div style="padding:10px; border-bottom:1px solid #1f2937; display:grid; grid-template-columns: 100px 80px 50px 1fr; gap:10px; align-items:center;">
         <span class="muted" style="font-size:12px;">${{time}}</span>
         <span style="font-weight:700;">${{escapeHtml(t.ticker)}}</span>
@@ -4041,7 +4057,8 @@ async function openTradeHistoryModal() {{
       </div>`;
     }}).join("");
   }} catch (err) {{
-    rowsContainer.innerHTML = "<div class='muted' style='color:#ff8a93'>거래 내역을 불러오는데 실패했습니다: " + escapeHtml(err.message) + "</div>";
+    const rows = document.getElementById("trade-history-rows");
+    if (rows) rows.innerHTML = "<div class='muted' style='color:#ff8a93'>스크립트 오류: " + escapeHtml(err.message) + "</div>";
   }}
 }}
 </script>
