@@ -23,6 +23,8 @@ import webbrowser
 import xml.etree.ElementTree as ET
 
 import pyupbit
+import yfinance as yf
+import pandas as pd
 from flask import Flask, Response, jsonify, request
 
 import config
@@ -217,16 +219,46 @@ def _current_prices(tickers: list[str]) -> dict[str, float]:
     cached = _current_prices_cache.get(key)
     if cached and now - cached[0] < CURRENT_PRICES_CACHE_SECONDS:
         return cached[1]
-    try:
-        prices = pyupbit.get_current_price(list(key))
-    except Exception:  # noqa: BLE001
-        return {}
-    if isinstance(prices, dict):
-        out = {k: float(v) for k, v in prices.items() if v is not None}
-    elif len(key) == 1 and prices is not None:
-        out = {key[0]: float(prices)}
-    else:
-        out = {}
+    
+    out = {}
+    crypto_tickers = []
+    stock_tickers = []
+    for t in key:
+        if t.startswith("KRW-") or "-" in t:
+            crypto_tickers.append(t)
+        else:
+            stock_tickers.append(t)
+            
+    if crypto_tickers:
+        try:
+            prices = pyupbit.get_current_price(crypto_tickers)
+            if isinstance(prices, dict):
+                for k, v in prices.items():
+                    if v is not None:
+                        out[k] = float(v)
+            elif len(crypto_tickers) == 1 and prices is not None:
+                out[crypto_tickers[0]] = float(prices)
+        except Exception:
+            pass
+
+    if stock_tickers:
+        try:
+            data = yf.download(stock_tickers, period="1d", group_by="ticker", progress=False)
+            if len(stock_tickers) == 1:
+                t = stock_tickers[0]
+                if not data.empty and "Close" in data:
+                    val = data["Close"].iloc[-1]
+                    if val is not None and not pd.isna(val):
+                        out[t] = float(val)
+            else:
+                for t in stock_tickers:
+                    if t in data and not data[t].empty and "Close" in data[t]:
+                        val = data[t]["Close"].iloc[-1]
+                        if val is not None and not pd.isna(val):
+                            out[t] = float(val)
+        except Exception:
+            pass
+
     _current_prices_cache[key] = (now, out)
     return out
 
@@ -871,7 +903,7 @@ def _portfolio_payload() -> dict:
             portfolio = {}
             items = []
 
-    if not items and manual_items:
+    if manual_items:
         tickers = [
             m["ticker"]
             for m in manual_items
@@ -904,10 +936,8 @@ def _portfolio_payload() -> dict:
                 "current_value": current_value,
                 "return_pct": return_pct,
             })
-        portfolio = {
-            "total_principal": sum(float(i.get("principal") or 0) for i in items),
-            "total_value": sum(float(i.get("current_value") or 0) for i in items),
-        }
+        portfolio["total_principal"] = sum(float(i.get("principal") or 0) for i in items)
+        portfolio["total_value"] = sum(float(i.get("current_value") or 0) for i in items)
 
     if not items:
         positions = [p for p in db.all_positions() if float(p.get("volume") or 0) > 0]
@@ -3920,7 +3950,7 @@ DASHBOARD_HTML = f"""<!doctype html>
       <div class="manual-panel">
         <div class="tbl-head">MANUAL INPUT</div>
         <div class="manual-form">
-          <input id="manual-ticker" autocomplete="off" placeholder="KRW-BTC / BTC / KRW">
+          <input id="manual-ticker" autocomplete="off" placeholder="AAPL / 005930.KS / KRW-BTC">
           <input id="manual-balance" autocomplete="off" inputmode="decimal" placeholder="수량 또는 원화">
           <input id="manual-avg" autocomplete="off" inputmode="decimal" placeholder="평단">
           <button class="mini-btn" onclick="saveManualPortfolio()">저장</button>
