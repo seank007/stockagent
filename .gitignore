@@ -5,6 +5,7 @@ __pycache__/
 venv/
 *.log
 data/
+!docs/data/
 stockagent.db
 stockagent.db-shm
 stockagent.db-wal

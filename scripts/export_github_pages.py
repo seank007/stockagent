@@ -359,11 +359,27 @@ def _env_num(env: dict, name: str, default: float) -> float:
     return float(value)
 
 
+SNAPSHOT_FILE = DOCS / "data" / "ai_snapshot.json"
+
+
 def ai_trade_snapshot() -> dict:
     """실제 봇 DB의 최근 AI 판단·주문을 배포 시점 스냅샷으로 내보낸다.
 
     web은 mock 환경변수로 import되므로 실제 운영 모드는 .env에서 직접 읽는다.
+    CI(GitHub Actions)에는 .env와 봇 DB가 없으므로, 로컬 export 때 저장해 둔
+    docs/data/ai_snapshot.json을 그대로 재사용한다.
     """
+    if not (ROOT / ".env").exists():
+        if SNAPSHOT_FILE.exists():
+            return json.loads(SNAPSHOT_FILE.read_text(encoding="utf-8"))
+        return {
+            "generated_at": None,
+            "state": {"last_update": None, "loop_running": False, "history": []},
+            "config": {"provider": "?", "model": "?", "tickers": [],
+                       "dry_run": True, "allow_live_trading": False, "risk": {}},
+            "trades": [],
+        }
+
     env = dotenv_values(ROOT / ".env")
     provider = (env.get("AI_PROVIDER") or "claude").strip().lower()
     model_defaults = {"claude": "claude-opus-4-8", "openai": "gpt-4o", "gemini": "gemini-2.0-flash"}
@@ -387,7 +403,7 @@ def ai_trade_snapshot() -> dict:
         })
     last_update = history[0]["time"] if history else None
 
-    return {
+    snapshot = {
         "generated_at": __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M"),
         "state": {"last_update": last_update, "loop_running": True, "history": history},
         "config": {
@@ -406,6 +422,11 @@ def ai_trade_snapshot() -> dict:
         },
         "trades": db.recent_trades(limit=20),
     }
+    SNAPSHOT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    SNAPSHOT_FILE.write_text(
+        json.dumps(snapshot, ensure_ascii=False, default=str), encoding="utf-8"
+    )
+    return snapshot
 
 
 def page(html: str, initial_portfolio: bool = False, stocks_live: bool = False,
