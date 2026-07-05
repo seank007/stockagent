@@ -127,7 +127,7 @@ class Store:
                 "last_update": self.last_update.strftime("%H:%M:%S")
                 if self.last_update
                 else None,
-                "interval": config.INTERVAL_SECONDS,
+                "interval": getattr(config, "INTERVAL_SECONDS", 600),
                 "tickers": list(self.tickers.values()),
                 "history": list(self.history),
                 "today_pnl": self.today_pnl,

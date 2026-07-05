@@ -1166,7 +1166,7 @@ _state_rehydrated_at = 0.0
 def api_state():
     # 외부 트레이더(hermes agent) 모드에서는 DB 기록을 주기적으로 다시 읽어
     # 대시보드가 최신 판단/주문을 계속 반영하게 한다.
-    global _state_rehydrated_at
+    global _state_rehydrated_at, _portfolio_cache
     if not config.RUN_TRADING_LOOP:
         now = time.time()
         if now - _state_rehydrated_at > 30:
@@ -1175,7 +1175,18 @@ def api_state():
                 store.hydrate_from_db()
             except Exception:  # noqa: BLE001
                 pass
-    return jsonify(store.snapshot())
+    
+    snapshot = store.snapshot()
+    
+    now = time.time()
+    if _portfolio_cache and now - _portfolio_cache[0] < PORTFOLIO_CACHE_SECONDS:
+        snapshot["portfolio"] = _portfolio_cache[1]
+    else:
+        payload = _portfolio_payload()
+        _portfolio_cache = (now, payload)
+        snapshot["portfolio"] = payload
+        
+    return jsonify(snapshot)
 
 
 @app.route("/healthz")
@@ -4008,6 +4019,7 @@ async function openTradeHistoryModal() {{
   rowsContainer.innerHTML = "로딩 중...";
   try {{
     const res = await fetch("/api/trades?limit=50");
+    if (!res.ok) throw new Error("HTTP " + res.status + " " + await res.text());
     const data = await res.json();
     const trades = data.items || [];
     if (trades.length === 0) {{
