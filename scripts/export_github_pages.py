@@ -314,7 +314,10 @@ STATIC_API = f"""
     if (path === "/api/manual_order/preview") return manualOrderPreview(init);
     if (path === "/api/manual_order") return {{...manualOrderPreview(init), result:{{dry_run:true}}, portfolio: clone(DEMO_PORTFOLIO)}};
     if (path === "/api/decisions") return {{items:state().history}};
-    if (path === "/api/trades") return {{items:[]}};
+    if (path === "/api/trades") {{
+      const snap = window.__aiTradeSnapshot || {{}};
+      return {{items: snap.trades || []}};
+    }};
     if (path === "/api/candles") return candles(params.get("ticker") || "KRW-BTC", params.get("interval") || "minute60", params.get("count") || 120);
     if (path === "/api/stocks/candles") return candles(params.get("code") || "005930", params.get("timeframe") || "day", params.get("count") || 120);
     if (path === "/api/coin/quote") return {{ticker:params.get("ticker") || "KRW-BTC", price:priceFor(params.get("ticker")), timestamp:now()}};
