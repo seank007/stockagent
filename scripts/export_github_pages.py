@@ -123,7 +123,7 @@ DEMO_PORTFOLIO = {
 STATIC_API = f"""
 <script>
 (() => {{
-  const DEMO_PORTFOLIO = {json.dumps(DEMO_PORTFOLIO, ensure_ascii=False)};
+  const DEMO_PORTFOLIO = __PORTFOLIO_JSON__;
   const MARKETS = {json.dumps(MARKETS, ensure_ascii=False)};
   const PRICES = {{
     "KRW-BTC": 93005000, "KRW-ETH": 2586000, "KRW-SOL": 122000,
@@ -360,6 +360,33 @@ def _env_num(env: dict, name: str, default: float) -> float:
 
 
 SNAPSHOT_FILE = DOCS / "data" / "ai_snapshot.json"
+PORTFOLIO_FILE = DOCS / "data" / "portfolio_snapshot.json"
+
+
+def portfolio_snapshot() -> dict:
+    """실제 업비트 계좌 스냅샷.
+
+    로컬에서 봇(localhost:8000)이 떠 있으면 실시간 계좌를 받아 저장하고,
+    CI에서는 커밋된 docs/data/portfolio_snapshot.json을 재사용한다.
+    """
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen("http://localhost:8000/api/portfolio", timeout=10) as res:
+            data = json.loads(res.read().decode("utf-8"))
+        if data.get("holdings"):
+            data.pop("cached", None)
+            data["generated_at"] = __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M")
+            PORTFOLIO_FILE.parent.mkdir(parents=True, exist_ok=True)
+            PORTFOLIO_FILE.write_text(
+                json.dumps(data, ensure_ascii=False, default=str), encoding="utf-8"
+            )
+            return data
+    except Exception:  # noqa: BLE001 - CI 등 봇 미가동 환경
+        pass
+    if PORTFOLIO_FILE.exists():
+        return json.loads(PORTFOLIO_FILE.read_text(encoding="utf-8"))
+    return DEMO_PORTFOLIO
 
 
 def ai_trade_snapshot() -> dict:
@@ -431,12 +458,13 @@ def ai_trade_snapshot() -> dict:
 
 
 def page(html: str, initial_portfolio: bool = False, stocks_live: bool = False,
-         ai_snapshot: dict | None = None) -> str:
+         ai_snapshot: dict | None = None, portfolio: dict | None = None) -> str:
+    pf = portfolio if portfolio is not None else DEMO_PORTFOLIO
+    pf_json = json.dumps(pf, ensure_ascii=False, default=str).replace("</", "<\\/")
     if initial_portfolio:
-        payload = json.dumps(DEMO_PORTFOLIO, ensure_ascii=False).replace("</", "<\\/")
         html = html.replace(
             "<!-- INITIAL_COIN_PORTFOLIO -->",
-            f"<script>window.__initialCoinPortfolio = {payload};</script>",
+            f"<script>window.__initialCoinPortfolio = {pf_json};</script>",
         )
     if ai_snapshot is not None:
         payload = json.dumps(ai_snapshot, ensure_ascii=False, default=str).replace("</", "<\\/")
@@ -444,7 +472,7 @@ def page(html: str, initial_portfolio: bool = False, stocks_live: bool = False,
             "<!-- AI_TRADE_SNAPSHOT -->",
             f"<script>window.__aiTradeSnapshot = {payload};</script>",
         )
-    html = html.replace("<body>", "<body>\n" + STATIC_API, 1)
+    html = html.replace("<body>", "<body>\n" + STATIC_API.replace("__PORTFOLIO_JSON__", pf_json), 1)
     html = html.replace('href="/stocks"', 'href="/stockagent/stocks/"')
     html = html.replace('href="/coin"', 'href="/stockagent/coin/"')
     html = html.replace('href="/assets"', 'href="/stockagent/assets/"')
@@ -464,6 +492,13 @@ def page(html: str, initial_portfolio: bool = False, stocks_live: bool = False,
             '<script src="/stockagent/stocks-live.js"></script>\n</body>',
             1,
         )
+    if initial_portfolio:
+        # 포트폴리오 실시간 평가: 업비트 공개 시세 API(CORS 허용)로 평가액 갱신
+        html = html.replace(
+            "</body>",
+            '<script src="/stockagent/portfolio-live.js"></script>\n</body>',
+            1,
+        )
     return html
 
 
@@ -474,8 +509,11 @@ def write(path: Path, html: str) -> None:
 
 def main() -> None:
     snapshot = ai_trade_snapshot()
-    write(DOCS / "index.html", page(web.COIN_HTML, initial_portfolio=True, ai_snapshot=snapshot))
-    write(DOCS / "coin" / "index.html", page(web.COIN_HTML, initial_portfolio=True, ai_snapshot=snapshot))
+    pf = portfolio_snapshot()
+    write(DOCS / "index.html",
+          page(web.COIN_HTML, initial_portfolio=True, ai_snapshot=snapshot, portfolio=pf))
+    write(DOCS / "coin" / "index.html",
+          page(web.COIN_HTML, initial_portfolio=True, ai_snapshot=snapshot, portfolio=pf))
     write(DOCS / "stocks" / "index.html", page(web.STOCKS_HTML, stocks_live=True))
     write(DOCS / "assets" / "index.html", page(web.DASHBOARD_HTML))
     write(DOCS / "analyze" / "index.html", page(web.ANALYZE_HTML))
