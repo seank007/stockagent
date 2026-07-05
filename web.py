@@ -2322,6 +2322,7 @@ COIN_HTML = f"""<!doctype html>
         <button class="coin-section-btn on" data-coin-section="market" onclick="setCoinSection('market')">마켓</button>
         <button class="coin-section-btn" data-coin-section="portfolio" onclick="setCoinSection('portfolio')">포트폴리오</button>
         <button class="coin-section-btn" data-coin-section="news" onclick="setCoinSection('news')">뉴스</button>
+        <button class="coin-section-btn" data-coin-section="ai" onclick="setCoinSection('ai')">AI 거래</button>
       </div>
     </div>
   </div>
@@ -2574,10 +2575,60 @@ COIN_HTML = f"""<!doctype html>
   </div>
   </div>
 
+  <div class="coin-panel" id="coin-ai-panel" hidden>
+  <div class="section-line coin-section-anchor" id="coin-ai-section">
+    <div class="section-title">AI 자동매매</div>
+    <div class="inline-tools">
+      <span class="coin-trade-mode" id="coin-ai-mode-badge">모드 확인 중</span>
+      <button class="mini-btn" onclick="loadCoinAiTrades(true)">새로고침</button>
+    </div>
+  </div>
+
+  <div class="market-stat-grid">
+    <div class="market-stat"><div class="label">거래 모드</div><div class="val" id="coin-ai-mode">—</div></div>
+    <div class="market-stat"><div class="label">AI 엔진</div><div class="val" id="coin-ai-engine">—</div></div>
+    <div class="market-stat"><div class="label">판단 주기</div><div class="val" id="coin-ai-interval">—</div></div>
+    <div class="market-stat"><div class="label">마지막 판단</div><div class="val" id="coin-ai-last">—</div></div>
+  </div>
+
+  <div class="box">
+    <div class="box-head">
+      <span>TRADING LOGIC</span>
+      <span class="total" id="coin-ai-tickers">—</span>
+    </div>
+    <div id="coin-ai-pipeline" style="padding:12px 14px; display:grid; gap:10px;"></div>
+  </div>
+
+  <div class="market-stat-grid">
+    <div class="market-stat"><div class="label">최소 신뢰도</div><div class="val" id="coin-ai-minconf">—</div></div>
+    <div class="market-stat"><div class="label">주문당 최대</div><div class="val" id="coin-ai-maxorder">—</div></div>
+    <div class="market-stat"><div class="label">최소 주문</div><div class="val" id="coin-ai-minorder">—</div></div>
+    <div class="market-stat"><div class="label">일일 손실 한도</div><div class="val" id="coin-ai-maxloss">—</div></div>
+  </div>
+
+  <div class="box">
+    <div class="box-head">
+      <span>AI DECISIONS</span>
+      <span class="total" id="coin-ai-decision-count">—</span>
+    </div>
+    <div id="coin-ai-decision-rows"></div>
+  </div>
+
+  <div class="box">
+    <div class="box-head">
+      <span>EXECUTED ORDERS</span>
+      <span class="total" id="coin-ai-trade-count">—</span>
+    </div>
+    <div id="coin-ai-trade-rows"></div>
+  </div>
+  <div class="news-note" id="coin-ai-note">AI 판단 기록을 불러오는 중입니다.</div>
+  </div>
+
   <div class="foot" id="foot">—</div>
 </div>
 
 <!-- INITIAL_COIN_PORTFOLIO -->
+<!-- AI_TRADE_SNAPSHOT -->
 <script>
 {COMMON_JS}
 
@@ -2926,7 +2977,7 @@ function setCoinInterval(interval) {{
 }}
 
 function setCoinSection(section) {{
-  section = section === "portfolio" || section === "news" ? section : "market";
+  section = ["portfolio", "news", "ai"].includes(section) ? section : "market";
   window._coinSection = section;
   document.querySelectorAll("[data-coin-section]").forEach(b => {{
     b.classList.toggle("on", b.dataset.coinSection === section);
@@ -2934,11 +2985,15 @@ function setCoinSection(section) {{
   const marketPanel = document.getElementById("coin-market-panel");
   const portfolioPanel = document.getElementById("coin-portfolio-panel");
   const newsPanel = document.getElementById("coin-news-panel");
+  const aiPanel = document.getElementById("coin-ai-panel");
   if (marketPanel) marketPanel.hidden = section !== "market";
   if (portfolioPanel) portfolioPanel.hidden = section !== "portfolio";
   if (newsPanel) newsPanel.hidden = section !== "news";
+  if (aiPanel) aiPanel.hidden = section !== "ai";
   if (section === "portfolio") {{
     loadCoinPortfolio();
+  }} else if (section === "ai") {{
+    loadCoinAiTrades();
   }} else if (section === "news") {{
     if (window._coinNewsLoaded) {{
       renderCoinNews();
@@ -3612,6 +3667,115 @@ async function loadCoinNews(force=false) {{
   }}
 }}
 
+const escAi = s => String(s ?? "").replace(/[&<>"']/g, c => ({{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}}[c]));
+
+async function loadCoinAiTrades(force=false) {{
+  if (window._coinAiLoading) return;
+  window._coinAiLoading = true;
+  const note = document.getElementById("coin-ai-note");
+  try {{
+    const [stRes, cfgRes, trRes] = await Promise.all([
+      fetch("/api/state"), fetch("/api/config"), fetch("/api/trades?limit=30"),
+    ]);
+    let st = await stRes.json();
+    let cfg = await cfgRes.json();
+    let trades = (await trRes.json()).items || [];
+    let sourceNote = "로컬 봇 실시간 데이터입니다. 30초마다 자동 갱신됩니다.";
+    if (cfg.model === "github-pages-static" && window.__aiTradeSnapshot) {{
+      const snap = window.__aiTradeSnapshot;
+      st = snap.state; cfg = snap.config; trades = snap.trades || [];
+      sourceNote = "GitHub Pages 정적 페이지 — " + (snap.generated_at || "") +
+        " 배포 시점 스냅샷입니다. 실시간 판단은 로컬 대시보드(localhost:8000)에서 확인하세요.";
+    }}
+    renderCoinAiTrades(st, cfg, trades);
+    if (note) {{ note.textContent = sourceNote; note.style.color = ""; }}
+  }} catch(e) {{
+    if (note) {{ note.textContent = "AI 거래 데이터 로드 실패: " + (e.message || e); note.style.color = "#ff8a93"; }}
+  }} finally {{
+    window._coinAiLoading = false;
+  }}
+}}
+
+function renderCoinAiTrades(st, cfg, trades) {{
+  const risk = cfg.risk || {{}};
+  const live = cfg.allow_live_trading && !cfg.dry_run;
+  const badge = document.getElementById("coin-ai-mode-badge");
+  if (badge) {{
+    badge.textContent = live ? "⚠️ 실거래 작동 중" : "모의매매(DRY RUN)";
+    badge.style.color = live ? "#1fd6a8" : "#e0b341";
+  }}
+  const set = (id, text, cls) => {{
+    const el = document.getElementById(id);
+    if (el) {{ el.textContent = text; if (cls !== undefined) el.className = "val " + cls; }}
+  }};
+  set("coin-ai-mode", live ? "실거래" : "모의매매", live ? "up" : "muted");
+  set("coin-ai-engine", (cfg.provider || "?") + " · " + (cfg.model || "?"));
+  set("coin-ai-interval", Math.round((risk.cycle_seconds || 600) / 60) + "분마다");
+  set("coin-ai-last", (st.last_update || "—") + (st.loop_running ? "" : " (루프 중지됨)"), st.loop_running ? "" : "down");
+  set("coin-ai-minconf", (risk.min_confidence ?? 0.6).toFixed(2));
+  set("coin-ai-maxorder", KRW(risk.max_order_krw || 10000) + " 원");
+  set("coin-ai-minorder", KRW(risk.min_order_krw || 5000) + " 원");
+  set("coin-ai-maxloss", KRW(risk.max_daily_loss_krw || 30000) + " 원");
+  const tickersEl = document.getElementById("coin-ai-tickers");
+  if (tickersEl) tickersEl.textContent = (cfg.tickers || []).join(" · ");
+
+  const pipeline = document.getElementById("coin-ai-pipeline");
+  if (pipeline) {{
+    const steps = [
+      ["① 시세 수집", `${{Math.round((risk.cycle_seconds || 600) / 60)}}분마다 ${{escAi((cfg.tickers || []).join(", "))}}의 현재가·캔들을 수집하고 RSI14, MA5/MA20, 추세를 계산합니다.`],
+      ["② AI 판단", `${{escAi(cfg.model || "AI")}}가 시세 스냅샷과 보유 포지션(평단·수량·원화 잔고)을 보고 BUY / SELL / HOLD와 신뢰도(0~1), 판단 근거를 생성합니다.`],
+      ["③ 리스크 필터", `신뢰도가 ${{(risk.min_confidence ?? 0.6).toFixed(2)}} 미만이면 관망. 매수는 원화 잔고와 최소 주문(${{KRW(risk.min_order_krw || 5000)}}원)을 확인하고 주문당 최대 ${{KRW(risk.max_order_krw || 10000)}}원으로 제한, 일일 손실이 ${{KRW(risk.max_daily_loss_krw || 30000)}}원을 넘으면 그날 매매를 중단합니다.`],
+      ["④ 주문 실행", live ? "필터를 통과한 판단은 업비트에 실제 시장가 주문으로 나가고 DB에 기록됩니다." : "모의 모드라 주문은 기록만 되고 실제 체결은 없습니다."],
+    ];
+    pipeline.innerHTML = steps.map(s =>
+      `<div style="display:grid; grid-template-columns:110px 1fr; gap:10px; align-items:start;">
+        <span style="color:#e0b341; font-weight:700; font-size:12px; white-space:nowrap;">${{s[0]}}</span>
+        <span class="muted" style="font-size:12px; line-height:1.6;">${{s[1]}}</span>
+      </div>`).join("");
+  }}
+
+  const history = st.history || [];
+  const decisionCount = document.getElementById("coin-ai-decision-count");
+  if (decisionCount) decisionCount.textContent = history.length + "건";
+  const decisionRows = document.getElementById("coin-ai-decision-rows");
+  if (decisionRows) {{
+    decisionRows.innerHTML = history.length ? history.slice(0, 20).map(h => {{
+      const act = String(h.action || "HOLD").toUpperCase();
+      const cls = act === "BUY" ? "up" : act === "SELL" ? "down" : "muted";
+      return `<div style="padding:10px 14px; border-bottom:1px solid #131a24;">
+        <div style="display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;">
+          <span class="muted" style="font-size:11px;">${{escAi(h.time)}}</span>
+          <span style="font-weight:700;">${{escAi(h.ticker)}}</span>
+          <span class="${{cls}}" style="font-weight:700;">${{act}}</span>
+          <span class="muted" style="font-size:11px;">신뢰도 ${{Number(h.confidence ?? 0).toFixed(2)}}</span>
+          <span class="muted" style="font-size:11px;">${{KRW(h.price)}}원 · RSI ${{h.rsi ?? "—"}} · ${{escAi(h.trend || "—")}}</span>
+        </div>
+        <div class="muted" style="font-size:12px; line-height:1.55; margin-top:4px;">${{escAi(h.reasoning || "")}}</div>
+        <div style="font-size:11px; color:#5a6577; margin-top:3px;">주문: ${{escAi(h.order || "none")}}</div>
+      </div>`;
+    }}).join("") : `<div class="muted" style="padding:14px;">아직 AI 판단 기록이 없습니다.</div>`;
+  }}
+
+  const tradeCount = document.getElementById("coin-ai-trade-count");
+  if (tradeCount) tradeCount.textContent = trades.length + "건";
+  const tradeRows = document.getElementById("coin-ai-trade-rows");
+  if (tradeRows) {{
+    tradeRows.innerHTML = trades.length ? trades.slice(0, 20).map(t => {{
+      const side = String(t.side || "").toLowerCase();
+      const cls = side === "buy" ? "up" : "down";
+      const pnl = Number(t.realized_pnl || 0);
+      return `<div style="display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; padding:9px 14px; border-bottom:1px solid #131a24;">
+        <span class="muted" style="font-size:11px;">${{escAi(String(t.ts || "").replace("T", " "))}}</span>
+        <span style="font-weight:700;">${{escAi(t.ticker)}}</span>
+        <span class="${{cls}}" style="font-weight:700;">${{side === "buy" ? "매수" : "매도"}}</span>
+        <span>${{KRW(t.krw_amount)}}원</span>
+        ${{side === "sell" ? `<span class="${{pnl >= 0 ? "up" : "down"}}" style="font-size:12px;">실현손익 ${{KRW(pnl, true)}}원</span>` : ""}}
+        ${{Number(t.dry_run) ? '<span class="muted" style="font-size:11px;">모의</span>' : '<span style="font-size:11px; color:#1fd6a8;">실거래</span>'}}
+      </div>`;
+    }}).join("") : `<div class="muted" style="padding:14px;">아직 실행된 주문이 없습니다. AI가 매수/매도를 결정하면 여기에 표시됩니다.</div>`;
+  }}
+}}
+
 async function tickCoinState() {{
   if (document.hidden || window._coinStateLoading) return;
   window._coinStateLoading = true;
@@ -3627,7 +3791,7 @@ async function tickCoinState() {{
 
 const coinInitialParams = new URLSearchParams(window.location.search);
 const coinInitialSection = coinInitialParams.get("section");
-if (["market", "portfolio", "news"].includes(coinInitialSection)) {{
+if (["market", "portfolio", "news", "ai"].includes(coinInitialSection)) {{
   window._coinSection = coinInitialSection;
 }}
 if (window.__initialCoinPortfolio) renderCoinPortfolio(window.__initialCoinPortfolio);
@@ -3640,7 +3804,8 @@ setInterval(() => {{ if (!window._coinSection || window._coinSection === "market
 setInterval(() => {{ if (!window._coinSection || window._coinSection === "market") loadCoinMarketBoard(); }}, 180000);
 setInterval(() => {{ if (window._coinSection === "portfolio") loadCoinPortfolio(); }}, 20000);
 setInterval(() => {{ if (window._coinSection === "news") loadCoinNews(window._coinNewsMapOpen); }}, 60000);
-if (["market", "portfolio", "news"].includes(coinInitialSection)) {{
+setInterval(() => {{ if (window._coinSection === "ai") loadCoinAiTrades(); }}, 30000);
+if (["market", "portfolio", "news", "ai"].includes(coinInitialSection)) {{
   requestAnimationFrame(() => {{
     setCoinSection(coinInitialSection);
     if (coinInitialSection === "news" && coinInitialParams.get("view") === "map") {{

@@ -22,7 +22,9 @@ os.environ.setdefault("AUTO_OPEN_BROWSER", "false")
 os.environ.setdefault("RUN_TRADING_LOOP", "false")
 
 import web  # noqa: E402
+import db  # noqa: E402
 
+from dotenv import dotenv_values  # noqa: E402
 
 DOCS = ROOT / "docs"
 
@@ -343,12 +345,82 @@ STATIC_API = f"""
 """
 
 
-def page(html: str, initial_portfolio: bool = False, stocks_live: bool = False) -> str:
+def _env_bool(env: dict, name: str, default: bool) -> bool:
+    value = env.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _env_num(env: dict, name: str, default: float) -> float:
+    value = env.get(name)
+    if value is None or not str(value).strip():
+        return default
+    return float(value)
+
+
+def ai_trade_snapshot() -> dict:
+    """실제 봇 DB의 최근 AI 판단·주문을 배포 시점 스냅샷으로 내보낸다.
+
+    web은 mock 환경변수로 import되므로 실제 운영 모드는 .env에서 직접 읽는다.
+    """
+    env = dotenv_values(ROOT / ".env")
+    provider = (env.get("AI_PROVIDER") or "claude").strip().lower()
+    model_defaults = {"claude": "claude-opus-4-8", "openai": "gpt-4o", "gemini": "gemini-2.0-flash"}
+    model = env.get(f"{provider.upper()}_MODEL") or model_defaults.get(provider, provider)
+    tickers = [t.strip().upper() for t in (env.get("TICKERS") or "KRW-BTC,KRW-SOL").split(",") if t.strip()]
+
+    history = []
+    for row in db.recent_decisions(limit=20):
+        ts = str(row.get("ts") or "")
+        history.append({
+            "time": ts.replace("T", " ")[5:16],  # "MM-DD HH:MM"
+            "ticker": row.get("ticker"),
+            "price": row.get("price"),
+            "rsi": row.get("rsi"),
+            "trend": row.get("trend"),
+            "change_pct": row.get("change_pct"),
+            "action": row.get("action"),
+            "confidence": row.get("confidence"),
+            "reasoning": row.get("reasoning"),
+            "order": f"{row.get('order_side') or 'none'} | {row.get('order_reason') or ''}",
+        })
+    last_update = history[0]["time"] if history else None
+
+    return {
+        "generated_at": __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "state": {"last_update": last_update, "loop_running": True, "history": history},
+        "config": {
+            "provider": provider,
+            "model": model,
+            "tickers": tickers,
+            "dry_run": _env_bool(env, "DRY_RUN", True),
+            "allow_live_trading": _env_bool(env, "ALLOW_LIVE_TRADING", False),
+            "risk": {
+                "max_order_krw": _env_num(env, "MAX_ORDER_KRW", 10_000),
+                "min_order_krw": _env_num(env, "MIN_ORDER_KRW", 5_000),
+                "max_daily_loss_krw": _env_num(env, "MAX_DAILY_LOSS_KRW", 30_000),
+                "min_confidence": _env_num(env, "MIN_CONFIDENCE", 0.6),
+                "cycle_seconds": _env_num(env, "INTERVAL_SECONDS", 600),
+            },
+        },
+        "trades": db.recent_trades(limit=20),
+    }
+
+
+def page(html: str, initial_portfolio: bool = False, stocks_live: bool = False,
+         ai_snapshot: dict | None = None) -> str:
     if initial_portfolio:
         payload = json.dumps(DEMO_PORTFOLIO, ensure_ascii=False).replace("</", "<\\/")
         html = html.replace(
             "<!-- INITIAL_COIN_PORTFOLIO -->",
             f"<script>window.__initialCoinPortfolio = {payload};</script>",
+        )
+    if ai_snapshot is not None:
+        payload = json.dumps(ai_snapshot, ensure_ascii=False, default=str).replace("</", "<\\/")
+        html = html.replace(
+            "<!-- AI_TRADE_SNAPSHOT -->",
+            f"<script>window.__aiTradeSnapshot = {payload};</script>",
         )
     html = html.replace("<body>", "<body>\n" + STATIC_API, 1)
     html = html.replace('href="/stocks"', 'href="/stockagent/stocks/"')
@@ -379,8 +451,9 @@ def write(path: Path, html: str) -> None:
 
 
 def main() -> None:
-    write(DOCS / "index.html", page(web.COIN_HTML, initial_portfolio=True))
-    write(DOCS / "coin" / "index.html", page(web.COIN_HTML, initial_portfolio=True))
+    snapshot = ai_trade_snapshot()
+    write(DOCS / "index.html", page(web.COIN_HTML, initial_portfolio=True, ai_snapshot=snapshot))
+    write(DOCS / "coin" / "index.html", page(web.COIN_HTML, initial_portfolio=True, ai_snapshot=snapshot))
     write(DOCS / "stocks" / "index.html", page(web.STOCKS_HTML, stocks_live=True))
     write(DOCS / "assets" / "index.html", page(web.DASHBOARD_HTML))
     write(DOCS / "analyze" / "index.html", page(web.ANALYZE_HTML))

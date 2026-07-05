@@ -669,6 +669,7 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
         <button class="coin-section-btn on" data-coin-section="market" onclick="setCoinSection('market')">마켓</button>
         <button class="coin-section-btn" data-coin-section="portfolio" onclick="setCoinSection('portfolio')">포트폴리오</button>
         <button class="coin-section-btn" data-coin-section="news" onclick="setCoinSection('news')">뉴스</button>
+        <button class="coin-section-btn" data-coin-section="ai" onclick="setCoinSection('ai')">AI 거래</button>
       </div>
     </div>
   </div>
@@ -921,10 +922,60 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
   </div>
   </div>
 
+  <div class="coin-panel" id="coin-ai-panel" hidden>
+  <div class="section-line coin-section-anchor" id="coin-ai-section">
+    <div class="section-title">AI 자동매매</div>
+    <div class="inline-tools">
+      <span class="coin-trade-mode" id="coin-ai-mode-badge">모드 확인 중</span>
+      <button class="mini-btn" onclick="loadCoinAiTrades(true)">새로고침</button>
+    </div>
+  </div>
+
+  <div class="market-stat-grid">
+    <div class="market-stat"><div class="label">거래 모드</div><div class="val" id="coin-ai-mode">—</div></div>
+    <div class="market-stat"><div class="label">AI 엔진</div><div class="val" id="coin-ai-engine">—</div></div>
+    <div class="market-stat"><div class="label">판단 주기</div><div class="val" id="coin-ai-interval">—</div></div>
+    <div class="market-stat"><div class="label">마지막 판단</div><div class="val" id="coin-ai-last">—</div></div>
+  </div>
+
+  <div class="box">
+    <div class="box-head">
+      <span>TRADING LOGIC</span>
+      <span class="total" id="coin-ai-tickers">—</span>
+    </div>
+    <div id="coin-ai-pipeline" style="padding:12px 14px; display:grid; gap:10px;"></div>
+  </div>
+
+  <div class="market-stat-grid">
+    <div class="market-stat"><div class="label">최소 신뢰도</div><div class="val" id="coin-ai-minconf">—</div></div>
+    <div class="market-stat"><div class="label">주문당 최대</div><div class="val" id="coin-ai-maxorder">—</div></div>
+    <div class="market-stat"><div class="label">최소 주문</div><div class="val" id="coin-ai-minorder">—</div></div>
+    <div class="market-stat"><div class="label">일일 손실 한도</div><div class="val" id="coin-ai-maxloss">—</div></div>
+  </div>
+
+  <div class="box">
+    <div class="box-head">
+      <span>AI DECISIONS</span>
+      <span class="total" id="coin-ai-decision-count">—</span>
+    </div>
+    <div id="coin-ai-decision-rows"></div>
+  </div>
+
+  <div class="box">
+    <div class="box-head">
+      <span>EXECUTED ORDERS</span>
+      <span class="total" id="coin-ai-trade-count">—</span>
+    </div>
+    <div id="coin-ai-trade-rows"></div>
+  </div>
+  <div class="news-note" id="coin-ai-note">AI 판단 기록을 불러오는 중입니다.</div>
+  </div>
+
   <div class="foot" id="foot">—</div>
 </div>
 
 <script>window.__initialCoinPortfolio = {"summary": {"total_principal": 300800, "total_value": 120366, "cash_value": 69, "coin_value": 120297, "cash_ratio": 0.1, "unrealized_pnl": -180434, "realized_pnl": 0, "total_pnl": -180434, "total_return_pct": -59.98, "assets_count": 2, "largest_asset": "SOL", "largest_weight": 64.6}, "holdings": [{"currency": "SOL", "ticker": "KRW-SOL", "balance": 0.634, "avg_buy_price": 362436, "principal": 229790, "current_price": 122000, "current_value": 77348, "return_pct": -66.34, "weight": 64.6, "unrealized_pnl": -152442, "realized_pnl": 0, "trades_count": 0, "buy_count": 0, "sell_count": 0, "last_trade_at": null}, {"currency": "BTC", "ticker": "KRW-BTC", "balance": 0.000457, "avg_buy_price": 155373956, "principal": 70940, "current_price": 93005000, "current_value": 42501, "return_pct": -40.09, "weight": 35.4, "unrealized_pnl": -28439, "realized_pnl": 0, "trades_count": 0, "buy_count": 0, "sell_count": 0, "last_trade_at": null}, {"currency": "KRW", "ticker": "KRW", "balance": 69, "avg_buy_price": 1, "principal": 69, "current_price": 1, "current_value": 69, "return_pct": 0, "weight": 0.1, "unrealized_pnl": 0, "realized_pnl": 0, "trades_count": 0, "buy_count": 0, "sell_count": 0, "last_trade_at": null}], "manual_items": [], "account_error": null, "daily": [], "risk": {"max_order_krw": 10000, "max_daily_loss_krw": 30000, "min_confidence": 0.6}};</script>
+<script>window.__aiTradeSnapshot = {"generated_at": "2026-07-05 13:20", "state": {"last_update": "07-05 13:14", "loop_running": true, "history": [{"time": "07-05 13:14", "ticker": "KRW-SOL", "price": 121400.0, "rsi": 28.57, "trend": "down", "change_pct": -0.41, "action": "HOLD", "confidence": 0.55, "reasoning": "ma5(121,560)가 ma20(123,115) 아래에 있어 하락 추세이지만, RSI14가 28.57로 과매도 구간에 진입했고 최근 캔들은 하락 폭이 줄며 소폭 반등(121,000→121,400)하는 바닥 다지기 흐름을 보인다. 다만 반등 확인이 미흡하고 KRW 잔고가 약 69원에 불과해 추가 매수가 불가능하며, 보유 물량은 평단가(362,436원) 대비 큰 손실 상태라 반등 여지를 두고 관망하는 것이 합리적이다.", "order": "none | HOLD"}, {"time": "07-05 13:14", "ticker": "KRW-BTC", "price": 94580000.0, "rsi": 49.65, "trend": "down", "change_pct": 1.92, "action": "HOLD", "confidence": 0.6, "reasoning": "ma5(94,619,600)가 ma20(94,860,100) 아래에 있고 trend가 down으로 단기 하락 추세이며, RSI14는 49.65로 중립권이라 뚜렷한 반등 신호가 없다. 다만 최근 두 캔들이 저점을 다지며 소폭 회복 중이라 추가 매도 압력도 약해, 명확한 방향이 나올 때까지 관망이 적절하다. 또한 KRW 잔고가 69원으로 실질 신규 매수 여력이 없고 보유 물량도 극소량이라 무리한 매매보다 자본 보존이 우선이다.", "order": "none | HOLD"}, {"time": "07-05 13:04", "ticker": "KRW-SOL", "price": 121200.0, "rsi": 25.53, "trend": "down", "change_pct": -0.57, "action": "HOLD", "confidence": 0.4, "reasoning": "ma5(121,520)가 ma20(123,105) 아래에 있고 추세가 하락세라 매수는 부담스럽지만, RSI14가 25.53으로 과매도 구간에 진입했고 최근 캔들이 121,200 부근에서 하방 변동성을 줄이며 반등 가능성을 내비쳐 즉각 매도도 무리다. 보유 평단(362,436)이 현재가보다 크게 높아 손실 상태이나, 과매도 반등 여지를 지켜본 뒤 대응하는 관망이 적절하다.", "order": "none | 신뢰도 0.40 < 0.5 → 관망"}, {"time": "07-05 13:04", "ticker": "KRW-BTC", "price": 94529000.0, "rsi": 48.85, "trend": "down", "change_pct": 1.86, "action": "HOLD", "confidence": 0.55, "reasoning": "ma5(94,609,400)가 ma20(94,857,550) 아래에 있고 트렌드가 하락이지만, RSI14가 48.85로 중립권이며 최근 캔들이 저점에서 소폭 반등(94,325,000→94,598,000)하는 등 방향성이 뚜렷하지 않습니다. 보유 물량은 평단가(1.55억) 대비 큰 손실 상태이나 잔고가 극소량이고 KRW 여력도 거의 없어 무리한 진입·청산 실익이 낮으므로 관망이 적절합니다.", "order": "none | HOLD"}, {"time": "07-05 12:54", "ticker": "KRW-SOL", "price": 121300.0, "rsi": 30.0, "trend": "down", "change_pct": -0.57, "action": "HOLD", "confidence": 0.55, "reasoning": "ma5(121,960)가 ma20(123,265) 아래에 있고 추세가 하락(down)이라 반등 확신이 낮습니다. RSI14가 30으로 과매도 구간에 진입해 단기 반등 가능성은 있으나, 마지막 캔들이 소폭 반등하며 하락 매도세가 다소 진정된 초기 신호일 뿐 추세 전환은 확인되지 않았습니다. 또한 평균매입가(362,436) 대비 큰 손실 상태이고 가용 KRW가 거의 없어 추가 매수 여력도 없으므로, 명확한 반등 확인 전까지 관망이 안전합니다.", "order": "none | HOLD"}, {"time": "07-05 12:54", "ticker": "KRW-BTC", "price": 94577000.0, "rsi": 51.15, "trend": "down", "change_pct": 1.93, "action": "HOLD", "confidence": 0.55, "reasoning": "가격이 ma5·ma20 아래에 있고 최근 4개 캔들이 연속 하락한 뒤 마지막 캔들에서 소폭 반등했으나, RSI가 51로 중립이라 방향성이 뚜렷하지 않습니다. 보유 물량의 평균 매수가(약 1억5천만원)가 현재가보다 크게 높아 손절 실익이 낮고, KRW 잔고(약 69원)도 추가 매수가 불가능한 수준이라 관망이 적절합니다.", "order": "none | HOLD"}, {"time": "07-05 12:44", "ticker": "KRW-SOL", "price": 121200.0, "rsi": 28.57, "trend": "down", "change_pct": -0.66, "action": "HOLD", "confidence": 0.55, "reasoning": "ma5(121,940)가 ma20(123,260) 아래에 있고 추세는 하락이지만, RSI14가 28.57로 과매도 구간에 진입해 단기 반등 가능성이 있어 추격 매도는 위험하다. 다만 하락 추세가 명확히 반전되지 않았고 마지막 캔들 거래량이 급감하며 방향성이 불확실하므로 신규 매수도 유보하고 관망한다. 보유 평단(362,436)이 현재가보다 훨씬 높아 손절 실익도 낮으므로 반등 신호 확인 전까지 대기가 적절하다.", "order": "none | HOLD"}, {"time": "07-05 12:44", "ticker": "KRW-BTC", "price": 94552000.0, "rsi": 50.76, "trend": "down", "change_pct": 1.9, "action": "HOLD", "confidence": 0.55, "reasoning": "가격이 ma5(9474만)와 ma20(9485만) 모두 아래에 있고 추세가 down으로 하락 흐름이며, RSI14가 50.76으로 중립이라 뚜렷한 반등 신호가 없다. 최근 캔들은 하락 후 마지막 봉에서 소폭 반등했으나 거래량이 크게 줄어 신뢰도가 낮다. 또한 KRW 잔고가 약 69원에 불과해 추가 매수 여력이 없고, 보유 물량의 평단가가 현재가보다 훨씬 높아 손절 성격의 매도도 실익이 없으므로 관망이 적절하다.", "order": "none | HOLD"}, {"time": "07-05 12:34", "ticker": "KRW-SOL", "price": 121200.0, "rsi": 28.57, "trend": "down", "change_pct": -0.66, "action": "HOLD", "confidence": 0.45, "reasoning": "RSI가 28.57로 과매도 구간에 진입해 단기 반등 가능성은 있으나, ma5(121,940)가 ma20(123,260) 아래에 위치하고 추세가 하락세라 명확한 매수 신호로 보기 어렵다. 보유 물량의 평단가(362,436)가 현재가(121,200)보다 크게 높아 손절 매도 실익도 적고, 마지막 캔들에서 매도 압력이 줄며 소폭 반등한 점을 고려해 관망하며 반등 확인 후 대응하는 것이 안전하다.", "order": "none | 신뢰도 0.45 < 0.5 → 관망"}, {"time": "07-05 12:34", "ticker": "KRW-BTC", "price": 94401000.0, "rsi": 48.29, "trend": "down", "change_pct": 1.74, "action": "HOLD", "confidence": 0.6, "reasoning": "현재가가 ma5·ma20 아래에 있고 추세가 하락(down)이며 최근 5개 캔들이 연속 음봉으로 흐름이 약합니다. 다만 RSI가 48로 중립권이라 과매도 반등을 노린 매수 근거는 약하고, 보유 물량은 평단(1.55억) 대비 크게 손실이지만 잔량이 극소량(약 43원어치)이라 지금 손절 실익도 미미해 관망이 합리적입니다. KRW 잔고도 약 69원으로 사실상 신규 매수 여력이 없습니다.", "order": "none | HOLD"}, {"time": "07-05 12:23", "ticker": "KRW-SOL", "price": 121200.0, "rsi": 28.57, "trend": "down", "change_pct": -0.66, "action": "HOLD", "confidence": 0.45, "reasoning": "ma5(121,940)가 ma20(123,260) 아래에 있고 추세가 하락이라 신규 매수는 부담스럽지만, RSI14가 28.57로 과매도 구간에 진입해 반등 가능성도 있어 방향이 모호하다. 보유 평단(362,436)이 현재가(121,200)보다 크게 높아 지금 손절해도 실익이 적고, 마지막 캔들에서 거래량이 급감하며 하락세가 진정되는 모습이라 관망이 적절하다. KRW 잔고도 매우 적어 추가 매수 여력이 사실상 없다.", "order": "none | 신뢰도 0.45 < 0.5 → 관망"}, {"time": "07-05 12:23", "ticker": "KRW-BTC", "price": 94451000.0, "rsi": 49.13, "trend": "down", "change_pct": 1.79, "action": "HOLD", "confidence": 0.6, "reasoning": "가격이 ma5, ma20 아래에 위치하고 추세가 하락(down)으로 최근 캔들도 연속 음봉 흐름을 보여 매수 근거가 약하다. RSI14는 49로 중립 구간이라 뚜렷한 반등 신호가 없다. 보유 수량은 극히 적고 KRW 잔고도 사실상 매매 불가 수준이라 신규 진입이나 청산 실익이 없어 관망이 적절하다.", "order": "none | HOLD"}, {"time": "07-05 12:13", "ticker": "KRW-SOL", "price": 121400.0, "rsi": 31.37, "trend": "down", "change_pct": -0.49, "action": "HOLD", "confidence": 0.55, "reasoning": "ma5(121980)가 ma20(123270) 아래에 있고 추세가 하락이라 반등을 단정하기 어렵습니다. 다만 RSI14가 31.37로 과매도 구간에 근접했고 마지막 캔들이 저점에서 반등하며 소폭 상승 마감한 점은 하락세 둔화 신호로 볼 수 있습니다. 보유 평단(362,436원)이 현재가보다 크게 높아 손절 실익이 낮고, 추가 매수도 추세 확인 전이라 부담되므로 관망을 권합니다.", "order": "none | HOLD"}, {"time": "07-05 12:13", "ticker": "KRW-BTC", "price": 94533000.0, "rsi": 50.46, "trend": "down", "change_pct": 1.88, "action": "HOLD", "confidence": 0.6, "reasoning": "가격이 ma5, ma20 아래에 위치하고 최근 캔들이 연속 하락하는 약세 흐름이나, RSI14가 50.46로 중립이라 명확한 매수 신호는 없습니다. 또한 현금 잔고가 69원에 불과해 신규 매수가 사실상 불가능하며, 보유 물량도 극소량이고 평단가 대비 큰 손실 상태라 손절 급박성도 낮아 관망이 적절합니다.", "order": "none | HOLD"}, {"time": "07-05 12:03", "ticker": "KRW-SOL", "price": 121000.0, "rsi": 25.53, "trend": "down", "change_pct": -0.82, "action": "HOLD", "confidence": 0.55, "reasoning": "RSI14가 25.5로 과매도 구간에 진입해 단기 반등 가능성은 있으나, ma5(121,900)가 ma20(123,250) 아래에 위치하고 추세가 여전히 하락세라 매수 근거가 약하다. 또한 보유 물량의 평균 매입가(362,436원)가 현재가(121,000원)보다 크게 높아 손절 매도의 실익도 없고 반등 여지를 남겨두는 것이 합리적이므로 관망을 택한다.", "order": "none | HOLD"}, {"time": "07-05 12:03", "ticker": "KRW-BTC", "price": 94451000.0, "rsi": 49.13, "trend": "down", "change_pct": 1.79, "action": "HOLD", "confidence": 0.55, "reasoning": "가격이 ma5(94,722,600)와 ma20(94,845,600) 아래에 위치하고 추세가 하락으로 최근 4개 캔들이 연속 음봉을 그리며 눌리는 흐름입니다. RSI14가 49로 중립권이라 뚜렷한 반등 신호가 없고, 보유 물량의 평균 매수가가 현재가보다 훨씬 높은 큰 손실 상태이나 잔여 원화가 극히 적어 추가 매매 실익이 없어 관망을 택합니다.", "order": "none | HOLD"}, {"time": "07-05 11:53", "ticker": "KRW-SOL", "price": 120700.0, "rsi": 24.0, "trend": "down", "change_pct": -1.87, "action": "HOLD", "confidence": 0.55, "reasoning": "RSI14가 24로 과매도 구간에 진입해 단기 반등 가능성이 있으나, ma5(122340)가 ma20(123430) 아래에 있고 최근 5개 캔들이 연속 음봉으로 하락 추세가 뚜렷하다. 다만 보유 물량의 평균 매입가(362436)가 현재가(120700)보다 크게 높아 지금 손절 매도는 손실만 확정시키므로, 반등 신호를 확인할 때까지 관망하는 것이 자본 보존 측면에서 유리하다.", "order": "none | HOLD"}, {"time": "07-05 11:53", "ticker": "KRW-BTC", "price": 94255000.0, "rsi": 44.97, "trend": "up", "change_pct": 1.35, "action": "HOLD", "confidence": 0.6, "reasoning": "현재가(94,255,000)가 ma5·ma20 아래로 내려온 상태이고 최근 5개 캔들이 연속 음봉으로 단기 하락 압력이 나타나고 있어 신규 매수는 부적절합니다. RSI 44.97로 과매도 구간은 아니며 명확한 반등 신호도 없어 관망이 타당합니다. 보유 수량이 극소량(약 43원 상당)이라 매도 실익이 거의 없고 가용 KRW도 부족해 실질적 매매가 어렵습니다.", "order": "none | HOLD"}, {"time": "07-05 11:43", "ticker": "KRW-SOL", "price": 121000.0, "rsi": 26.09, "trend": "down", "change_pct": -1.54, "action": "HOLD", "confidence": 0.45, "reasoning": "추세는 하락(ma5 122,420 < ma20 123,450)이며 최근 캔들도 연속 음봉으로 하방 흐름이 지속되고 있어 신규 매수는 부담스럽다. 다만 RSI14가 26으로 과매도 구간에 진입해 단기 반등 가능성이 있고, 이미 평균 매수가(362,436) 대비 큰 손실 상태라 지금의 저점 매도는 손실 확정 성격이 강하다. 원화 잔고도 사실상 없어 추가 매수 여력이 없으므로 반등 신호(RSI 회복·ma5 상향 돌파)를 확인할 때까지 관망을 택한다.", "order": "none | 신뢰도 0.45 < 0.5 → 관망"}, {"time": "07-05 11:43", "ticker": "KRW-BTC", "price": 94400000.0, "rsi": 47.2, "trend": "up", "change_pct": 1.51, "action": "HOLD", "confidence": 0.6, "reasoning": "최근 5개 60분봉이 연속 음봉으로 하락 흐름이며 현재가(94,400,000)가 ma5·ma20 아래로 내려와 단기 추세가 약해지고 있다. RSI 47.2로 중립 구간이라 뚜렷한 반등 신호가 없고, 보유 수량이 매우 적고 KRW 잔고(약 69원)가 주문 최소금액에 못 미쳐 추가 매매 실익이 없어 관망이 적절하다.", "order": "none | HOLD"}]}, "config": {"provider": "claude", "model": "claude-opus-4-8", "tickers": ["KRW-BTC", "KRW-SOL"], "dry_run": false, "allow_live_trading": true, "risk": {"max_order_krw": 10000, "min_order_krw": 5000, "max_daily_loss_krw": 30000, "min_confidence": 0.5, "cycle_seconds": 600}}, "trades": [{"id": 3, "ts": "2026-07-04T16:39:14", "ticker": "KRW-SOL", "side": "buy", "price": 124500.0, "volume": 0.05060240963855422, "krw_amount": 6300.0, "fee": 3.15, "realized_pnl": 0.0, "dry_run": 1, "raw_result": "{\"dry_run\": true, \"side\": \"buy\", \"ticker\": \"KRW-SOL\", \"krw\": 6300}"}]};</script>
 <script>
 
 const KRW = (n, signed=false) => {
@@ -1451,7 +1502,7 @@ function setCoinInterval(interval) {
 }
 
 function setCoinSection(section) {
-  section = section === "portfolio" || section === "news" ? section : "market";
+  section = ["portfolio", "news", "ai"].includes(section) ? section : "market";
   window._coinSection = section;
   document.querySelectorAll("[data-coin-section]").forEach(b => {
     b.classList.toggle("on", b.dataset.coinSection === section);
@@ -1459,11 +1510,15 @@ function setCoinSection(section) {
   const marketPanel = document.getElementById("coin-market-panel");
   const portfolioPanel = document.getElementById("coin-portfolio-panel");
   const newsPanel = document.getElementById("coin-news-panel");
+  const aiPanel = document.getElementById("coin-ai-panel");
   if (marketPanel) marketPanel.hidden = section !== "market";
   if (portfolioPanel) portfolioPanel.hidden = section !== "portfolio";
   if (newsPanel) newsPanel.hidden = section !== "news";
+  if (aiPanel) aiPanel.hidden = section !== "ai";
   if (section === "portfolio") {
     loadCoinPortfolio();
+  } else if (section === "ai") {
+    loadCoinAiTrades();
   } else if (section === "news") {
     if (window._coinNewsLoaded) {
       renderCoinNews();
@@ -2137,6 +2192,115 @@ async function loadCoinNews(force=false) {
   }
 }
 
+const escAi = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+async function loadCoinAiTrades(force=false) {
+  if (window._coinAiLoading) return;
+  window._coinAiLoading = true;
+  const note = document.getElementById("coin-ai-note");
+  try {
+    const [stRes, cfgRes, trRes] = await Promise.all([
+      fetch("/api/state"), fetch("/api/config"), fetch("/api/trades?limit=30"),
+    ]);
+    let st = await stRes.json();
+    let cfg = await cfgRes.json();
+    let trades = (await trRes.json()).items || [];
+    let sourceNote = "로컬 봇 실시간 데이터입니다. 30초마다 자동 갱신됩니다.";
+    if (cfg.model === "github-pages-static" && window.__aiTradeSnapshot) {
+      const snap = window.__aiTradeSnapshot;
+      st = snap.state; cfg = snap.config; trades = snap.trades || [];
+      sourceNote = "GitHub Pages 정적 페이지 — " + (snap.generated_at || "") +
+        " 배포 시점 스냅샷입니다. 실시간 판단은 로컬 대시보드(localhost:8000)에서 확인하세요.";
+    }
+    renderCoinAiTrades(st, cfg, trades);
+    if (note) { note.textContent = sourceNote; note.style.color = ""; }
+  } catch(e) {
+    if (note) { note.textContent = "AI 거래 데이터 로드 실패: " + (e.message || e); note.style.color = "#ff8a93"; }
+  } finally {
+    window._coinAiLoading = false;
+  }
+}
+
+function renderCoinAiTrades(st, cfg, trades) {
+  const risk = cfg.risk || {};
+  const live = cfg.allow_live_trading && !cfg.dry_run;
+  const badge = document.getElementById("coin-ai-mode-badge");
+  if (badge) {
+    badge.textContent = live ? "⚠️ 실거래 작동 중" : "모의매매(DRY RUN)";
+    badge.style.color = live ? "#1fd6a8" : "#e0b341";
+  }
+  const set = (id, text, cls) => {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = text; if (cls !== undefined) el.className = "val " + cls; }
+  };
+  set("coin-ai-mode", live ? "실거래" : "모의매매", live ? "up" : "muted");
+  set("coin-ai-engine", (cfg.provider || "?") + " · " + (cfg.model || "?"));
+  set("coin-ai-interval", Math.round((risk.cycle_seconds || 600) / 60) + "분마다");
+  set("coin-ai-last", (st.last_update || "—") + (st.loop_running ? "" : " (루프 중지됨)"), st.loop_running ? "" : "down");
+  set("coin-ai-minconf", (risk.min_confidence ?? 0.6).toFixed(2));
+  set("coin-ai-maxorder", KRW(risk.max_order_krw || 10000) + " 원");
+  set("coin-ai-minorder", KRW(risk.min_order_krw || 5000) + " 원");
+  set("coin-ai-maxloss", KRW(risk.max_daily_loss_krw || 30000) + " 원");
+  const tickersEl = document.getElementById("coin-ai-tickers");
+  if (tickersEl) tickersEl.textContent = (cfg.tickers || []).join(" · ");
+
+  const pipeline = document.getElementById("coin-ai-pipeline");
+  if (pipeline) {
+    const steps = [
+      ["① 시세 수집", `${Math.round((risk.cycle_seconds || 600) / 60)}분마다 ${escAi((cfg.tickers || []).join(", "))}의 현재가·캔들을 수집하고 RSI14, MA5/MA20, 추세를 계산합니다.`],
+      ["② AI 판단", `${escAi(cfg.model || "AI")}가 시세 스냅샷과 보유 포지션(평단·수량·원화 잔고)을 보고 BUY / SELL / HOLD와 신뢰도(0~1), 판단 근거를 생성합니다.`],
+      ["③ 리스크 필터", `신뢰도가 ${(risk.min_confidence ?? 0.6).toFixed(2)} 미만이면 관망. 매수는 원화 잔고와 최소 주문(${KRW(risk.min_order_krw || 5000)}원)을 확인하고 주문당 최대 ${KRW(risk.max_order_krw || 10000)}원으로 제한, 일일 손실이 ${KRW(risk.max_daily_loss_krw || 30000)}원을 넘으면 그날 매매를 중단합니다.`],
+      ["④ 주문 실행", live ? "필터를 통과한 판단은 업비트에 실제 시장가 주문으로 나가고 DB에 기록됩니다." : "모의 모드라 주문은 기록만 되고 실제 체결은 없습니다."],
+    ];
+    pipeline.innerHTML = steps.map(s =>
+      `<div style="display:grid; grid-template-columns:110px 1fr; gap:10px; align-items:start;">
+        <span style="color:#e0b341; font-weight:700; font-size:12px; white-space:nowrap;">${s[0]}</span>
+        <span class="muted" style="font-size:12px; line-height:1.6;">${s[1]}</span>
+      </div>`).join("");
+  }
+
+  const history = st.history || [];
+  const decisionCount = document.getElementById("coin-ai-decision-count");
+  if (decisionCount) decisionCount.textContent = history.length + "건";
+  const decisionRows = document.getElementById("coin-ai-decision-rows");
+  if (decisionRows) {
+    decisionRows.innerHTML = history.length ? history.slice(0, 20).map(h => {
+      const act = String(h.action || "HOLD").toUpperCase();
+      const cls = act === "BUY" ? "up" : act === "SELL" ? "down" : "muted";
+      return `<div style="padding:10px 14px; border-bottom:1px solid #131a24;">
+        <div style="display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;">
+          <span class="muted" style="font-size:11px;">${escAi(h.time)}</span>
+          <span style="font-weight:700;">${escAi(h.ticker)}</span>
+          <span class="${cls}" style="font-weight:700;">${act}</span>
+          <span class="muted" style="font-size:11px;">신뢰도 ${Number(h.confidence ?? 0).toFixed(2)}</span>
+          <span class="muted" style="font-size:11px;">${KRW(h.price)}원 · RSI ${h.rsi ?? "—"} · ${escAi(h.trend || "—")}</span>
+        </div>
+        <div class="muted" style="font-size:12px; line-height:1.55; margin-top:4px;">${escAi(h.reasoning || "")}</div>
+        <div style="font-size:11px; color:#5a6577; margin-top:3px;">주문: ${escAi(h.order || "none")}</div>
+      </div>`;
+    }).join("") : `<div class="muted" style="padding:14px;">아직 AI 판단 기록이 없습니다.</div>`;
+  }
+
+  const tradeCount = document.getElementById("coin-ai-trade-count");
+  if (tradeCount) tradeCount.textContent = trades.length + "건";
+  const tradeRows = document.getElementById("coin-ai-trade-rows");
+  if (tradeRows) {
+    tradeRows.innerHTML = trades.length ? trades.slice(0, 20).map(t => {
+      const side = String(t.side || "").toLowerCase();
+      const cls = side === "buy" ? "up" : "down";
+      const pnl = Number(t.realized_pnl || 0);
+      return `<div style="display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; padding:9px 14px; border-bottom:1px solid #131a24;">
+        <span class="muted" style="font-size:11px;">${escAi(String(t.ts || "").replace("T", " "))}</span>
+        <span style="font-weight:700;">${escAi(t.ticker)}</span>
+        <span class="${cls}" style="font-weight:700;">${side === "buy" ? "매수" : "매도"}</span>
+        <span>${KRW(t.krw_amount)}원</span>
+        ${side === "sell" ? `<span class="${pnl >= 0 ? "up" : "down"}" style="font-size:12px;">실현손익 ${KRW(pnl, true)}원</span>` : ""}
+        ${Number(t.dry_run) ? '<span class="muted" style="font-size:11px;">모의</span>' : '<span style="font-size:11px; color:#1fd6a8;">실거래</span>'}
+      </div>`;
+    }).join("") : `<div class="muted" style="padding:14px;">아직 실행된 주문이 없습니다. AI가 매수/매도를 결정하면 여기에 표시됩니다.</div>`;
+  }
+}
+
 async function tickCoinState() {
   if (document.hidden || window._coinStateLoading) return;
   window._coinStateLoading = true;
@@ -2152,7 +2316,7 @@ async function tickCoinState() {
 
 const coinInitialParams = new URLSearchParams(window.location.search);
 const coinInitialSection = coinInitialParams.get("section");
-if (["market", "portfolio", "news"].includes(coinInitialSection)) {
+if (["market", "portfolio", "news", "ai"].includes(coinInitialSection)) {
   window._coinSection = coinInitialSection;
 }
 if (window.__initialCoinPortfolio) renderCoinPortfolio(window.__initialCoinPortfolio);
@@ -2165,7 +2329,8 @@ setInterval(() => { if (!window._coinSection || window._coinSection === "market"
 setInterval(() => { if (!window._coinSection || window._coinSection === "market") loadCoinMarketBoard(); }, 180000);
 setInterval(() => { if (window._coinSection === "portfolio") loadCoinPortfolio(); }, 20000);
 setInterval(() => { if (window._coinSection === "news") loadCoinNews(window._coinNewsMapOpen); }, 60000);
-if (["market", "portfolio", "news"].includes(coinInitialSection)) {
+setInterval(() => { if (window._coinSection === "ai") loadCoinAiTrades(); }, 30000);
+if (["market", "portfolio", "news", "ai"].includes(coinInitialSection)) {
   requestAnimationFrame(() => {
     setCoinSection(coinInitialSection);
     if (coinInitialSection === "news" && coinInitialParams.get("view") === "map") {
