@@ -360,6 +360,29 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 .mini-list-row { display:grid; grid-template-columns:84px 62px 1fr; gap:10px; padding:10px 15px; border-bottom:1px solid #11161f; font-size:11px; align-items:center; }
 .mini-list-row:last-child { border-bottom:none; }
 
+/* AI live account map (AI 거래 탭 실시간 계좌) */
+.ai-live-kpis { display:grid; grid-template-columns:repeat(6,1fr); border-bottom:1px solid #141a23; }
+.ai-live-kpis .cell { padding:13px 15px; border-right:1px solid #141a23; min-width:0; }
+.ai-live-kpis .cell:last-child { border-right:none; }
+.ai-live-kpis .label { font-size:10px; color:#e0b341; letter-spacing:.06em; text-transform:uppercase; margin-bottom:7px; white-space:nowrap; }
+.ai-live-kpis .val { font-size:17px; font-weight:800; color:#e6ebf2; white-space:nowrap; }
+.ai-live-kpis .sub { font-size:10.5px; color:#5a6577; margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ai-account-map { position:relative; height:380px; background:#0a0e14; }
+.ai-map-tile { position:absolute; overflow:hidden; border:1.5px solid #0a0e14; border-radius:3px;
+               display:flex; flex-direction:column; justify-content:center; align-items:center;
+               text-align:center; gap:3px; padding:4px; box-sizing:border-box; }
+.ai-map-tile .sym { font-weight:900; color:#fff; line-height:1.1; text-shadow:0 1px 2px rgba(0,0,0,.4); }
+.ai-map-tile .ret { font-weight:800; color:#fff; line-height:1.1; text-shadow:0 1px 2px rgba(0,0,0,.4); }
+.ai-map-tile .meta { color:rgba(255,255,255,.72); font-size:10.5px; line-height:1.2; }
+.ai-map-legend { padding:10px 15px; font-size:10.5px; color:#5a6577; border-top:1px solid #141a23;
+                 display:flex; gap:16px; flex-wrap:wrap; background:#0d1219; }
+.ai-map-legend .live-note { color:#1fd6a8; }
+@media (max-width: 980px) {
+  .ai-live-kpis { grid-template-columns:repeat(2,1fr); }
+  .ai-live-kpis .cell { border-bottom:1px solid #141a23; }
+  .ai-account-map { height:320px; }
+}
+
 .foot { font-size:10.5px; color:#3a4658; margin-top:16px; }
 
 /* base scaling: design is dense 11px-ish, so grow everything for readability */

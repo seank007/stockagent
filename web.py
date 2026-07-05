@@ -2073,6 +2073,29 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 .mini-list-row { display:grid; grid-template-columns:84px 62px 1fr; gap:10px; padding:10px 15px; border-bottom:1px solid #11161f; font-size:11px; align-items:center; }
 .mini-list-row:last-child { border-bottom:none; }
 
+/* AI live account map (AI 거래 탭 실시간 계좌) */
+.ai-live-kpis { display:grid; grid-template-columns:repeat(6,1fr); border-bottom:1px solid #141a23; }
+.ai-live-kpis .cell { padding:13px 15px; border-right:1px solid #141a23; min-width:0; }
+.ai-live-kpis .cell:last-child { border-right:none; }
+.ai-live-kpis .label { font-size:10px; color:#e0b341; letter-spacing:.06em; text-transform:uppercase; margin-bottom:7px; white-space:nowrap; }
+.ai-live-kpis .val { font-size:17px; font-weight:800; color:#e6ebf2; white-space:nowrap; }
+.ai-live-kpis .sub { font-size:10.5px; color:#5a6577; margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ai-account-map { position:relative; height:380px; background:#0a0e14; }
+.ai-map-tile { position:absolute; overflow:hidden; border:1.5px solid #0a0e14; border-radius:3px;
+               display:flex; flex-direction:column; justify-content:center; align-items:center;
+               text-align:center; gap:3px; padding:4px; box-sizing:border-box; }
+.ai-map-tile .sym { font-weight:900; color:#fff; line-height:1.1; text-shadow:0 1px 2px rgba(0,0,0,.4); }
+.ai-map-tile .ret { font-weight:800; color:#fff; line-height:1.1; text-shadow:0 1px 2px rgba(0,0,0,.4); }
+.ai-map-tile .meta { color:rgba(255,255,255,.72); font-size:10.5px; line-height:1.2; }
+.ai-map-legend { padding:10px 15px; font-size:10.5px; color:#5a6577; border-top:1px solid #141a23;
+                 display:flex; gap:16px; flex-wrap:wrap; background:#0d1219; }
+.ai-map-legend .live-note { color:#1fd6a8; }
+@media (max-width: 980px) {
+  .ai-live-kpis { grid-template-columns:repeat(2,1fr); }
+  .ai-live-kpis .cell { border-bottom:1px solid #141a23; }
+  .ai-account-map { height:320px; }
+}
+
 .foot { font-size:10.5px; color:#3a4658; margin-top:16px; }
 
 /* base scaling: design is dense 11px-ish, so grow everything for readability */
@@ -2728,6 +2751,30 @@ COIN_HTML = f"""<!doctype html>
       <span class="coin-trade-mode" id="coin-ai-mode-badge">모드 확인 중</span>
       <button class="mini-btn" onclick="runAiNow()" id="btn-run-ai" style="background:#00c087; color:#fff; border:none; margin-right:4px;">AI 수동 실행</button>
       <button class="mini-btn" onclick="loadCoinAiTrades(true)">새로고침</button>
+    </div>
+  </div>
+
+  <div class="box">
+    <div class="box-head">
+      <span>LIVE ACCOUNT MAP · 실시간 내 계좌</span>
+      <span class="total"><span class="news-live-dot"></span> <span id="coin-ai-live-upd">—</span></span>
+    </div>
+    <div class="ai-live-kpis">
+      <div class="cell"><div class="label">총 자산</div><div class="val" id="ai-kpi-total">—</div><div class="sub" id="ai-kpi-principal">원금 —</div></div>
+      <div class="cell"><div class="label">총 수익률</div><div class="val" id="ai-kpi-return">—</div><div class="sub" id="ai-kpi-totalpnl">총 손익 —</div></div>
+      <div class="cell"><div class="label">평가손익 · 미실현</div><div class="val" id="ai-kpi-unreal">—</div><div class="sub">보유 코인 평단 대비</div></div>
+      <div class="cell"><div class="label">실현손익 · 누적</div><div class="val" id="ai-kpi-realized">—</div><div class="sub" id="ai-kpi-winrate">승률 —</div></div>
+      <div class="cell"><div class="label">오늘 실현손익</div><div class="val" id="ai-kpi-today">—</div><div class="sub" id="ai-kpi-todaytrades">오늘 거래 —</div></div>
+      <div class="cell"><div class="label">현금 KRW</div><div class="val" id="ai-kpi-cash">—</div><div class="sub" id="ai-kpi-cashratio">현금 비중 —</div></div>
+    </div>
+    <div class="ai-account-map" id="coin-ai-account-map">
+      <div class="muted" style="padding:14px;">계좌 데이터를 불러오는 중입니다…</div>
+    </div>
+    <div class="ai-map-legend">
+      <span>칸 크기 = 보유 비중</span>
+      <span><span style="color:#1fd6a8">■</span> 수익 · <span style="color:#ff5d6c">■</span> 손실 (내 평단 대비, 진할수록 큼)</span>
+      <span class="live-note">● 7초마다 자동 갱신</span>
+      <span id="ai-map-note"></span>
     </div>
   </div>
 
@@ -3817,9 +3864,121 @@ async function loadCoinNews(force=false) {{
 
 const escAi = s => String(s ?? "").replace(/[&<>"']/g, c => ({{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}}[c]));
 
+function aiMapColor(ret) {{
+  if (ret == null || isNaN(ret)) return "#1c2430";
+  const t = Math.min(1, Math.abs(ret) / 15);
+  return ret >= 0
+    ? `rgba(16, 155, 118, ${{(0.4 + 0.55 * t).toFixed(2)}})`
+    : `rgba(214, 64, 82, ${{(0.4 + 0.55 * t).toFixed(2)}})`;
+}}
+
+function aiMapLayout(items, x, y, w, h, out) {{
+  if (!items.length) return;
+  if (items.length === 1) {{ out.push({{ ...items[0], x, y, w, h }}); return; }}
+  const total = items.reduce((s, i) => s + i.v, 0);
+  let acc = 0, split = 1;
+  for (let i = 0; i < items.length - 1; i++) {{
+    acc += items[i].v;
+    if (acc >= total / 2) {{ split = i + 1; break; }}
+  }}
+  const first = items.slice(0, split), rest = items.slice(split);
+  const frac = total > 0 ? first.reduce((s, i) => s + i.v, 0) / total : 0.5;
+  if (w >= h) {{
+    aiMapLayout(first, x, y, w * frac, h, out);
+    aiMapLayout(rest, x + w * frac, y, w * (1 - frac), h, out);
+  }} else {{
+    aiMapLayout(first, x, y, w, h * frac, out);
+    aiMapLayout(rest, x, y + h * frac, w, h * (1 - frac), out);
+  }}
+}}
+
+function renderAiAccountMap(pf) {{
+  const el = document.getElementById("coin-ai-account-map");
+  if (!el) return;
+  const holdings = (pf.holdings || []).filter(h => Number(h.current_value || 0) > 0);
+  if (!holdings.length) {{
+    el.innerHTML = `<div class="muted" style="padding:14px;">보유 자산이 없습니다. AI가 매수하면 여기에 표시됩니다.</div>`;
+    return;
+  }}
+  const items = holdings.map(h => ({{
+    cash: h.currency === "KRW",
+    sym: h.currency === "KRW" ? "현금" : (h.currency || h.ticker || "?"),
+    v: Number(h.current_value || 0),
+    ret: h.currency === "KRW" ? null : Number(h.return_pct || 0),
+    weight: Number(h.weight || 0),
+    unreal: Number(h.unrealized_pnl || 0),
+  }})).sort((a, b) => b.v - a.v);
+  const rects = [];
+  aiMapLayout(items, 0, 0, 100, 100, rects);
+  el.innerHTML = rects.map(r => {{
+    const area = r.w * r.h;
+    const big = area >= 800, mid = area >= 200;
+    const retTxt = r.ret == null ? "" : PCT(r.ret);
+    const tip = `${{r.sym}} · ${{KRW(r.v)}}원 · 비중 ${{r.weight.toFixed(1)}}%` +
+      (r.ret == null ? "" : ` · 수익률 ${{retTxt}} · 평가손익 ${{KRW(r.unreal, true)}}원`);
+    return `<div class="ai-map-tile" style="left:${{r.x.toFixed(3)}}%; top:${{r.y.toFixed(3)}}%; width:${{r.w.toFixed(3)}}%; height:${{r.h.toFixed(3)}}%; background:${{aiMapColor(r.ret)}};" title="${{escAi(tip)}}">
+      <span class="sym" style="font-size:${{big ? 20 : mid ? 15 : 11}}px;">${{escAi(r.sym)}}</span>
+      ${{r.ret != null && mid ? `<span class="ret" style="font-size:${{big ? 15 : 12}}px;">${{retTxt}}</span>` : ""}}
+      ${{big ? `<span class="meta">${{KRW(r.v)}}원 · ${{r.weight.toFixed(1)}}%</span>` : mid ? `<span class="meta">${{KRW(r.v)}}원</span>` : ""}}
+    </div>`;
+  }}).join("");
+}}
+
+function renderAiLiveKpis(pf, pnl) {{
+  const s = pf.summary || {{}};
+  const setVal = (id, text, n) => {{
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.className = "val" + (n == null ? "" : " " + colorOf(n));
+  }};
+  const setSub = (id, text) => {{
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }};
+  setVal("ai-kpi-total", KRW(s.total_value) + " 원");
+  setSub("ai-kpi-principal", "원금 " + KRW(s.total_principal) + " 원");
+  setVal("ai-kpi-return", PCT(s.total_return_pct), s.total_return_pct);
+  setSub("ai-kpi-totalpnl", "총 손익 " + KRW(s.total_pnl, true) + " 원");
+  setVal("ai-kpi-unreal", KRW(s.unrealized_pnl, true) + " 원", s.unrealized_pnl);
+  setVal("ai-kpi-realized", KRW(s.realized_pnl, true) + " 원", s.realized_pnl);
+  if (pnl && pnl.win_rate != null) setSub("ai-kpi-winrate", "승률 " + Number(pnl.win_rate).toFixed(0) + "%");
+  if (pnl && pnl.today != null) {{
+    setVal("ai-kpi-today", KRW(pnl.today, true) + " 원", pnl.today);
+    setSub("ai-kpi-todaytrades", "오늘 거래 " + (pnl.today_trades || 0) + "건");
+  }}
+  setVal("ai-kpi-cash", KRW(s.cash_value) + " 원");
+  setSub("ai-kpi-cashratio", "현금 비중 " + Number(s.cash_ratio || 0).toFixed(1) + "%");
+}}
+
+async function loadCoinAiLive() {{
+  if (document.hidden || window._coinAiLiveLoading) return;
+  window._coinAiLiveLoading = true;
+  try {{
+    const [pfRes, pnlRes] = await Promise.all([fetch("/api/portfolio"), fetch("/api/pnl")]);
+    const pf = await pfRes.json();
+    let pnl = null;
+    try {{ pnl = await pnlRes.json(); }} catch (e) {{}}
+    if (pf && !pf.error) {{
+      renderAiLiveKpis(pf, pnl);
+      renderAiAccountMap(pf);
+    }}
+    const upd = document.getElementById("coin-ai-live-upd");
+    if (upd) upd.textContent = new Date().toLocaleTimeString("ko-KR", {{ hour: "2-digit", minute: "2-digit", second: "2-digit" }});
+    const note = document.getElementById("ai-map-note");
+    if (note) note.textContent = pf && pf.account_error ? "계좌 조회 오류: " + pf.account_error : "";
+  }} catch (e) {{
+    const note = document.getElementById("ai-map-note");
+    if (note) note.textContent = "계좌 데이터 로드 실패: " + (e.message || e);
+  }} finally {{
+    window._coinAiLiveLoading = false;
+  }}
+}}
+
 async function loadCoinAiTrades(force=false) {{
   if (window._coinAiLoading) return;
   window._coinAiLoading = true;
+  loadCoinAiLive();
   const note = document.getElementById("coin-ai-note");
   try {{
     const [stRes, cfgRes, trRes] = await Promise.all([
@@ -3828,7 +3987,7 @@ async function loadCoinAiTrades(force=false) {{
     let st = await stRes.json();
     let cfg = await cfgRes.json();
     let trades = (await trRes.json()).items || [];
-    let sourceNote = "로컬 봇 실시간 데이터입니다. 30초마다 자동 갱신됩니다.";
+    let sourceNote = "로컬 봇 실시간 데이터입니다. 계좌·수익률은 7초, 판단 기록은 10초마다 자동 갱신됩니다.";
     if (cfg.model === "github-pages-static" && window.__aiTradeSnapshot) {{
       const snap = window.__aiTradeSnapshot;
       st = snap.state; cfg = snap.config; trades = snap.trades || [];
@@ -3963,7 +4122,8 @@ setInterval(() => {{ if (!window._coinSection || window._coinSection === "market
 setInterval(() => {{ if (!window._coinSection || window._coinSection === "market") loadCoinMarketBoard(); }}, 180000);
 setInterval(() => {{ if (window._coinSection === "portfolio") loadCoinPortfolio(); }}, 20000);
 setInterval(() => {{ if (window._coinSection === "news") loadCoinNews(window._coinNewsMapOpen); }}, 60000);
-setInterval(() => {{ if (window._coinSection === "ai") loadCoinAiTrades(); }}, 30000);
+setInterval(() => {{ if (window._coinSection === "ai") loadCoinAiTrades(); }}, 10000);
+setInterval(() => {{ if (window._coinSection === "ai") loadCoinAiLive(); }}, 7000);
 if (["market", "portfolio", "news", "ai"].includes(coinInitialSection)) {{
   requestAnimationFrame(() => {{
     setCoinSection(coinInitialSection);
