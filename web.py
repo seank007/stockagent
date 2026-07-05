@@ -2444,7 +2444,7 @@ COIN_HTML = f"""<!doctype html>
     <div class="head-tools">
       <button class="mini-btn danger" id="pause-bot" onclick="setBotPaused(true)">일시정지</button>
       <button class="mini-btn" id="resume-bot" onclick="setBotPaused(false)">재개</button>
-      <button class="mini-btn" style="border-color:#5aa3ff; color:#5aa3ff; margin-left:8px;" onclick="openTradeHistoryModal()">거래 내역</button>
+      <button class="mini-btn" style="border-color:#5aa3ff; color:#5aa3ff; margin-left:8px;" onclick="openTradeHistoryModal()">거래 내역(버그수정판)</button>
     </div>
     <span style="flex:1"></span>
     <div class="tabs">
@@ -4017,7 +4017,7 @@ async function openTradeHistoryModal() {{
     const rowsContainer = document.getElementById("trade-history-rows");
     if (!modal || !rowsContainer) return;
     modal.hidden = false;
-    rowsContainer.innerHTML = "로딩 중...";
+    // rowsContainer.innerHTML = "로딩 중...";
 
     let res;
     try {{
