@@ -155,6 +155,11 @@ def start_background_trading() -> threading.Thread | None:
     """production/dev entrypoint에서 매매 루프를 정확히 한 번만 시작한다."""
     global _trading_thread
     if not config.RUN_TRADING_LOOP:
+        # 외부 트레이더(hermes agent)가 DB에 기록하는 모드: 대시보드용으로 복원만.
+        try:
+            store.hydrate_from_db()
+        except Exception:  # noqa: BLE001
+            pass
         return None
     if _trading_thread and _trading_thread.is_alive():
         return _trading_thread
@@ -1154,8 +1159,22 @@ def _manual_order_context(payload: dict, *, execute: bool) -> dict:
 
 
 # ============ JSON API ============
+_state_rehydrated_at = 0.0
+
+
 @app.route("/api/state")
 def api_state():
+    # 외부 트레이더(hermes agent) 모드에서는 DB 기록을 주기적으로 다시 읽어
+    # 대시보드가 최신 판단/주문을 계속 반영하게 한다.
+    global _state_rehydrated_at
+    if not config.RUN_TRADING_LOOP:
+        now = time.time()
+        if now - _state_rehydrated_at > 30:
+            _state_rehydrated_at = now
+            try:
+                store.hydrate_from_db()
+            except Exception:  # noqa: BLE001
+                pass
     return jsonify(store.snapshot())
 
 
