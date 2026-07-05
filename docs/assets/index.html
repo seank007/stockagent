@@ -494,20 +494,25 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
   }
 
   function state() {
+    // 배포 시점에 심어진 실제 봇 스냅샷이 있으면 그걸 보여준다 (모의 아님).
+    const snap = window.__aiTradeSnapshot || {};
+    const scfg = snap.config || {};
+    const sstate = snap.state || {};
+    const liveMode = scfg.allow_live_trading && !scfg.dry_run;
     return {
-      mode: "DRY_RUN(모의)",
-      provider: "mock",
-      model: "github-pages-static",
+      mode: liveMode ? "⚠️ 실거래" : "DRY_RUN(모의)",
+      provider: scfg.provider || "mock",
+      model: scfg.external_trader ? "hermes agent" : (scfg.model || "github-pages-static"),
       loop_running: true,
       bot_paused: false,
       started_at: "GitHub Pages",
       interval: 600,
-      cycle_count: 7,
-      last_update: new Date().toLocaleTimeString("ko-KR", {hour:"2-digit", minute:"2-digit"}),
+      cycle_count: (sstate.history || []).length,
+      last_update: sstate.last_update || new Date().toLocaleTimeString("ko-KR", {hour:"2-digit", minute:"2-digit"}),
       today_pnl: 0,
       total_pnl: 0,
       error: null,
-      history: [
+      history: (sstate.history && sstate.history.length) ? sstate.history : [
         {time:"15:42:10", ticker:"KRW-BTC", price:priceFor("KRW-BTC"), rsi:58.2, trend:"up", change_pct:0.8, action:"HOLD", confidence:0.54, reasoning:"공개 데모 모드입니다. GitHub Pages에서는 실제 주문과 AI 호출을 실행하지 않습니다.", order:"none | demo"},
         {time:"15:40:05", ticker:"KRW-SOL", price:priceFor("KRW-SOL"), rsi:51.7, trend:"down", change_pct:0.2, action:"HOLD", confidence:0.48, reasoning:"모의 데이터로 대시보드 UI를 표시합니다.", order:"none | demo"}
       ]

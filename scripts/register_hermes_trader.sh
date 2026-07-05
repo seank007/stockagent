@@ -4,10 +4,7 @@
 # ⚠️ 등록하면 hermes agent가 10분마다 실제 계좌로 매수/매도를 자율 실행한다.
 # 해제: hermes --profile stockmaster cron list 로 ID 확인 후 cron remove <ID>
 
-~/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main --profile stockmaster cron add "10m" \
-  --name "업비트 자율 매매 사이클" \
-  --deliver telegram \
-  --workdir /Users/seankim/Desktop/007/02_Projects/stockagent \
+~/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main --profile stockmaster cron add "every 10m" \
   '너는 사용자의 업비트 계좌를 전적으로 위임받은 자율 트레이더다. 다음 매매 사이클을 수행하라.
 
 1) 터미널에서 실행해 계좌·시세를 확인:
@@ -28,4 +25,7 @@
 4) 종목마다 판단을 대시보드에 기록하라 (주문을 안 했어도 기록):
 /Users/seankim/.venvs/stockagent/bin/python /Users/seankim/Desktop/007/02_Projects/stockagent/scripts/trade_cli.py log KRW-BTC HOLD 0.7 "판단 근거 한두 문장"
 
-5) 마지막 응답은 텔레그램 보고용으로 3줄 이내 요약: 실행한 주문(없으면 관망)과 핵심 이유.'
+5) 마지막 응답은 텔레그램 보고용으로 3줄 이내 요약: 실행한 주문(없으면 관망)과 핵심 이유.' \
+  --name "업비트 자율 매매 사이클" \
+  --deliver telegram \
+  --workdir /Users/seankim/Desktop/007/02_Projects/stockagent

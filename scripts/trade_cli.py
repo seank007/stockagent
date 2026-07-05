@@ -77,6 +77,9 @@ def cmd_buy(broker: UpbitBroker, ticker: str, amount_arg: str) -> None:
     snap = broker.market_snapshot(ticker)
     price = float(snap.get("price") or 0)
     result = broker.buy(ticker, amount)
+    if not result or (isinstance(result, dict) and result.get("error")):
+        _fail(f"매수 주문이 거래소에서 거절됨: {result!r} "
+              f"(잔고 {krw:,.0f}원, 주문 {amount:,.0f}원 — 금액을 줄여 재시도하라)")
     volume = amount / price if price > 0 else 0.0
     db.record_trade(
         ticker=ticker, side="buy", price=price, volume=volume, krw_amount=amount,
@@ -99,6 +102,8 @@ def cmd_sell(broker: UpbitBroker, ticker: str, pct_arg: str) -> None:
         _fail(f"매도 금액 {value:,.0f}원 < 업비트 최소 5,000원 "
               f"(보유 전량 {coin}개 ≈ {coin * price:,.0f}원, pct를 키워라)")
     result = broker.sell(ticker, volume)
+    if not result or (isinstance(result, dict) and result.get("error")):
+        _fail(f"매도 주문이 거래소에서 거절됨: {result!r}")
     info = db.record_trade(
         ticker=ticker, side="sell", price=price, volume=volume, krw_amount=value,
         dry_run=config.DRY_RUN, raw_result=json.dumps(result, ensure_ascii=False, default=str),

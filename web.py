@@ -1220,6 +1220,8 @@ def api_config():
         "dry_run": config.DRY_RUN,
         "allow_live_trading": config.ALLOW_LIVE_TRADING,
         "free_trade_mode": config.FREE_TRADE_MODE,
+        # 내장 루프 대신 외부 트레이더(hermes agent)가 매매하는 모드
+        "external_trader": not config.RUN_TRADING_LOOP,
         "provider": config.AI_PROVIDER,
         "model": config.MODELS.get(config.AI_PROVIDER, "?"),
         "tickers": config.TICKERS,
@@ -3720,9 +3722,10 @@ function renderCoinAiTrades(st, cfg, trades) {{
   const risk = cfg.risk || {{}};
   const live = cfg.allow_live_trading && !cfg.dry_run;
   const free = !!cfg.free_trade_mode;
+  const hermes = !!cfg.external_trader;
   const badge = document.getElementById("coin-ai-mode-badge");
   if (badge) {{
-    badge.textContent = live ? (free ? "⚠️ 실거래 · 자유 모드" : "⚠️ 실거래 작동 중") : "모의매매(DRY RUN)";
+    badge.textContent = live ? (hermes ? "⚠️ 실거래 · hermes 자율 운용" : free ? "⚠️ 실거래 · 자유 모드" : "⚠️ 실거래 작동 중") : "모의매매(DRY RUN)";
     badge.style.color = live ? "#1fd6a8" : "#e0b341";
   }}
   const set = (id, text, cls) => {{
@@ -3730,9 +3733,9 @@ function renderCoinAiTrades(st, cfg, trades) {{
     if (el) {{ el.textContent = text; if (cls !== undefined) el.className = "val " + cls; }}
   }};
   set("coin-ai-mode", (live ? "실거래" : "모의매매") + (free ? " · 자유" : ""), live ? "up" : "muted");
-  set("coin-ai-engine", (cfg.provider || "?") + " · " + (cfg.model || "?"));
-  set("coin-ai-interval", Math.round((risk.cycle_seconds || 600) / 60) + "분마다");
-  set("coin-ai-last", (st.last_update || "—") + (st.loop_running ? "" : " (루프 중지됨)"), st.loop_running ? "" : "down");
+  set("coin-ai-engine", hermes ? "hermes agent" : (cfg.provider || "?") + " · " + (cfg.model || "?"));
+  set("coin-ai-interval", hermes ? "필요할 때 (이벤트 기동)" : Math.round((risk.cycle_seconds || 600) / 60) + "분마다");
+  set("coin-ai-last", (st.last_update || "—") + (st.loop_running || hermes ? "" : " (루프 중지됨)"), st.loop_running || hermes ? "" : "down");
   set("coin-ai-minconf", free ? "없음" : (risk.min_confidence ?? 0.6).toFixed(2), free ? "muted" : "");
   set("coin-ai-maxorder", free ? "제한 없음" : KRW(risk.max_order_krw || 10000) + " 원", free ? "muted" : "");
   set("coin-ai-minorder", KRW(risk.min_order_krw || 5000) + " 원 (업비트)");
@@ -3742,7 +3745,12 @@ function renderCoinAiTrades(st, cfg, trades) {{
 
   const pipeline = document.getElementById("coin-ai-pipeline");
   if (pipeline) {{
-    const steps = [
+    const steps = hermes ? [
+      ["① 시장 감시", `감시 스크립트가 2분마다 ${{escAi((cfg.tickers || []).join(", "))}}의 가격·RSI를 확인합니다(AI 호출 없음). 가격 ±1.5% 급변 또는 RSI 30/70 진입 시에만 에이전트를 깨웁니다.`],
+      ["② hermes 판단", `hermes agent가 계좌·시세·지표를 조회하고 필요하면 뉴스까지 검색한 뒤 매수/매도/관망과 주문 크기를 전적으로 스스로 결정합니다. 텔레그램으로 직접 명령할 수도 있습니다.`],
+      ["③ 제약 조건", `자유 모드 — 신뢰도 기준, 주문 한도, 일일 손실 한도 없음. 업비트 거래소 규칙(주문 5,000원 미만 거절, 수수료 0.05%)만 적용됩니다.`],
+      ["④ 주문·보고", live ? "판단 즉시 업비트에 실제 시장가 주문이 나가고, DB 기록 후 텔레그램으로 결과를 보고합니다." : "모의 모드라 주문은 기록만 됩니다."],
+    ] : [
       ["① 시세 수집", `${{Math.round((risk.cycle_seconds || 600) / 60)}}분마다 ${{escAi((cfg.tickers || []).join(", "))}}의 현재가·캔들을 수집하고 RSI14, MA5/MA20, 추세를 계산합니다.`],
       free
         ? ["② AI 판단", `${{escAi(cfg.model || "AI")}}가 시세와 보유 포지션을 보고 BUY / SELL / HOLD뿐 아니라 주문 크기(가용 잔고 대비 %)까지 전적으로 스스로 결정합니다. 전략도 AI에게 위임되어 있습니다.`]
