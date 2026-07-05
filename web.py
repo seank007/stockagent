@@ -2075,11 +2075,13 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 
 .foot { font-size:10.5px; color:#3a4658; margin-top:16px; }
 
+/* base scaling: design is dense 11px-ish, so grow everything for readability */
+body { zoom: 1.25; }
 /* wide-monitor scaling: keeps 1340px design but grows so text isn't tiny on large displays */
-@media (min-width: 1500px) { body { zoom: 1.12; } }
-@media (min-width: 1800px) { body { zoom: 1.24; } }
-@media (min-width: 2200px) { body { zoom: 1.38; } }
-@media (min-width: 2600px) { body { zoom: 1.55; } }
+@media (min-width: 1500px) { body { zoom: 1.4; } }
+@media (min-width: 1800px) { body { zoom: 1.55; } }
+@media (min-width: 2200px) { body { zoom: 1.72; } }
+@media (min-width: 2600px) { body { zoom: 1.9; } }
 
 @media (max-width: 980px) {
   .hd-row { flex-wrap:wrap; padding:12px 14px; }
