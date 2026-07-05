@@ -9,6 +9,31 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 
 <style>
+/* Modal Styles */
+.modal {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(11,15,25,0.85); display: flex;
+  align-items: center; justify-content: center; z-index: 10000;
+}
+.modal-content {
+  background: #141a23; border: 1px solid #1f2937;
+  border-radius: 12px; width: 90%; max-width: 600px;
+  max-height: 80vh; overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column;
+}
+.modal-header {
+  padding: 16px 20px; border-bottom: 1px solid #1f2937;
+  display: flex; justify-content: space-between; align-items: center;
+  font-weight: 800; font-size: 16px; color: #e6ebf2;
+}
+.modal-close {
+  background: none; border: none; color: #8a95a8;
+  font-size: 20px; cursor: pointer; padding: 0; line-height: 1;
+}
+.modal-close:hover { color: #ff5d6c; }
+.modal-body { padding: 0; overflow-y: auto; }
+
 :root { color-scheme: dark; }
 html,body { margin:0; background:#070a0e; }
 * { box-sizing: border-box; }
@@ -409,6 +434,17 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
   .manual-form { grid-template-columns:1fr; }
   .legend { display:none; }
 }
+/* AI Brain */
+#ai-brain-bar { background:#0d1219; border-bottom:1px solid #1c2430; font-family:'JetBrains Mono',monospace; font-size:12px; padding:8px 22px; display:flex; align-items:center; gap:12px; cursor:pointer; position:relative; z-index:19; }
+#ai-brain-bar .brain-icon { font-size:14px; animation:pulse 2s infinite; }
+#ai-brain-bar .brain-text { flex:1; overflow:hidden; white-space:nowrap; }
+#ai-brain-panel { display:none; background:#0a0e14; border-bottom:1px solid #1c2430; padding:16px 22px; font-size:12px; color:#8a95a8; z-index:18; }
+#ai-brain-panel.open { display:block; }
+.brain-log-item { margin-bottom:8px; padding-bottom:8px; border-bottom:1px dashed #1c2430; }
+.brain-log-item:last-child { border:none; margin:0; padding:0; }
+@keyframes pulse { 0%{opacity:0.8;} 50%{opacity:0.3;} 100%{opacity:0.8;} }
+@keyframes typewriter { from { width:0; } to { width:100%; } }
+.typewriter-text { display:inline-block; overflow:hidden; white-space:nowrap; animation:typewriter 2s steps(40,end); }
 </style>
 </head><body>
 
@@ -906,7 +942,60 @@ async function loadTickerTape() {
 
 async function tickTape() {
   await loadTickerTape();
+  setInterval(loadTickerTape, 12000);
 }
+
+// AI Brain Logic
+let lastBrainTs = null;
+function initAiBrain() {
+  const root = document.createElement("div");
+  root.innerHTML = `
+    <div id="ai-brain-bar">
+      <div class="brain-icon">🧠</div>
+      <div class="brain-text" id="ai-brain-text"><span style="color:#8a95a8;">AI 에이전트 대기 중...</span></div>
+      <div style="font-size:10px; color:#5a6577;">[Click to Expand]</div>
+    </div>
+    <div id="ai-brain-panel"></div>
+  `;
+  const hd = document.querySelector(".hd");
+  if (hd) {
+    hd.parentNode.insertBefore(root, hd.nextSibling);
+  } else {
+    document.body.prepend(root);
+  }
+  document.getElementById("ai-brain-bar").addEventListener("click", () => {
+    document.getElementById("ai-brain-panel").classList.toggle("open");
+  });
+  pollAiBrain();
+  setInterval(pollAiBrain, 10000);
+}
+
+async function pollAiBrain() {
+  try {
+    const res = await fetch("/api/decisions?limit=5");
+    const data = await res.json();
+    if (!data.items || data.items.length === 0) return;
+    const latest = data.items[0];
+    if (latest.ts !== lastBrainTs) {
+      lastBrainTs = latest.ts;
+      const textEl = document.getElementById("ai-brain-text");
+      const c = latest.action === "BUY" ? "#1fd6a8" : latest.action === "SELL" ? "#ff5d6c" : "#8a95a8";
+      const a = latest.action === "BUY" ? "매수" : latest.action === "SELL" ? "매도" : "관망";
+      textEl.innerHTML = `<span style="color:${c};font-weight:bold;">[${latest.ticker} ${a}]</span> <span class="typewriter-text" style="color:#e6ebf2;">${escapeHtml(latest.reasoning || "")}</span>`;
+      
+      document.getElementById("ai-brain-panel").innerHTML = data.items.map(item => {
+        const ic = item.action === "BUY" ? "#1fd6a8" : item.action === "SELL" ? "#ff5d6c" : "#8a95a8";
+        const ia = item.action === "BUY" ? "매수" : item.action === "SELL" ? "매도" : "관망";
+        return `<div class="brain-log-item">
+          <span style="color:#5a6577;font-family:monospace;">${(item.ts||"").split('T')[1] || item.ts}</span>
+          <strong style="color:${ic}; margin:0 8px;">${item.ticker} ${ia}</strong>
+          <span style="color:#e6ebf2;">${escapeHtml(item.reasoning || "")}</span>
+        </div>`;
+      }).join("");
+    }
+  } catch(e) {}
+}
+document.addEventListener("DOMContentLoaded", initAiBrain);
 
 async function setBotPaused(paused) {
   const action = paused ? "pause" : "resume";

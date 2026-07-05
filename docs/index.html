@@ -9,6 +9,31 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 
 <style>
+/* Modal Styles */
+.modal {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(11,15,25,0.85); display: flex;
+  align-items: center; justify-content: center; z-index: 10000;
+}
+.modal-content {
+  background: #141a23; border: 1px solid #1f2937;
+  border-radius: 12px; width: 90%; max-width: 600px;
+  max-height: 80vh; overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column;
+}
+.modal-header {
+  padding: 16px 20px; border-bottom: 1px solid #1f2937;
+  display: flex; justify-content: space-between; align-items: center;
+  font-weight: 800; font-size: 16px; color: #e6ebf2;
+}
+.modal-close {
+  background: none; border: none; color: #8a95a8;
+  font-size: 20px; cursor: pointer; padding: 0; line-height: 1;
+}
+.modal-close:hover { color: #ff5d6c; }
+.modal-body { padding: 0; overflow-y: auto; }
+
 :root { color-scheme: dark; }
 html,body { margin:0; background:#070a0e; }
 * { box-sizing: border-box; }
@@ -409,6 +434,17 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
   .manual-form { grid-template-columns:1fr; }
   .legend { display:none; }
 }
+/* AI Brain */
+#ai-brain-bar { background:#0d1219; border-bottom:1px solid #1c2430; font-family:'JetBrains Mono',monospace; font-size:12px; padding:8px 22px; display:flex; align-items:center; gap:12px; cursor:pointer; position:relative; z-index:19; }
+#ai-brain-bar .brain-icon { font-size:14px; animation:pulse 2s infinite; }
+#ai-brain-bar .brain-text { flex:1; overflow:hidden; white-space:nowrap; }
+#ai-brain-panel { display:none; background:#0a0e14; border-bottom:1px solid #1c2430; padding:16px 22px; font-size:12px; color:#8a95a8; z-index:18; }
+#ai-brain-panel.open { display:block; }
+.brain-log-item { margin-bottom:8px; padding-bottom:8px; border-bottom:1px dashed #1c2430; }
+.brain-log-item:last-child { border:none; margin:0; padding:0; }
+@keyframes pulse { 0%{opacity:0.8;} 50%{opacity:0.3;} 100%{opacity:0.8;} }
+@keyframes typewriter { from { width:0; } to { width:100%; } }
+.typewriter-text { display:inline-block; overflow:hidden; white-space:nowrap; animation:typewriter 2s steps(40,end); }
 </style>
 </head><body>
 
@@ -649,6 +685,7 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
     <div class="head-tools">
       <button class="mini-btn danger" id="pause-bot" onclick="setBotPaused(true)">일시정지</button>
       <button class="mini-btn" id="resume-bot" onclick="setBotPaused(false)">재개</button>
+      <button class="mini-btn" style="border-color:#5aa3ff; color:#5aa3ff; margin-left:8px;" onclick="openTradeHistoryModal()">거래 내역</button>
     </div>
     <span style="flex:1"></span>
     <div class="tabs">
@@ -929,9 +966,10 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 
   <div class="coin-panel" id="coin-ai-panel" hidden>
   <div class="section-line coin-section-anchor" id="coin-ai-section">
-    <div class="section-title">AI 자동매매</div>
+    <div class="section-title">AI 매매 (수동)</div>
     <div class="inline-tools">
       <span class="coin-trade-mode" id="coin-ai-mode-badge">모드 확인 중</span>
+      <button class="mini-btn" onclick="runAiNow()" id="btn-run-ai" style="background:#00c087; color:#fff; border:none; margin-right:4px;">AI 수동 실행</button>
       <button class="mini-btn" onclick="loadCoinAiTrades(true)">새로고침</button>
     </div>
   </div>
@@ -979,8 +1017,21 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
   <div class="foot" id="foot">—</div>
 </div>
 
+  <!-- Trade History Modal -->
+  <div id="trade-history-modal" class="modal" hidden>
+    <div class="modal-content">
+      <div class="modal-header">
+        <span>거래 내역 (최근 50건)</span>
+        <button class="modal-close" onclick="closeTradeHistoryModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="trade-history-rows" style="padding: 10px;">로딩 중...</div>
+      </div>
+    </div>
+  </div>
+
 <script>window.__initialCoinPortfolio = {"account_error": null, "daily": [{"buy_count": 2, "day": "2026-07-05", "realized_pnl": 0.0, "sell_count": 1, "trades_count": 3}, {"buy_count": 1, "day": "2026-07-04", "realized_pnl": 0.0, "sell_count": 0, "trades_count": 1}], "holdings": [{"avg_buy_price": 275967.9859547, "balance": 0.98858422, "buy_count": 2, "currency": "SOL", "current_price": 121400.0, "current_value": 120014.124308, "last_trade_at": "2026-07-05T14:51:20", "principal": 272817.59613999806, "realized_pnl": 0.0, "return_pct": -56.00939015443345, "sell_count": 0, "ticker": "KRW-SOL", "trades_count": 2, "unrealized_pnl": -152803.47183199806, "weight": 99.77294451899287}, {"avg_buy_price": 1.0, "balance": 273.11877838, "buy_count": 0, "currency": "KRW", "current_price": 1.0, "current_value": 273.11877838, "last_trade_at": null, "principal": 273.11877838, "realized_pnl": 0.0, "return_pct": 0.0, "sell_count": 0, "ticker": "KRW", "trades_count": 0, "unrealized_pnl": 0.0, "weight": 0.22705548100713344}], "manual_items": [], "risk": {"max_daily_loss_krw": 30000, "max_order_krw": 10000, "min_confidence": 0.5}, "summary": {"assets_count": 1, "cash_ratio": 0.22705548100713344, "cash_value": 273.11877838, "coin_value": 120014.124308, "largest_asset": "SOL", "largest_weight": 99.77294451899287, "realized_pnl": 0.0, "total_pnl": -152803.47183199806, "total_principal": 273090.71491837804, "total_return_pct": -55.953375008618764, "total_value": 120287.24308638, "unrealized_pnl": -152803.47183199806}, "generated_at": "2026-07-05 14:54"};</script>
-<script>window.__aiTradeSnapshot = {"generated_at": "2026-07-05 14:54", "state": {"last_update": "07-05 14:51", "loop_running": true, "history": [{"time": "07-05 14:51", "ticker": "KRW-SOL", "price": 121300.0, "rsi": 22.92, "trend": "down", "change_pct": -0.33, "action": "BUY", "confidence": 0.78, "reasoning": "SOL은 RSI14 22.9로 극단 과매도이며 가격이 MA5 부근에서 하락 폭을 줄이고 있어 단기 되돌림 후보로 판단했다. BTC 매도 자금을 재배치해 43,000원 시장가 매수했다.", "order": "none | hermes agent 판단"}, {"time": "07-05 14:51", "ticker": "KRW-BTC", "price": 94653000.0, "rsi": 45.09, "trend": "down", "change_pct": 1.93, "action": "SELL", "confidence": 0.74, "reasoning": "BTC는 RSI 45·MA20 하회로 반등 우위가 약해 지금 신규 매수할 자리로 보기 어렵다. 이벤트 신호가 더 극단적인 SOL 과매도 반등 쪽이 기대값이 높아 전량 매도해 원화를 확보했다.", "order": "none | hermes agent 판단"}, {"time": "07-05 14:33", "ticker": "KRW-BTC", "price": 94661000.0, "rsi": 45.22, "trend": "down", "change_pct": 1.94, "action": "HOLD", "confidence": 0.9, "reasoning": "trade_cli 연동 테스트", "order": "none | hermes agent 판단"}, {"time": "07-05 14:30", "ticker": "KRW-SOL", "price": 121300.0, "rsi": 22.92, "trend": "down", "change_pct": -0.33, "action": "HOLD", "confidence": 0.6, "reasoning": "RSI14가 22.9로 과매도 구간에 진입했고, 최근 캔들에서 하락 폭이 줄며 거래량도 급감해 매도 압력이 소진되는 조짐이 보인다. 지금 가격에 새로 살 것인가 관점에서 보면 과매도 반등 여지가 있어 이 지점에서 손실 확정 매도를 하는 것은 불리하며, 원화 잔고도 69원으로 사실상 매수/추가 조정 여력이 없다. 단기 반등 또는 MA5선 회복 여부를 확인한 뒤 대응하는 것이 최선이다.", "order": "none | HOLD"}, {"time": "07-05 14:30", "ticker": "KRW-BTC", "price": 94661000.0, "rsi": 45.22, "trend": "down", "change_pct": 1.94, "action": "HOLD", "confidence": 0.6, "reasoning": "보유 BTC 평가액은 약 43,000원으로 최소 주문 금액 5,000원은 넘지만, 원화 잔고가 69원에 불과해 추가 매수는 불가능하다. 매도 관점에서는 가격이 MA20 아래·RSI 45로 약세지만 MA5 부근에서 지지받으며 횡보 중이라 지금 손실 확정 매도할 급박한 하락 신호는 없다. 자본 규모가 극히 작아 회전 실익이 미미하므로 명확한 방향성이 나올 때까지 유지한다.", "order": "none | HOLD"}, {"time": "07-05 14:20", "ticker": "KRW-SOL", "price": 121400.0, "rsi": 23.4, "trend": "down", "change_pct": -0.25, "action": "HOLD", "confidence": 0.6, "reasoning": "RSI14가 23.4로 과매도 구간에 진입했고 최근 캔들이 121,000원 부근에서 하락 폭이 줄며 바닥을 다지는 모습이다. 지금 신규 매수 관점에서도 과매도 반등 여지가 있어 이 가격에서 손실 확정 매도할 근거는 약하다. 원화 잔고가 69원뿐이라 추가 매수도 불가하므로, 단기 반등 시 매도 기회를 노리며 유지하는 것이 최선이다.", "order": "none | HOLD"}, {"time": "07-05 14:20", "ticker": "KRW-BTC", "price": 94655000.0, "rsi": 45.12, "trend": "down", "change_pct": 1.93, "action": "HOLD", "confidence": 0.5, "reasoning": "보유 BTC 평가액은 약 43,000원으로 최소 주문금액 5,000원 이상이라 매도 자체는 가능하나, 원화 잔고가 69원에 불과해 추가 매수 여력이 없다. 현재 가격은 MA5 부근이고 RSI 45로 중립권이라 즉시 손절해 재배치할 만한 급락 신호나 뚜렷한 하락 모멘텀이 강하지 않다. 소량 포지션인 만큼 회전 실익이 크지 않아 관망하며 명확한 방향성 확인 후 대응하는 것이 낫다.", "order": "none | HOLD"}, {"time": "07-05 14:14", "ticker": "KRW-SOL", "price": 121300.0, "rsi": 22.92, "trend": "down", "change_pct": -0.33, "action": "HOLD", "confidence": 0.6, "reasoning": "RSI14가 22.9로 과매도 구간이며 최근 캔들은 121,000원 부근에서 저점을 다지는 모습이라 단기 반등 여지가 있다. 다만 평균매입가(362,436원) 대비 현재가(121,300원)가 크게 낮아 현시점 손절은 큰 실현손실을 확정할 뿐이고, 가용 원화(약 69원)도 없어 추가 매수도 불가능하다. 과매도 반등을 기다리며 관망한다.", "order": "none | HOLD"}, {"time": "07-05 14:14", "ticker": "KRW-BTC", "price": 94600000.0, "rsi": 44.29, "trend": "down", "change_pct": 1.87, "action": "HOLD", "confidence": 0.6, "reasoning": "RSI 44로 중립 하단, MA5가 MA20 아래로 단기 하락 추세라 신규 매수 근거가 약하다. 원화 잔고 69원은 최소 주문금액 5,000원에 못 미쳐 매수 자체가 불가능하다. 보유 BTC 평가액도 약 4.3만원으로 5,000원 이상이나 평단가가 현재가보다 크게 높아 큰 손실 구간이며, 지금 매도로 확정할 만한 급락 신호는 없어 관망한다.", "order": "none | HOLD"}, {"time": "07-05 14:03", "ticker": "KRW-SOL", "price": 121400.0, "rsi": 23.4, "trend": "down", "change_pct": -0.25, "action": "HOLD", "confidence": 0.6, "reasoning": "RSI14가 23.4로 과매도 구간에 진입했고 최근 캔들이 121,000~121,600원에서 저점을 다지며 반등 조짐을 보이고 있어 추가 매도는 불리하다. 다만 보유 평단(362,436원) 대비 현재가(121,400원)가 크게 낮아 큰 손실 상태이며, 가용 원화가 69원에 불과해 물타기 매수도 불가능하다. 과매도 반등을 기다리며 관망하는 것이 합리적이다.", "order": "none | HOLD"}, {"time": "07-05 14:03", "ticker": "KRW-BTC", "price": 94643000.0, "rsi": 44.94, "trend": "down", "change_pct": 1.92, "action": "HOLD", "confidence": 0.6, "reasoning": "현재가 94,643,000원으로 MA20 아래에 있고 추세는 하락, RSI 44.9로 중립 약세라 신규 진입 매력이 낮다. 보유 코인 평가액은 약 4.3만원으로 매도 가능하나 원화 잔고 69원으로 추가 매수는 불가능하며, 평단가(1.55억)가 현재가보다 크게 높아 손절 급박함도 없어 관망이 적절하다.", "order": "none | HOLD"}, {"time": "07-05 13:53", "ticker": "KRW-SOL", "price": 121600.0, "rsi": 31.37, "trend": "down", "change_pct": -0.25, "action": "HOLD", "confidence": 0.6, "reasoning": "RSI14가 31.4로 과매도 구간에 근접했고 단기 하락폭이 -0.25%로 크지 않아 반등 여지가 있다. 다만 보유 평단가(약 36만원) 대비 현재가 12.16만원으로 큰 미실현 손실 상태여서 여기서 손절 매도할 이유가 약하고, 원화 잔고(69원)가 최소주문금액에 못 미쳐 추가 매수도 불가능하다. 따라서 관망한다.", "order": "none | HOLD"}, {"time": "07-05 13:53", "ticker": "KRW-BTC", "price": 94676000.0, "rsi": 51.16, "trend": "down", "change_pct": 2.02, "action": "HOLD", "confidence": 0.6, "reasoning": "RSI 51로 중립이고 가격이 MA5·MA20 사이에서 방향성 없이 횡보 중이라 뚜렷한 진입 신호가 없다. 보유 원화 69원은 최소 주문금액 5,000원에 크게 미달해 매수가 불가능하고, 보유 BTC 평가액도 약 4.3만원 수준이지만 하락 추세에서 손절 급박성은 낮아 관망한다.", "order": "none | HOLD"}, {"time": "07-05 13:51", "ticker": "KRW-SOL", "price": 121800.0, "rsi": 33.96, "trend": "down", "change_pct": -0.08, "action": "HOLD", "confidence": 0.45, "reasoning": "ma5(121,640)가 ma20(123,135) 아래에 있고 추세는 하락이지만, RSI14가 33.96으로 과매도권에 근접해 반등 가능성이 있습니다. 최근 캔들이 저점을 찍고 121,800까지 소폭 반등 중이라 방향성이 불확실하고, 평단가(362,436) 대비 큰 손실 상태라 여기서 매도하면 손실 확정, 매수하기엔 하락추세 확인이 필요해 관망이 적절합니다.", "order": "none | 신뢰도 0.45 < 0.5 → 관망"}, {"time": "07-05 13:51", "ticker": "KRW-BTC", "price": 94676000.0, "rsi": 51.16, "trend": "down", "change_pct": 2.02, "action": "HOLD", "confidence": 0.62, "reasoning": "ma5(94,638,800)가 ma20(94,864,900) 아래에 있고 추세는 down이며 RSI14는 51.16으로 중립대라 뚜렷한 방향성이 없다. 다만 최근 캔들은 저점(94,325,000)을 찍고 반등하며 종가가 회복되는 흐름이라 하락 지속으로 단정하기 어렵다. 보유 평단(155,373,955)이 현재가보다 훨씬 높아 손절 매도 실익이 적고 KRW 잔고도 미미해 추가 매수 여력이 없으므로 관망이 적절하다.", "order": "none | HOLD"}, {"time": "07-05 13:40", "ticker": "KRW-SOL", "price": 121800.0, "rsi": 33.96, "trend": "down", "change_pct": -0.08, "action": "HOLD", "confidence": 0.4, "reasoning": "ma5(121,640)가 ma20(123,135) 아래에 있고 추세는 하락이지만 RSI14가 33.96으로 과매도 구간에 근접해 반등 가능성도 존재한다. 최근 캔들에서 121,000 저점 후 121,800까지 소폭 회복하며 하락세가 진정되는 조짐이 있으나 방향성이 뚜렷하지 않다. 또한 평단가(362,436원)가 현재가보다 크게 높아 매수 물타기 실익이 낮고 신호가 불명확하므로 관망을 택한다.", "order": "none | 신뢰도 0.40 < 0.5 → 관망"}, {"time": "07-05 13:40", "ticker": "KRW-BTC", "price": 94815000.0, "rsi": 53.2, "trend": "down", "change_pct": 2.17, "action": "HOLD", "confidence": 0.6, "reasoning": "ma5(9466.66만)가 ma20(9487.19만) 아래에 있어 단기 추세는 약세지만, 최근 2개 캔들이 연속 반등하며 회복 조짐을 보이고 RSI14는 53.2로 중립 구간입니다. 방향성이 뚜렷하지 않고, 보유 평단(약 1억5537만)이 현재가보다 크게 높아 손절 성격의 추가 매도 실익도 낮으므로 관망이 적절합니다.", "order": "none | HOLD"}, {"time": "07-05 13:30", "ticker": "KRW-SOL", "price": 121700.0, "rsi": 32.69, "trend": "down", "change_pct": -0.16, "action": "HOLD", "confidence": 0.45, "reasoning": "단기 추세는 ma5(121,620)가 ma20(123,130) 아래로 하락세이나, RSI14가 32.7로 과매도 구간에 근접해 있고 최근 2개 캔들이 저점 반등하며 소폭 회복하는 조짐이 보인다. 다만 반등 거래량이 크게 줄어 추세 전환 신뢰도가 낮고, 보유 평단가(362,436)가 현재가보다 훨씬 높아 손절 실익도 크지 않으므로 관망이 적절하다.", "order": "none | 신뢰도 0.45 < 0.5 → 관망"}, {"time": "07-05 13:30", "ticker": "KRW-BTC", "price": 94763000.0, "rsi": 52.46, "trend": "down", "change_pct": 2.12, "action": "HOLD", "confidence": 0.55, "reasoning": "ma5(94,656,200)가 ma20(94,869,250) 아래에 있고 트렌드가 down이라 단기 하락 압력이 있으나, RSI 14가 52.46으로 중립권이며 최근 2개 캔들이 반등하며 종가를 회복하는 흐름이라 방향성이 뚜렷하지 않습니다. 또한 평균매수가(약 1.55억)가 현재가보다 크게 높아 손절 시 큰 손실이 확정되고 KRW 잔고도 69원 수준이라 추가 매수 여력이 없어, 명확한 신호가 나올 때까지 관망이 적절합니다.", "order": "none | HOLD"}, {"time": "07-05 13:20", "ticker": "KRW-SOL", "price": 121400.0, "rsi": 28.57, "trend": "down", "change_pct": -0.41, "action": "HOLD", "confidence": 0.55, "reasoning": "ma5(121560)가 ma20(123115) 아래에 있고 추세가 하락이지만, RSI14가 28.57로 과매도 구간에 진입했고 최근 캔들이 121000 저점 이후 121200→121400으로 반등 조짐을 보여 방향이 애매하다. 평균매수가(362436)가 현재가보다 크게 높아 손실 폭이 매우 크고 KRW 잔고도 거의 없어 추가 매수 여력이 없으므로, 명확한 반등 확인 전까지는 관망이 적절하다.", "order": "none | HOLD"}]}, "config": {"provider": "claude", "model": "claude-opus-4-8", "tickers": ["KRW-BTC", "KRW-SOL"], "dry_run": false, "allow_live_trading": true, "free_trade_mode": true, "external_trader": true, "risk": {"max_order_krw": 10000, "min_order_krw": 5000, "max_daily_loss_krw": 30000, "min_confidence": 0.5, "cycle_seconds": 600}}, "trades": [{"id": 6, "ts": "2026-07-05T14:51:20", "ticker": "KRW-SOL", "side": "buy", "price": 121300.0, "volume": 0.35449299258037925, "krw_amount": 43000.0, "fee": 21.5, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"ae3169c6-0d58-4d72-903f-54e668daa38f\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"43000\", \"state\": \"wait\", \"market\": \"KRW-SOL\", \"created_at\": \"2026-07-05T14:51:20+09:00\", \"reserved_fee\": \"21.5\", \"remaining_fee\": \"21.5\", \"paid_fee\": \"0\", \"locked\": \"43021.5\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 4, "ts": "2026-07-05T14:51:02", "ticker": "KRW-BTC", "side": "sell", "price": 94654000.0, "volume": 0.0004569, "krw_amount": 43247.412599999996, "fee": 21.6237063, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"b8ef95ec-17c6-4d74-8346-08a40c4041f0\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-BTC\", \"created_at\": \"2026-07-05T14:51:02+09:00\", \"volume\": \"0.0004569\", \"remaining_volume\": \"0.0004569\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"0.0004569\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 3, "ts": "2026-07-04T16:39:14", "ticker": "KRW-SOL", "side": "buy", "price": 124500.0, "volume": 0.05060240963855422, "krw_amount": 6300.0, "fee": 3.15, "realized_pnl": 0.0, "dry_run": 1, "raw_result": "{\"dry_run\": true, \"side\": \"buy\", \"ticker\": \"KRW-SOL\", \"krw\": 6300}"}]};</script>
+<script>window.__aiTradeSnapshot = {"generated_at": "2026-07-05 19:04", "state": {"last_update": "07-05 19:03", "loop_running": true, "history": [{"time": "07-05 19:03", "ticker": "KRW-SOL", "price": 120600.0, "rsi": 21.15, "trend": "down", "change_pct": -1.31, "action": "HOLD", "confidence": 0.74, "reasoning": "SOL은 RSI 21로 과매도지만 MA5·MA20 아래 하락 추세이고 기간 수익률도 BTC보다 약해 반등 기대만으로 재진입하지 않는다. 보유량이 없어 매도 대상도 없으며 원화 잔고는 최소 주문금액 미만이다.", "order": "none | hermes agent 판단"}, {"time": "07-05 19:03", "ticker": "KRW-BTC", "price": 94529000.0, "rsi": 32.63, "trend": "down", "change_pct": 1.51, "action": "HOLD", "confidence": 0.72, "reasoning": "BTC는 RSI 32로 과매도권에 근접했고 SOL 대비 기간 수익률이 강해 현재 보유분은 새로 산다고 봐도 유지할 만하다. 다만 가격이 MA5·MA20 아래라 추가 매수는 원화 잔고 부족과 추세 확인 전까지 보류한다.", "order": "none | hermes agent 판단"}, {"time": "07-05 18:57", "ticker": "KRW-SOL", "price": 120600.0, "rsi": 21.15, "trend": "down", "change_pct": -1.07, "action": "SELL", "confidence": 0.76, "reasoning": "SOL은 RSI 21의 과매도에도 가격이 MA5·MA20 아래이고 기간 수익률이 BTC보다 약해 반등 기대만으로 보유할 근거가 부족했다. 손실을 확정하고 원화를 확보해 상대적으로 강한 BTC로 일부 재배치했다.", "order": "none | hermes agent 판단"}, {"time": "07-05 18:57", "ticker": "KRW-BTC", "price": 94548000.0, "rsi": 32.42, "trend": "down", "change_pct": 1.88, "action": "BUY", "confidence": 0.72, "reasoning": "BTC는 RSI 32로 과매도권에 근접했고 SOL 대비 기간 수익률이 강해 회전 자금의 재배치 대상으로 판단했다. 다만 MA5·MA20 아래 하락 추세라 SOL 매도대금 전부가 아닌 2.5만원만 추가 매수했다.", "order": "none | hermes agent 판단"}, {"time": "07-05 18:44", "ticker": "KRW-SOL", "price": 120500.0, "rsi": 20.75, "trend": "down", "change_pct": -1.15, "action": "BUY", "confidence": 0.72, "reasoning": "SOL은 RSI 20으로 극단적 과매도이고 직전 매수가보다 더 낮아 단기 되돌림 후보로 판단했다. MA5·MA20 아래 하락 추세라 전액이 아닌 최소 회전 금액만 추가 배치한다.", "order": "none | hermes agent 판단"}, {"time": "07-05 18:44", "ticker": "KRW-BTC", "price": 94425000.0, "rsi": 30.99, "trend": "down", "change_pct": 1.75, "action": "HOLD", "confidence": 0.65, "reasoning": "BTC는 RSI 31로 과매도권에 근접했지만 현재가가 MA5·MA20 아래이고 추세가 하락이라 신규 매수 근거는 약하다. 이미 포지션이 충분해 매도 추격도 피하고 기존 노출만 유지한다.", "order": "none | hermes agent 판단"}, {"time": "07-05 18:34", "ticker": "KRW-SOL", "price": 121000.0, "rsi": 22.92, "trend": "down", "change_pct": -0.74, "action": "BUY", "confidence": 0.72, "reasoning": "SOL은 RSI 22.92로 과매도가 뚜렷하고 보유가 없어 현금 일부를 단기 반등 포지션으로 배치했다. 다만 MA5·MA20 아래 하락 추세라 전액 투입은 피했다.", "order": "none | hermes agent 판단"}, {"time": "07-05 18:34", "ticker": "KRW-BTC", "price": 94732000.0, "rsi": 34.82, "trend": "down", "change_pct": 2.08, "action": "HOLD", "confidence": 0.68, "reasoning": "BTC는 RSI 34.82로 과매도권에 가까워 매도 추격보다 보유가 유리하다. 가격은 MA5·MA20 아래라 추가 매수는 하지 않고 기존 노출만 유지한다.", "order": "none | hermes agent 판단"}, {"time": "07-05 18:22", "ticker": "KRW-SOL", "price": 121300.0, "rsi": 24.44, "trend": "down", "change_pct": -0.49, "action": "HOLD", "confidence": 0.72, "reasoning": "SOL은 RSI 23.91로 과매도지만 가격이 MA5·MA20 아래이고 추세도 하락이라 낙폭만으로 매수하기에는 이르다. 보유 수량이 없어 매도 대상도 없으며 반등 확인 전까지 관망한다.", "order": "none | hermes agent 판단"}, {"time": "07-05 18:22", "ticker": "KRW-BTC", "price": 94856000.0, "rsi": 36.65, "trend": "down", "change_pct": 2.22, "action": "BUY", "confidence": 0.68, "reasoning": "BTC는 RSI 36대로 과매도권에 접근했고 현재가가 MA5를 근소하게 회복해 단기 반등 시도가 보인다. MA20 아래라 전액 투입은 피하되 SOL보다 상대 강도가 좋아 가용 원화 중 3만원만 재진입했다.", "order": "none | hermes agent 판단"}, {"time": "07-05 18:10", "ticker": "KRW-SOL", "price": 121500.0, "rsi": 25.58, "trend": "down", "change_pct": -0.33, "action": "HOLD", "confidence": 0.66, "reasoning": "SOL은 RSI 25대로 과매도지만 가격이 MA5·MA20 아래이고 추세도 하락이라 낙폭만 보고 진입하기엔 근거가 부족하다. BTC 일부 매도 후 현금은 더 나은 진입 신호까지 보류한다.", "order": "none | hermes agent 판단"}, {"time": "07-05 18:10", "ticker": "KRW-BTC", "price": 94907000.0, "rsi": 37.46, "trend": "down", "change_pct": 2.27, "action": "SELL", "confidence": 0.72, "reasoning": "BTC는 하락 추세이고 현재가가 MA20 아래이며 RSI 37대로 모멘텀이 약해졌다. 원화 잔고가 거의 없어 보유분 50%를 매도해 재배치 가능한 현금을 확보했다.", "order": "none | hermes agent 판단"}, {"time": "07-05 17:59", "ticker": "KRW-SOL", "price": 121500.0, "rsi": 22.92, "trend": "down", "change_pct": -0.74, "action": "HOLD", "confidence": 0.68, "reasoning": "SOL은 RSI 22.92로 과매도지만 가격이 MA5·MA20 아래이고 추세도 하락이다. 보유와 최소 주문 가능 원화가 없어 반등 기대만으로 BTC를 팔아 진입하지 않는다.", "order": "none | hermes agent 판단"}, {"time": "07-05 17:59", "ticker": "KRW-BTC", "price": 94958000.0, "rsi": 45.76, "trend": "down", "change_pct": 2.02, "action": "HOLD", "confidence": 0.72, "reasoning": "BTC는 하락 추세 표기는 있지만 현재가가 MA5·MA20 위이고 RSI 45.76으로 과열이 아니다. SOL 대비 기간 강도가 우세해 매도 회전보다 보유 유지가 낫다.", "order": "none | hermes agent 판단"}, {"time": "07-05 17:48", "ticker": "KRW-SOL", "price": 121600.0, "rsi": 23.4, "trend": "down", "change_pct": -0.65, "action": "HOLD", "confidence": 0.74, "reasoning": "SOL은 RSI 23.4로 과매도지만 가격이 MA20 아래이고 추세가 하락이며 보유 수량과 최소 주문 가능한 원화가 없다. 반등 기대만으로 BTC를 팔아 재진입할 근거가 부족해 관망한다.", "order": "none | hermes agent 판단"}, {"time": "07-05 17:48", "ticker": "KRW-BTC", "price": 94979000.0, "rsi": 46.13, "trend": "down", "change_pct": 2.04, "action": "HOLD", "confidence": 0.68, "reasoning": "BTC는 RSI 46.15로 과열이 아니고 가격이 MA5·MA20을 근소하게 상회하며 기간 변화율 +2.04%로 SOL 대비 상대 강도가 우세하다. 하락 추세 표기가 있어 추가 매수는 피하지만 현재 보유를 유지한다.", "order": "none | hermes agent 판단"}, {"time": "07-05 17:37", "ticker": "KRW-SOL", "price": 121500.0, "rsi": 22.92, "trend": "down", "change_pct": -0.74, "action": "HOLD", "confidence": 0.75, "reasoning": "SOL은 RSI 22.92로 과매도지만 가격이 MA5·MA20 아래이고 추세·기간 변화율이 모두 약해 반등 근거가 부족하다. 원화 잔고도 최소 주문 미만이라 신규 진입하지 않는다.", "order": "none | hermes agent 판단"}, {"time": "07-05 17:37", "ticker": "KRW-BTC", "price": 94991000.0, "rsi": 46.35, "trend": "down", "change_pct": 2.05, "action": "HOLD", "confidence": 0.68, "reasoning": "BTC는 가격이 MA5·MA20을 근소하게 상회하고 기간 변화율 +2.05%로 SOL 대비 상대 강도가 우세하다. RSI 46.35·하락 추세라 추가 매수 여력도 없어 보유만 유지한다.", "order": "none | hermes agent 판단"}, {"time": "07-05 17:26", "ticker": "KRW-SOL", "price": 121500.0, "rsi": 22.92, "trend": "down", "change_pct": -0.74, "action": "HOLD", "confidence": 0.66, "reasoning": "SOL은 RSI 22.92로 과매도지만 가격이 MA5·MA20 아래이고 추세가 하락이라 반등 기대만으로 재진입할 근거가 부족하다. 보유·원화가 없어 신규 주문 없이 관망.", "order": "none | hermes agent 판단"}, {"time": "07-05 17:26", "ticker": "KRW-BTC", "price": 95000000.0, "rsi": 46.52, "trend": "down", "change_pct": 2.06, "action": "HOLD", "confidence": 0.72, "reasoning": "BTC는 가격이 MA5·MA20 위이고 기간 변화율 +2.08%로 SOL 대비 상대 강도가 남아 있어 현재도 신규 보유할 만한 쪽이다. RSI 46.78과 하락 추세 표기로 추격매수는 피하고 보유분 유지.", "order": "none | hermes agent 판단"}]}, "config": {"provider": "claude", "model": "claude-opus-4-8", "tickers": ["KRW-BTC", "KRW-SOL"], "dry_run": false, "allow_live_trading": true, "free_trade_mode": true, "external_trader": true, "risk": {"max_order_krw": 10000, "min_order_krw": 5000, "max_daily_loss_krw": 30000, "min_confidence": 0.5, "cycle_seconds": 600}}, "trades": [{"id": 25, "ts": "2026-07-05T18:56:57", "ticker": "KRW-BTC", "side": "buy", "price": 94524000.0, "volume": 0.00026448309424061616, "krw_amount": 25000.0, "fee": 12.5, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"ea732fe7-8664-4bbe-bf6e-0af7c3690170\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"25000\", \"state\": \"wait\", \"market\": \"KRW-BTC\", \"created_at\": \"2026-07-05T18:56:59+09:00\", \"reserved_fee\": \"12.5\", \"remaining_fee\": \"12.5\", \"paid_fee\": \"0\", \"locked\": \"25012.5\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 24, "ts": "2026-07-05T18:56:24", "ticker": "KRW-SOL", "side": "sell", "price": 120600.0, "volume": 0.20695449, "krw_amount": 24958.711494, "fee": 12.479355747, "realized_pnl": -54.20978382635165, "dry_run": 0, "raw_result": "{\"uuid\": \"5db6ebc9-33a8-4725-8e4e-3354e97817b5\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-SOL\", \"created_at\": \"2026-07-05T18:56:26+09:00\", \"volume\": \"0.20695449\", \"remaining_volume\": \"0.20695449\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"0.20695449\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 23, "ts": "2026-07-05T18:44:50", "ticker": "KRW-SOL", "side": "buy", "price": 120500.0, "volume": 0.08298755186721991, "krw_amount": 10000.0, "fee": 5.0, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"c2f8c9d5-da0b-4344-aad5-f09e9b886c1e\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"10000\", \"state\": \"wait\", \"market\": \"KRW-SOL\", \"created_at\": \"2026-07-05T18:44:52+09:00\", \"reserved_fee\": \"5\", \"remaining_fee\": \"5\", \"paid_fee\": \"0\", \"locked\": \"10005\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 22, "ts": "2026-07-05T18:33:50", "ticker": "KRW-SOL", "side": "buy", "price": 121000.0, "volume": 0.12396694214876033, "krw_amount": 15000.0, "fee": 7.5, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"b3268503-fa8f-4344-b6d4-fe1b6acf2500\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"15000\", \"state\": \"wait\", \"market\": \"KRW-SOL\", \"created_at\": \"2026-07-05T18:33:52+09:00\", \"reserved_fee\": \"7.5\", \"remaining_fee\": \"7.5\", \"paid_fee\": \"0\", \"locked\": \"15007.5\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 21, "ts": "2026-07-05T18:21:30", "ticker": "KRW-BTC", "side": "buy", "price": 94844000.0, "volume": 0.0003163088861709755, "krw_amount": 30000.0, "fee": 15.0, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"d9eaf3d4-f876-4036-aa65-bb1332ee2ff8\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"30000\", \"state\": \"wait\", \"market\": \"KRW-BTC\", \"created_at\": \"2026-07-05T18:21:30+09:00\", \"reserved_fee\": \"15\", \"remaining_fee\": \"15\", \"paid_fee\": \"0\", \"locked\": \"30015\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 20, "ts": "2026-07-05T18:10:09", "ticker": "KRW-BTC", "side": "sell", "price": 94912000.0, "volume": 0.00063007, "krw_amount": 59801.20384, "fee": 29.900601920000003, "realized_pnl": 8.905740510842957, "dry_run": 0, "raw_result": "{\"uuid\": \"b739f04b-ee5f-47c5-8858-dbc75f349181\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-BTC\", \"created_at\": \"2026-07-05T18:10:09+09:00\", \"volume\": \"0.00063007\", \"remaining_volume\": \"0.00063007\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"0.00063007\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 19, "ts": "2026-07-05T17:15:09", "ticker": "KRW-BTC", "side": "buy", "price": 95024000.0, "volume": 0.0006272099680080822, "krw_amount": 59600.0, "fee": 29.8, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"5c119bdf-17f6-408e-955e-9bd372cdd067\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"59600\", \"state\": \"wait\", \"market\": \"KRW-BTC\", \"created_at\": \"2026-07-05T17:15:09+09:00\", \"reserved_fee\": \"29.8\", \"remaining_fee\": \"29.8\", \"paid_fee\": \"0\", \"locked\": \"59629.8\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 18, "ts": "2026-07-05T17:14:50", "ticker": "KRW-SOL", "side": "sell", "price": 121800.0, "volume": 0.4909836, "krw_amount": 59801.802480000006, "fee": 29.900901240000003, "realized_pnl": -78.99925918905615, "dry_run": 0, "raw_result": "{\"uuid\": \"5c88018e-9cff-4d15-bc87-05de43fef944\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-SOL\", \"created_at\": \"2026-07-05T17:14:50+09:00\", \"volume\": \"0.4909836\", \"remaining_volume\": \"0.4909836\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"0.4909836\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 17, "ts": "2026-07-05T17:03:43", "ticker": "KRW-SOL", "side": "buy", "price": 121900.0, "volume": 0.4913863822805578, "krw_amount": 59900.0, "fee": 29.95, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"aeab49c7-f94a-4620-811c-b2e84e4e0639\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"59900\", \"state\": \"wait\", \"market\": \"KRW-SOL\", \"created_at\": \"2026-07-05T17:03:43+09:00\", \"reserved_fee\": \"29.95\", \"remaining_fee\": \"29.95\", \"paid_fee\": \"0\", \"locked\": \"59929.95\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 16, "ts": "2026-07-05T16:52:29", "ticker": "KRW-SOL", "side": "sell", "price": 121800.0, "volume": 0.49259868000000007, "krw_amount": 59998.51922400001, "fee": 29.999259612000007, "realized_pnl": 68.52047638800718, "dry_run": 0, "raw_result": "{\"uuid\": \"a148e12d-7dd8-45f0-b416-a6191a59d488\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-SOL\", \"created_at\": \"2026-07-05T16:52:29+09:00\", \"volume\": \"0.49259868\", \"remaining_volume\": \"0.49259868\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"0.49259868\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 15, "ts": "2026-07-05T16:41:50", "ticker": "KRW-SOL", "side": "buy", "price": 121600.0, "volume": 0.4925986842105263, "krw_amount": 59900.0, "fee": 29.95, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"db1b6664-806f-4839-a436-c54370bcc209\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"59900\", \"state\": \"wait\", \"market\": \"KRW-SOL\", \"created_at\": \"2026-07-05T16:41:49+09:00\", \"reserved_fee\": \"29.95\", \"remaining_fee\": \"29.95\", \"paid_fee\": \"0\", \"locked\": \"59929.95\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 14, "ts": "2026-07-05T16:30:38", "ticker": "KRW-BTC", "side": "sell", "price": 94679000.0, "volume": 0.000633135, "krw_amount": 59944.588664999996, "fee": 29.9722943325, "realized_pnl": -29.661613830825488, "dry_run": 0, "raw_result": "{\"uuid\": \"21774e0c-6433-40bb-b0de-5fafda9d366b\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-BTC\", \"created_at\": \"2026-07-05T16:30:38+09:00\", \"volume\": \"0.00063313\", \"remaining_volume\": \"0.00063313\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"0.00063313\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 13, "ts": "2026-07-05T16:18:47", "ticker": "KRW-BTC", "side": "buy", "price": 94667000.0, "volume": 0.000632744250900525, "krw_amount": 59900.0, "fee": 29.95, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"f8a4bd94-0065-4bf0-9522-8783a3bf2a26\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"59900\", \"state\": \"wait\", \"market\": \"KRW-BTC\", \"created_at\": \"2026-07-05T16:18:47+09:00\", \"reserved_fee\": \"29.95\", \"remaining_fee\": \"29.95\", \"paid_fee\": \"0\", \"locked\": \"59929.95\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 12, "ts": "2026-07-05T16:18:28", "ticker": "KRW-SOL", "side": "sell", "price": 121400.0, "volume": 0.49342105, "krw_amount": 59901.31547, "fee": 29.950657735, "realized_pnl": -128.634867735, "dry_run": 0, "raw_result": "{\"uuid\": \"601f501c-dc33-4605-922e-2d3bc8316fa0\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-SOL\", \"created_at\": \"2026-07-05T16:18:28+09:00\", \"volume\": \"0.49342105\", \"remaining_volume\": \"0.49342105\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"0.49342105\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 11, "ts": "2026-07-05T16:06:31", "ticker": "KRW-SOL", "side": "buy", "price": 121600.0, "volume": 0.4934210526315789, "krw_amount": 60000.0, "fee": 30.0, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"0cab5290-e61d-41a3-9d75-730a97b9bb4c\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"60000\", \"state\": \"wait\", \"market\": \"KRW-SOL\", \"created_at\": \"2026-07-05T16:06:31+09:00\", \"reserved_fee\": \"30\", \"remaining_fee\": \"30\", \"paid_fee\": \"0\", \"locked\": \"60030\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 10, "ts": "2026-07-05T16:06:12", "ticker": "KRW-BTC", "side": "sell", "price": 94662000.0, "volume": 0.000633525, "krw_amount": 59970.74355, "fee": 29.985371775, "realized_pnl": -47.724071775, "dry_run": 0, "raw_result": "{\"uuid\": \"76744c8a-9efa-419f-a12f-d5b9d4ae9ffa\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-BTC\", \"created_at\": \"2026-07-05T16:06:12+09:00\", \"volume\": \"0.00063352\", \"remaining_volume\": \"0.00063352\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"0.00063352\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 9, "ts": "2026-07-05T15:31:52", "ticker": "KRW-BTC", "side": "buy", "price": 94690000.0, "volume": 0.001267293272784877, "krw_amount": 120000.0, "fee": 60.0, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"a3c1b09f-76e3-4570-8f29-9a692e3e56db\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"120000\", \"state\": \"wait\", \"market\": \"KRW-BTC\", \"created_at\": \"2026-07-05T15:31:52+09:00\", \"reserved_fee\": \"60\", \"remaining_fee\": \"60\", \"paid_fee\": \"0\", \"locked\": \"120060\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 8, "ts": "2026-07-05T15:31:15", "ticker": "KRW-SOL", "side": "sell", "price": 121400.0, "volume": 0.49429211, "krw_amount": 60007.062154, "fee": 30.003531077, "realized_pnl": -85.61077601926293, "dry_run": 0, "raw_result": "{\"uuid\": \"8b812735-b6ff-467b-b9e9-55a5a3659783\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-SOL\", \"created_at\": \"2026-07-05T15:31:15+09:00\", \"volume\": \"0.49429211\", \"remaining_volume\": \"0.49429211\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"0.49429211\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 7, "ts": "2026-07-05T15:19:12", "ticker": "KRW-SOL", "side": "sell", "price": 121300.0, "volume": 0.49429211, "krw_amount": 59957.632943000004, "fee": 29.978816471500004, "realized_pnl": -135.01527241376291, "dry_run": 0, "raw_result": "{\"uuid\": \"26d3eb15-aa4d-4da7-8818-6c046c8bc1c7\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-SOL\", \"created_at\": \"2026-07-05T15:19:12+09:00\", \"volume\": \"0.49429211\", \"remaining_volume\": \"0.49429211\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"0.49429211\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 6, "ts": "2026-07-05T14:51:20", "ticker": "KRW-SOL", "side": "buy", "price": 121300.0, "volume": 0.35449299258037925, "krw_amount": 43000.0, "fee": 21.5, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"ae3169c6-0d58-4d72-903f-54e668daa38f\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"43000\", \"state\": \"wait\", \"market\": \"KRW-SOL\", \"created_at\": \"2026-07-05T14:51:20+09:00\", \"reserved_fee\": \"21.5\", \"remaining_fee\": \"21.5\", \"paid_fee\": \"0\", \"locked\": \"43021.5\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}]};</script>
 <script>
 
 const KRW = (n, signed=false) => {
@@ -1139,7 +1190,60 @@ async function loadTickerTape() {
 
 async function tickTape() {
   await loadTickerTape();
+  setInterval(loadTickerTape, 12000);
 }
+
+// AI Brain Logic
+let lastBrainTs = null;
+function initAiBrain() {
+  const root = document.createElement("div");
+  root.innerHTML = `
+    <div id="ai-brain-bar">
+      <div class="brain-icon">🧠</div>
+      <div class="brain-text" id="ai-brain-text"><span style="color:#8a95a8;">AI 에이전트 대기 중...</span></div>
+      <div style="font-size:10px; color:#5a6577;">[Click to Expand]</div>
+    </div>
+    <div id="ai-brain-panel"></div>
+  `;
+  const hd = document.querySelector(".hd");
+  if (hd) {
+    hd.parentNode.insertBefore(root, hd.nextSibling);
+  } else {
+    document.body.prepend(root);
+  }
+  document.getElementById("ai-brain-bar").addEventListener("click", () => {
+    document.getElementById("ai-brain-panel").classList.toggle("open");
+  });
+  pollAiBrain();
+  setInterval(pollAiBrain, 10000);
+}
+
+async function pollAiBrain() {
+  try {
+    const res = await fetch("/api/decisions?limit=5");
+    const data = await res.json();
+    if (!data.items || data.items.length === 0) return;
+    const latest = data.items[0];
+    if (latest.ts !== lastBrainTs) {
+      lastBrainTs = latest.ts;
+      const textEl = document.getElementById("ai-brain-text");
+      const c = latest.action === "BUY" ? "#1fd6a8" : latest.action === "SELL" ? "#ff5d6c" : "#8a95a8";
+      const a = latest.action === "BUY" ? "매수" : latest.action === "SELL" ? "매도" : "관망";
+      textEl.innerHTML = `<span style="color:${c};font-weight:bold;">[${latest.ticker} ${a}]</span> <span class="typewriter-text" style="color:#e6ebf2;">${escapeHtml(latest.reasoning || "")}</span>`;
+      
+      document.getElementById("ai-brain-panel").innerHTML = data.items.map(item => {
+        const ic = item.action === "BUY" ? "#1fd6a8" : item.action === "SELL" ? "#ff5d6c" : "#8a95a8";
+        const ia = item.action === "BUY" ? "매수" : item.action === "SELL" ? "매도" : "관망";
+        return `<div class="brain-log-item">
+          <span style="color:#5a6577;font-family:monospace;">${(item.ts||"").split('T')[1] || item.ts}</span>
+          <strong style="color:${ic}; margin:0 8px;">${item.ticker} ${ia}</strong>
+          <span style="color:#e6ebf2;">${escapeHtml(item.reasoning || "")}</span>
+        </div>`;
+      }).join("");
+    }
+  } catch(e) {}
+}
+document.addEventListener("DOMContentLoaded", initAiBrain);
 
 async function setBotPaused(paused) {
   const action = paused ? "pause" : "resume";
@@ -2269,9 +2373,9 @@ function renderCoinAiTrades(st, cfg, trades) {
       ["④ 주문 실행", live ? "AI 판단은 업비트에 실제 시장가 주문으로 나가고 DB에 기록됩니다." : "모의 모드라 주문은 기록만 되고 실제 체결은 없습니다."],
     ];
     pipeline.innerHTML = steps.map(s =>
-      `<div style="display:grid; grid-template-columns:110px 1fr; gap:10px; align-items:start;">
-        <span style="color:#e0b341; font-weight:700; font-size:12px; white-space:nowrap;">${s[0]}</span>
-        <span class="muted" style="font-size:12px; line-height:1.6;">${s[1]}</span>
+      `<div style="display:grid; grid-template-columns:120px 1fr; gap:10px; align-items:start;">
+        <span style="color:#e0b341; font-weight:700; font-size:14px; white-space:nowrap;">${s[0]}</span>
+        <span class="muted" style="font-size:14px; line-height:1.6;">${s[1]}</span>
       </div>`).join("");
   }
 
@@ -2283,16 +2387,16 @@ function renderCoinAiTrades(st, cfg, trades) {
     decisionRows.innerHTML = history.length ? history.slice(0, 20).map(h => {
       const act = String(h.action || "HOLD").toUpperCase();
       const cls = act === "BUY" ? "up" : act === "SELL" ? "down" : "muted";
-      return `<div style="padding:10px 14px; border-bottom:1px solid #131a24;">
-        <div style="display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;">
-          <span class="muted" style="font-size:11px;">${escAi(h.time)}</span>
-          <span style="font-weight:700;">${escAi(h.ticker)}</span>
-          <span class="${cls}" style="font-weight:700;">${act}</span>
-          <span class="muted" style="font-size:11px;">신뢰도 ${Number(h.confidence ?? 0).toFixed(2)}</span>
-          <span class="muted" style="font-size:11px;">${KRW(h.price)}원 · RSI ${h.rsi ?? "—"} · ${escAi(h.trend || "—")}</span>
+      return `<div style="padding:14px 18px; border-bottom:1px solid #131a24;">
+        <div style="display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; font-size:14px;">
+          <span class="muted" style="font-size:13px;">${escAi(h.time)}</span>
+          <span style="font-weight:800; font-size:15px;">${escAi(h.ticker)}</span>
+          <span class="${cls}" style="font-weight:800; font-size:15px;">${act}</span>
+          <span class="muted" style="font-size:13px;">신뢰도 ${Number(h.confidence ?? 0).toFixed(2)}</span>
+          <span class="muted" style="font-size:13px;">${KRW(h.price)}원 · RSI ${h.rsi ?? "—"} · ${escAi(h.trend || "—")}</span>
         </div>
-        <div class="muted" style="font-size:12px; line-height:1.55; margin-top:4px;">${escAi(h.reasoning || "")}</div>
-        <div style="font-size:11px; color:#5a6577; margin-top:3px;">주문: ${escAi(h.order || "none")}</div>
+        <div class="muted" style="font-size:14px; line-height:1.6; margin-top:8px;">${escAi(h.reasoning || "")}</div>
+        <div style="font-size:13px; color:#5a6577; margin-top:6px;">주문: ${escAi(h.order || "none")}</div>
       </div>`;
     }).join("") : `<div class="muted" style="padding:14px;">아직 AI 판단 기록이 없습니다.</div>`;
   }
@@ -2353,6 +2457,66 @@ if (["market", "portfolio", "news", "ai"].includes(coinInitialSection)) {
       setTimeout(openCoinNewsMap, 700);
     }
   });
+}
+async function runAiNow() {
+  const btn = document.getElementById("btn-run-ai");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "AI 실행 중...";
+  }
+  try {
+    const res = await fetch("/api/run_ai", { method: "POST" });
+    if (res.ok) {
+      alert("AI 매매 판단을 시작했습니다. (수 초 소요)");
+    } else {
+      alert("AI 실행에 실패했습니다.");
+    }
+  } catch (err) {
+    alert("오류: " + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "AI 수동 실행";
+    }
+    loadCoinAiTrades(true);
+  }
+}
+function closeTradeHistoryModal() {
+  const modal = document.getElementById("trade-history-modal");
+  if (modal) modal.hidden = true;
+}
+
+async function openTradeHistoryModal() {
+  const modal = document.getElementById("trade-history-modal");
+  const rowsContainer = document.getElementById("trade-history-rows");
+  if (!modal || !rowsContainer) return;
+  modal.hidden = false;
+  rowsContainer.innerHTML = "로딩 중...";
+  try {
+    const res = await fetch("/api/trades?limit=50");
+    const data = await res.json();
+    const trades = data.items || [];
+    if (trades.length === 0) {
+      rowsContainer.innerHTML = "<div class='muted'>최근 거래 내역이 없습니다.</div>";
+      return;
+    }
+    rowsContainer.innerHTML = trades.map(t => {
+      const act = String(t.side || "").toUpperCase();
+      const cls = act === "BUY" ? "up" : act === "SELL" ? "down" : "muted";
+      const time = t.timestamp ? new Date(t.timestamp).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—";
+      return `<div style="padding:10px; border-bottom:1px solid #1f2937; display:grid; grid-template-columns: 100px 80px 50px 1fr; gap:10px; align-items:center;">
+        <span class="muted" style="font-size:12px;">${time}</span>
+        <span style="font-weight:700;">${escapeHtml(t.ticker)}</span>
+        <span class="${cls}" style="font-weight:700;">${act}</span>
+        <div style="display:flex; flex-direction:column; align-items:flex-end;">
+          <span style="font-size:13px; font-weight:700;">${KRW(t.krw_amount || 0)}원</span>
+          <span class="muted" style="font-size:11px;">단가 ${KRW(t.price || 0)}원 · 수량 ${NUM(t.volume || 0)}</span>
+        </div>
+      </div>`;
+    }).join("");
+  } catch (err) {
+    rowsContainer.innerHTML = "<div class='muted' style='color:#ff8a93'>거래 내역을 불러오는데 실패했습니다: " + escapeHtml(err.message) + "</div>";
+  }
 }
 </script>
 <script src="/stockagent/chart-hts.js"></script>
