@@ -2444,7 +2444,6 @@ COIN_HTML = f"""<!doctype html>
     <div class="head-tools">
       <button class="mini-btn danger" id="pause-bot" onclick="setBotPaused(true)">일시정지</button>
       <button class="mini-btn" id="resume-bot" onclick="setBotPaused(false)">재개</button>
-      <button class="mini-btn" style="border-color:#5aa3ff; color:#5aa3ff; margin-left:8px;" onclick="openTradeHistoryModal()">거래 내역(버그수정판)</button>
     </div>
     <span style="flex:1"></span>
     <div class="tabs">
@@ -2773,18 +2772,6 @@ COIN_HTML = f"""<!doctype html>
   <div class="foot" id="foot">—</div>
 </div>
 
-  <!-- Trade History Modal -->
-  <div id="trade-history-modal" class="modal" hidden>
-    <div class="modal-content">
-      <div class="modal-header">
-        <span>거래 내역 (최근 50건)</span>
-        <button class="modal-close" onclick="closeTradeHistoryModal()">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div id="trade-history-rows" style="padding: 10px;">로딩 중...</div>
-      </div>
-    </div>
-  </div>
 
 <!-- INITIAL_COIN_PORTFOLIO -->
 <!-- AI_TRADE_SNAPSHOT -->
@@ -4006,81 +3993,7 @@ async function runAiNow() {{
     loadCoinAiTrades(true);
   }}
 }}
-function closeTradeHistoryModal() {{
-  const modal = document.getElementById("trade-history-modal");
-  if (modal) modal.hidden = true;
-}}
 
-async function openTradeHistoryModal() {{
-  const modal = document.getElementById("trade-history-modal");
-  const rowsContainer = document.getElementById("trade-history-rows");
-  if (!modal || !rowsContainer) return;
-  modal.hidden = false;
-  rowsContainer.innerHTML = "로딩 중..."; // Show loading explicitly
-
-  let res;
-  let timeoutId;
-  try {{
-    const controller = new AbortController();
-    timeoutId = setTimeout(() => controller.abort(), 5000); // 5 seconds to be safe
-    
-    try {{
-      res = await fetch("/api/trades?limit=50", {{ signal: controller.signal }});
-    }} catch (e) {{
-      clearTimeout(timeoutId);
-      rowsContainer.innerHTML = "<div class='muted' style='color:#ff8a93'>네트워크 오류(타임아웃 등): " + escapeHtml(e.message) + "</div>";
-      return;
-    }}
-    
-    if (!res.ok) {{
-      const txt = await res.text().catch(()=>"");
-      clearTimeout(timeoutId);
-      rowsContainer.innerHTML = "<div class='muted' style='color:#ff8a93'>HTTP " + res.status + " " + escapeHtml(txt) + "</div>";
-      return;
-    }}
-    
-    const data = await res.json();
-    clearTimeout(timeoutId);
-    
-    const trades = Array.isArray(data.items) ? data.items : [];
-    if (trades.length === 0) {{
-      rowsContainer.innerHTML = "<div class='muted'>최근 거래 내역이 없습니다.</div>";
-      return;
-    }}
-    
-    rowsContainer.innerHTML = trades.map(t => {{
-      const act = String(t.side || "").toUpperCase();
-      const cls = act === "BUY" ? "up" : act === "SELL" ? "down" : "muted";
-      let time = "—";
-      const timeStr = t.ts || t.timestamp;
-      if (timeStr) {{
-        try {{
-          const d = new Date(timeStr);
-          if (isNaN(d.getTime())) {{
-            time = escapeHtml(String(timeStr));
-          }} else {{
-            time = d.toLocaleString("ko-KR", {{ month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }});
-          }}
-        }} catch(e) {{
-          time = escapeHtml(String(timeStr));
-        }}
-      }}
-      return `<div style="padding:10px; border-bottom:1px solid #1f2937; display:grid; grid-template-columns: 100px 80px 50px 1fr; gap:10px; align-items:center;">
-        <span class="muted" style="font-size:12px;">${{time}}</span>
-        <span style="font-weight:700;">${{escapeHtml(t.ticker)}}</span>
-        <span class="${{cls}}" style="font-weight:700;">${{act}}</span>
-        <div style="display:flex; flex-direction:column; align-items:flex-end;">
-          <span style="font-size:13px; font-weight:700;">${{KRW(t.krw_amount || 0)}}원</span>
-          <span class="muted" style="font-size:11px;">단가 ${{KRW(t.price || 0)}}원 · 수량 ${{NUM(t.volume || 0)}}</span>
-        </div>
-      </div>`;
-    }}).join("");
-    
-  }} catch (err) {{
-    if (timeoutId) clearTimeout(timeoutId);
-    rowsContainer.innerHTML = "<div class='muted' style='color:#ff8a93'>" + (err.name === 'AbortError' ? "네트워크 오류(타임아웃 등)" : "스크립트 오류: " + escapeHtml(err.message)) + "</div>";
-  }}
-}}
 </script>
 </body></html>"""
 
