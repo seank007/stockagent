@@ -64,6 +64,7 @@ def _prepare_ticker_decision(
         "ticker": ticker,
         "snapshot": snapshot,
         "coin_balance": coin_balance,
+        "avg_buy_price": avg_price,
         "decision": decision,
     }
 
@@ -152,7 +153,8 @@ def run_once(broker: UpbitBroker, agent: DecisionAgent, risk: RiskManager) -> No
             f"(conf={decision.confidence:.2f}) :: {decision.reasoning}"
         )
 
-        order = risk.evaluate(decision, snapshot, available_krw, coin_balance)
+        avg_buy_price = float(item["avg_buy_price"])
+        order = risk.evaluate(decision, snapshot, available_krw, coin_balance, avg_buy_price)
         price_now = float(snapshot["price"])
 
         if order.side == "buy":
@@ -192,13 +194,11 @@ def run_once(broker: UpbitBroker, agent: DecisionAgent, risk: RiskManager) -> No
 
 
 def trading_loop() -> None:
-    """매매 루프 본체. main.py 직접 실행과 web.py 백그라운드 스레드가 공유한다."""
+    """매매 로직 1회 실행."""
     config.validate()
     mode = "모의매매(DRY_RUN)" if config.DRY_RUN else "⚠️ 실거래"
-    log(f"stockagent 시작 | 모드: {mode} | AI: {config.AI_PROVIDER} | 종목: {config.TICKERS}")
-    store.set_loop_running(True)
+    log(f"stockagent 수동/1회 실행 | 모드: {mode} | AI: {config.AI_PROVIDER} | 종목: {config.TICKERS}")
 
-    # DB에서 최근 판단 기록 복원 → 대시보드 즉시 표시
     try:
         store.hydrate_from_db()
     except Exception as e:  # noqa: BLE001
@@ -208,31 +208,17 @@ def trading_loop() -> None:
     agent = DecisionAgent()
     risk = RiskManager()
 
-    while True:
-        try:
-            if store.is_paused():
-                store.mark_cycle_end(None)
-                time.sleep(1)
-                continue
-
-            store.mark_cycle_start()
-            run_once(broker, agent, risk)
-            store.mark_cycle_end(datetime.now() + timedelta(seconds=config.INTERVAL_SECONDS))
-        except KeyboardInterrupt:
-            log("종료합니다.")
-            store.set_loop_running(False)
-            break
-        except Exception as e:  # noqa: BLE001
-            log(f"루프 오류: {e}")
-            store.set_error(str(e))
-            store.mark_cycle_end(datetime.now() + timedelta(seconds=config.INTERVAL_SECONDS))
-
-        slept = 0
-        while slept < config.INTERVAL_SECONDS:
-            if store.is_paused():
-                break
-            time.sleep(1)
-            slept += 1
+    store.set_loop_running(True)
+    try:
+        store.mark_cycle_start()
+        run_once(broker, agent, risk)
+        store.mark_cycle_end(None)
+    except Exception as e:  # noqa: BLE001
+        log(f"실행 오류: {e}")
+        store.set_error(str(e))
+        store.mark_cycle_end(None)
+    finally:
+        store.set_loop_running(False)
 
 
 if __name__ == "__main__":

@@ -27,8 +27,20 @@ class RiskManager:
         snapshot: dict,
         krw_balance: float,
         coin_balance: float,
+        avg_buy_price: float = 0.0,
     ) -> Order:
         ticker = snapshot["ticker"]
+        price_now = float(snapshot.get("price") or 0)
+
+        # 0) 익절(Take Profit) 강제 매도 로직
+        if coin_balance > 0 and avg_buy_price > 0 and price_now > 0:
+            unrealized_pnl = (price_now - avg_buy_price) * coin_balance
+            target_profit = getattr(config, "TARGET_PROFIT_KRW", 15000)
+            if unrealized_pnl >= target_profit:
+                return Order(
+                    "sell", ticker, volume=coin_balance,
+                    reason=f"평가 수익({unrealized_pnl:,.0f}원)이 목표 금액({target_profit:,.0f}원) 초과 → 강제 익절"
+                )
 
         # 자유 모드: AI가 주문 여부·크기를 전적으로 결정. 업비트 최소 주문만 검사.
         if config.FREE_TRADE_MODE:

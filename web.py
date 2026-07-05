@@ -1236,7 +1236,7 @@ def api_config():
             "min_order_krw": config.MIN_ORDER_KRW,
             "max_daily_loss_krw": config.MAX_DAILY_LOSS_KRW,
             "min_confidence": config.MIN_CONFIDENCE,
-            "cycle_seconds": config.INTERVAL_SECONDS,
+            "cycle_seconds": 0,
         },
     })
 
@@ -1252,6 +1252,27 @@ def api_control():
     else:
         return jsonify({"error": "지원하지 않는 action입니다"}), 400
     return jsonify(store.snapshot())
+
+
+@app.route("/api/run_ai", methods=["POST"])
+def api_run_ai():
+    def _run():
+        broker = _broker()
+        from agent.decision import DecisionAgent
+        from risk import RiskManager
+        agent = DecisionAgent()
+        risk = RiskManager()
+        from main import run_once
+        try:
+            store.mark_cycle_start()
+            run_once(broker, agent, risk)
+            store.mark_cycle_end(None)
+        except Exception as e:
+            store.set_error(str(e))
+            store.mark_cycle_end(None)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/pnl")
@@ -1690,6 +1711,31 @@ def analyze_page():
 
 # 디자인 시스템 공통 (CSS + 헤더 + 공유 JS)
 BASE_CSS = """
+/* Modal Styles */
+.modal {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(11,15,25,0.85); display: flex;
+  align-items: center; justify-content: center; z-index: 10000;
+}
+.modal-content {
+  background: #141a23; border: 1px solid #1f2937;
+  border-radius: 12px; width: 90%; max-width: 600px;
+  max-height: 80vh; overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column;
+}
+.modal-header {
+  padding: 16px 20px; border-bottom: 1px solid #1f2937;
+  display: flex; justify-content: space-between; align-items: center;
+  font-weight: 800; font-size: 16px; color: #e6ebf2;
+}
+.modal-close {
+  background: none; border: none; color: #8a95a8;
+  font-size: 20px; cursor: pointer; padding: 0; line-height: 1;
+}
+.modal-close:hover { color: #ff5d6c; }
+.modal-body { padding: 0; overflow-y: auto; }
+
 :root { color-scheme: dark; }
 html,body { margin:0; background:#070a0e; }
 * { box-sizing: border-box; }
@@ -2090,7 +2136,19 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
   .manual-form { grid-template-columns:1fr; }
   .legend { display:none; }
 }
+/* AI Brain */
+#ai-brain-bar { background:#0d1219; border-bottom:1px solid #1c2430; font-family:'JetBrains Mono',monospace; font-size:12px; padding:8px 22px; display:flex; align-items:center; gap:12px; cursor:pointer; position:relative; z-index:19; }
+#ai-brain-bar .brain-icon { font-size:14px; animation:pulse 2s infinite; }
+#ai-brain-bar .brain-text { flex:1; overflow:hidden; white-space:nowrap; }
+#ai-brain-panel { display:none; background:#0a0e14; border-bottom:1px solid #1c2430; padding:16px 22px; font-size:12px; color:#8a95a8; z-index:18; }
+#ai-brain-panel.open { display:block; }
+.brain-log-item { margin-bottom:8px; padding-bottom:8px; border-bottom:1px dashed #1c2430; }
+.brain-log-item:last-child { border:none; margin:0; padding:0; }
+@keyframes pulse { 0%{opacity:0.8;} 50%{opacity:0.3;} 100%{opacity:0.8;} }
+@keyframes typewriter { from { width:0; } to { width:100%; } }
+.typewriter-text { display:inline-block; overflow:hidden; white-space:nowrap; animation:typewriter 2s steps(40,end); }
 """
+
 
 FONTS_HEAD = """
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2280,7 +2338,60 @@ async function loadTickerTape() {
 
 async function tickTape() {
   await loadTickerTape();
+  setInterval(loadTickerTape, 12000);
 }
+
+// AI Brain Logic
+let lastBrainTs = null;
+function initAiBrain() {
+  const root = document.createElement("div");
+  root.innerHTML = `
+    <div id="ai-brain-bar">
+      <div class="brain-icon">🧠</div>
+      <div class="brain-text" id="ai-brain-text"><span style="color:#8a95a8;">AI 에이전트 대기 중...</span></div>
+      <div style="font-size:10px; color:#5a6577;">[Click to Expand]</div>
+    </div>
+    <div id="ai-brain-panel"></div>
+  `;
+  const hd = document.querySelector(".hd");
+  if (hd) {
+    hd.parentNode.insertBefore(root, hd.nextSibling);
+  } else {
+    document.body.prepend(root);
+  }
+  document.getElementById("ai-brain-bar").addEventListener("click", () => {
+    document.getElementById("ai-brain-panel").classList.toggle("open");
+  });
+  pollAiBrain();
+  setInterval(pollAiBrain, 10000);
+}
+
+async function pollAiBrain() {
+  try {
+    const res = await fetch("/api/decisions?limit=5");
+    const data = await res.json();
+    if (!data.items || data.items.length === 0) return;
+    const latest = data.items[0];
+    if (latest.ts !== lastBrainTs) {
+      lastBrainTs = latest.ts;
+      const textEl = document.getElementById("ai-brain-text");
+      const c = latest.action === "BUY" ? "#1fd6a8" : latest.action === "SELL" ? "#ff5d6c" : "#8a95a8";
+      const a = latest.action === "BUY" ? "매수" : latest.action === "SELL" ? "매도" : "관망";
+      textEl.innerHTML = `<span style="color:${c};font-weight:bold;">[${latest.ticker} ${a}]</span> <span class="typewriter-text" style="color:#e6ebf2;">${escapeHtml(latest.reasoning || "")}</span>`;
+      
+      document.getElementById("ai-brain-panel").innerHTML = data.items.map(item => {
+        const ic = item.action === "BUY" ? "#1fd6a8" : item.action === "SELL" ? "#ff5d6c" : "#8a95a8";
+        const ia = item.action === "BUY" ? "매수" : item.action === "SELL" ? "매도" : "관망";
+        return `<div class="brain-log-item">
+          <span style="color:#5a6577;font-family:monospace;">${(item.ts||"").split('T')[1] || item.ts}</span>
+          <strong style="color:${ic}; margin:0 8px;">${item.ticker} ${ia}</strong>
+          <span style="color:#e6ebf2;">${escapeHtml(item.reasoning || "")}</span>
+        </div>`;
+      }).join("");
+    }
+  } catch(e) {}
+}
+document.addEventListener("DOMContentLoaded", initAiBrain);
 
 async function setBotPaused(paused) {
   const action = paused ? "pause" : "resume";
@@ -2322,6 +2433,7 @@ COIN_HTML = f"""<!doctype html>
     <div class="head-tools">
       <button class="mini-btn danger" id="pause-bot" onclick="setBotPaused(true)">일시정지</button>
       <button class="mini-btn" id="resume-bot" onclick="setBotPaused(false)">재개</button>
+      <button class="mini-btn" style="border-color:#5aa3ff; color:#5aa3ff; margin-left:8px;" onclick="openTradeHistoryModal()">거래 내역</button>
     </div>
     <span style="flex:1"></span>
     <div class="tabs">
@@ -2599,9 +2711,10 @@ COIN_HTML = f"""<!doctype html>
 
   <div class="coin-panel" id="coin-ai-panel" hidden>
   <div class="section-line coin-section-anchor" id="coin-ai-section">
-    <div class="section-title">AI 자동매매</div>
+    <div class="section-title">AI 매매 (수동)</div>
     <div class="inline-tools">
       <span class="coin-trade-mode" id="coin-ai-mode-badge">모드 확인 중</span>
+      <button class="mini-btn" onclick="runAiNow()" id="btn-run-ai" style="background:#00c087; color:#fff; border:none; margin-right:4px;">AI 수동 실행</button>
       <button class="mini-btn" onclick="loadCoinAiTrades(true)">새로고침</button>
     </div>
   </div>
@@ -2648,6 +2761,19 @@ COIN_HTML = f"""<!doctype html>
 
   <div class="foot" id="foot">—</div>
 </div>
+
+  <!-- Trade History Modal -->
+  <div id="trade-history-modal" class="modal" hidden>
+    <div class="modal-content">
+      <div class="modal-header">
+        <span>거래 내역 (최근 50건)</span>
+        <button class="modal-close" onclick="closeTradeHistoryModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="trade-history-rows" style="padding: 10px;">로딩 중...</div>
+      </div>
+    </div>
+  </div>
 
 <!-- INITIAL_COIN_PORTFOLIO -->
 <!-- AI_TRADE_SNAPSHOT -->
@@ -3761,9 +3887,9 @@ function renderCoinAiTrades(st, cfg, trades) {{
       ["④ 주문 실행", live ? "AI 판단은 업비트에 실제 시장가 주문으로 나가고 DB에 기록됩니다." : "모의 모드라 주문은 기록만 되고 실제 체결은 없습니다."],
     ];
     pipeline.innerHTML = steps.map(s =>
-      `<div style="display:grid; grid-template-columns:110px 1fr; gap:10px; align-items:start;">
-        <span style="color:#e0b341; font-weight:700; font-size:12px; white-space:nowrap;">${{s[0]}}</span>
-        <span class="muted" style="font-size:12px; line-height:1.6;">${{s[1]}}</span>
+      `<div style="display:grid; grid-template-columns:120px 1fr; gap:10px; align-items:start;">
+        <span style="color:#e0b341; font-weight:700; font-size:14px; white-space:nowrap;">${{s[0]}}</span>
+        <span class="muted" style="font-size:14px; line-height:1.6;">${{s[1]}}</span>
       </div>`).join("");
   }}
 
@@ -3775,16 +3901,16 @@ function renderCoinAiTrades(st, cfg, trades) {{
     decisionRows.innerHTML = history.length ? history.slice(0, 20).map(h => {{
       const act = String(h.action || "HOLD").toUpperCase();
       const cls = act === "BUY" ? "up" : act === "SELL" ? "down" : "muted";
-      return `<div style="padding:10px 14px; border-bottom:1px solid #131a24;">
-        <div style="display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;">
-          <span class="muted" style="font-size:11px;">${{escAi(h.time)}}</span>
-          <span style="font-weight:700;">${{escAi(h.ticker)}}</span>
-          <span class="${{cls}}" style="font-weight:700;">${{act}}</span>
-          <span class="muted" style="font-size:11px;">신뢰도 ${{Number(h.confidence ?? 0).toFixed(2)}}</span>
-          <span class="muted" style="font-size:11px;">${{KRW(h.price)}}원 · RSI ${{h.rsi ?? "—"}} · ${{escAi(h.trend || "—")}}</span>
+      return `<div style="padding:14px 18px; border-bottom:1px solid #131a24;">
+        <div style="display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; font-size:14px;">
+          <span class="muted" style="font-size:13px;">${{escAi(h.time)}}</span>
+          <span style="font-weight:800; font-size:15px;">${{escAi(h.ticker)}}</span>
+          <span class="${{cls}}" style="font-weight:800; font-size:15px;">${{act}}</span>
+          <span class="muted" style="font-size:13px;">신뢰도 ${{Number(h.confidence ?? 0).toFixed(2)}}</span>
+          <span class="muted" style="font-size:13px;">${{KRW(h.price)}}원 · RSI ${{h.rsi ?? "—"}} · ${{escAi(h.trend || "—")}}</span>
         </div>
-        <div class="muted" style="font-size:12px; line-height:1.55; margin-top:4px;">${{escAi(h.reasoning || "")}}</div>
-        <div style="font-size:11px; color:#5a6577; margin-top:3px;">주문: ${{escAi(h.order || "none")}}</div>
+        <div class="muted" style="font-size:14px; line-height:1.6; margin-top:8px;">${{escAi(h.reasoning || "")}}</div>
+        <div style="font-size:13px; color:#5a6577; margin-top:6px;">주문: ${{escAi(h.order || "none")}}</div>
       </div>`;
     }}).join("") : `<div class="muted" style="padding:14px;">아직 AI 판단 기록이 없습니다.</div>`;
   }}
@@ -3845,6 +3971,66 @@ if (["market", "portfolio", "news", "ai"].includes(coinInitialSection)) {{
       setTimeout(openCoinNewsMap, 700);
     }}
   }});
+}}
+async function runAiNow() {{
+  const btn = document.getElementById("btn-run-ai");
+  if (btn) {{
+    btn.disabled = true;
+    btn.textContent = "AI 실행 중...";
+  }}
+  try {{
+    const res = await fetch("/api/run_ai", {{ method: "POST" }});
+    if (res.ok) {{
+      alert("AI 매매 판단을 시작했습니다. (수 초 소요)");
+    }} else {{
+      alert("AI 실행에 실패했습니다.");
+    }}
+  }} catch (err) {{
+    alert("오류: " + err.message);
+  }} finally {{
+    if (btn) {{
+      btn.disabled = false;
+      btn.textContent = "AI 수동 실행";
+    }}
+    loadCoinAiTrades(true);
+  }}
+}}
+function closeTradeHistoryModal() {{
+  const modal = document.getElementById("trade-history-modal");
+  if (modal) modal.hidden = true;
+}}
+
+async function openTradeHistoryModal() {{
+  const modal = document.getElementById("trade-history-modal");
+  const rowsContainer = document.getElementById("trade-history-rows");
+  if (!modal || !rowsContainer) return;
+  modal.hidden = false;
+  rowsContainer.innerHTML = "로딩 중...";
+  try {{
+    const res = await fetch("/api/trades?limit=50");
+    const data = await res.json();
+    const trades = data.items || [];
+    if (trades.length === 0) {{
+      rowsContainer.innerHTML = "<div class='muted'>최근 거래 내역이 없습니다.</div>";
+      return;
+    }}
+    rowsContainer.innerHTML = trades.map(t => {{
+      const act = String(t.side || "").toUpperCase();
+      const cls = act === "BUY" ? "up" : act === "SELL" ? "down" : "muted";
+      const time = t.timestamp ? new Date(t.timestamp).toLocaleString("ko-KR", {{ month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }}) : "—";
+      return `<div style="padding:10px; border-bottom:1px solid #1f2937; display:grid; grid-template-columns: 100px 80px 50px 1fr; gap:10px; align-items:center;">
+        <span class="muted" style="font-size:12px;">${{time}}</span>
+        <span style="font-weight:700;">${{escapeHtml(t.ticker)}}</span>
+        <span class="${{cls}}" style="font-weight:700;">${{act}}</span>
+        <div style="display:flex; flex-direction:column; align-items:flex-end;">
+          <span style="font-size:13px; font-weight:700;">${{KRW(t.krw_amount || 0)}}원</span>
+          <span class="muted" style="font-size:11px;">단가 ${{KRW(t.price || 0)}}원 · 수량 ${{NUM(t.volume || 0)}}</span>
+        </div>
+      </div>`;
+    }}).join("");
+  }} catch (err) {{
+    rowsContainer.innerHTML = "<div class='muted' style='color:#ff8a93'>거래 내역을 불러오는데 실패했습니다: " + escapeHtml(err.message) + "</div>";
+  }}
 }}
 </script>
 </body></html>"""

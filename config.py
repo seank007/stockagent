@@ -61,14 +61,13 @@ EFFORT = os.getenv("EFFORT", "medium")  # claude 전용: low | medium | high | m
 # --- 안전장치 ---
 # True면 실제 주문을 내지 않고 "이렇게 매매했을 것"이라는 로그만 남긴다(모의매매).
 # 실거래는 .env에 DRY_RUN=false와 ALLOW_LIVE_TRADING=true를 둘 다 명시해야 한다.
-DRY_RUN = _env_bool("DRY_RUN", True)
-ALLOW_LIVE_TRADING = _env_bool("ALLOW_LIVE_TRADING", False)
+DRY_RUN = _env_bool("DRY_RUN", False)
+ALLOW_LIVE_TRADING = _env_bool("ALLOW_LIVE_TRADING", True)
 
 # --- 대상 종목 ---
 TICKERS = _env_list("TICKERS", ["KRW-BTC", "KRW-SOL"])
 
-# --- 매매 루프 ---
-INTERVAL_SECONDS = _env_int("INTERVAL_SECONDS", 600)
+# --- 매매 설정 ---
 CANDLE_INTERVAL = os.getenv("CANDLE_INTERVAL", "minute60")
 CANDLE_COUNT = _env_int("CANDLE_COUNT", 50)
 
@@ -77,6 +76,7 @@ MAX_ORDER_KRW = _env_int("MAX_ORDER_KRW", 10_000)
 MIN_ORDER_KRW = _env_int("MIN_ORDER_KRW", 5_000)
 MAX_DAILY_LOSS_KRW = _env_int("MAX_DAILY_LOSS_KRW", 30_000)
 MIN_CONFIDENCE = _env_float("MIN_CONFIDENCE", 0.6)
+TARGET_PROFIT_KRW = _env_int("TARGET_PROFIT_KRW", 15_000)
 
 # 자유 모드: 신뢰도/주문 한도/일일 손실 한도를 모두 끄고 AI가 주문 여부와
 # 금액(잔고 대비 %)을 스스로 결정한다. 업비트 최소 주문(5,000원)만 적용.
@@ -101,7 +101,7 @@ WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
 # let PORT win when the hosting platform provides it.
 WEB_PORT = _env_int("PORT", _env_int("WEB_PORT", 8000))
 WEB_THREADS = _env_int("WEB_THREADS", 8)
-RUN_TRADING_LOOP = _env_bool("RUN_TRADING_LOOP", True)
+RUN_TRADING_LOOP = _env_bool("RUN_TRADING_LOOP", False)
 AUTO_OPEN_BROWSER = _env_bool("AUTO_OPEN_BROWSER", False)
 
 
