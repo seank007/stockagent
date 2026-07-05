@@ -369,6 +369,151 @@ def _env_num(env: dict, name: str, default: float) -> float:
 
 SNAPSHOT_FILE = DOCS / "data" / "ai_snapshot.json"
 PORTFOLIO_FILE = DOCS / "data" / "portfolio_snapshot.json"
+COIN_MARKETS_FILE = DOCS / "data" / "coin_markets.json"
+COIN_CANDLE_INTERVALS = ["minute60", "minute15", "day"]
+COIN_CANDLE_COUNT = 120
+COIN_SNAPSHOT_REUSE_SECONDS = 15 * 60  # 로컬 연속 export 시 재수집 생략
+
+
+def _read_json(path: Path) -> dict | None:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _snapshot_fresh(path: Path) -> bool:
+    data = _read_json(path)
+    if not data:
+        return False
+    try:
+        ts = float(data.get("generated_ts") or 0)
+    except (TypeError, ValueError):
+        return False
+    import time
+    return time.time() - ts < COIN_SNAPSHOT_REUSE_SECONDS
+
+
+def coin_markets_snapshot() -> list[dict]:
+    """업비트 KRW 마켓 전체 목록 + 배포 시점 시세 스냅샷.
+
+    브라우저(Origin) 요청은 업비트가 분당 몇 회 수준으로 제한하고 CORS 프록시도
+    차단하므로, 목록·초기 시세는 export 시점에 서버측(제한 10회/초)에서 받아
+    docs/data/coin_markets.json 으로 심는다. 실시간 갱신은 coin-live.js가
+    웹소켓(브라우저 허용 확인됨)으로 처리한다.
+    """
+    import time
+
+    if _snapshot_fresh(COIN_MARKETS_FILE):
+        return _read_json(COIN_MARKETS_FILE)["markets"]
+
+    try:
+        raw = json.loads(web._urlopen_text(
+            "https://api.upbit.com/v1/market/all?isDetails=false", timeout=10))
+        rows = [r for r in raw if isinstance(r, dict)
+                and str(r.get("market", "")).upper().startswith("KRW-")]
+        if not rows:
+            raise ValueError("KRW 마켓 없음")
+
+        prices: dict[str, float] = {}
+        changes: dict[str, float] = {}
+        volumes: dict[str, float] = {}
+        try:
+            tickers = json.loads(web._urlopen_text(
+                "https://api.upbit.com/v1/ticker/all?quote_currencies=KRW", timeout=10))
+            for t in tickers:
+                m = str(t.get("market", "")).upper()
+                if not m.startswith("KRW-"):
+                    continue
+                if t.get("trade_price") is not None:
+                    prices[m] = float(t["trade_price"])
+                if t.get("signed_change_rate") is not None:
+                    changes[m] = float(t["signed_change_rate"]) * 100
+                if t.get("acc_trade_price_24h") is not None:
+                    volumes[m] = float(t["acc_trade_price_24h"])
+        except Exception:  # noqa: BLE001 - 시세 없이 목록만이라도 유지
+            pass
+
+        by_market = {}
+        for r in rows:
+            market = str(r["market"]).upper()
+            by_market[market] = {
+                "market": market,
+                "symbol": market.replace("KRW-", ""),
+                "korean_name": r.get("korean_name") or market.replace("KRW-", ""),
+                "english_name": r.get("english_name") or market.replace("KRW-", ""),
+            }
+        priority = [m["market"] for m in MARKETS if m["market"] in by_market]
+        rest = sorted((m for m in by_market if m not in priority),
+                      key=lambda m: -volumes.get(m, 0.0))
+        ordered = [by_market[m] for m in priority + rest]
+
+        payload = {
+            "generated_at": time.strftime("%Y-%m-%d %H:%M"),
+            "generated_ts": time.time(),
+            "markets": ordered,
+            "prices": prices,
+            "changes": changes,
+        }
+        COIN_MARKETS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        COIN_MARKETS_FILE.write_text(
+            json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        return ordered
+    except Exception:  # noqa: BLE001 - CI에서 업비트 접근 실패 시 커밋된 스냅샷 재사용
+        cached = _read_json(COIN_MARKETS_FILE)
+        if cached and cached.get("markets"):
+            return cached["markets"]
+        return MARKETS
+
+
+def coin_candles_snapshot(markets: list[dict]) -> None:
+    """전 KRW 마켓의 캔들 종가 스냅샷(docs/data/coin_candles_*.json).
+
+    미니 차트·메인 차트가 배포 시점까지의 실제 종가를 그리고, 마지막 값만
+    coin-live.js가 웹소켓 실시간가로 덮어쓴다. web._upbit_candle_closes의
+    스로틀(초당 ~9.5회)을 그대로 사용한다.
+    """
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    codes = [m["market"] for m in markets]
+    for interval in COIN_CANDLE_INTERVALS:
+        out_file = DOCS / "data" / f"coin_candles_{interval}.json"
+        if _snapshot_fresh(out_file):
+            continue
+
+        def one(market: str) -> tuple[str, list[float]]:
+            for attempt in range(2):
+                try:
+                    closes = web._upbit_candle_closes(market, interval, COIN_CANDLE_COUNT)
+                    if closes:
+                        return market, [float(v) for v in closes]
+                except Exception:  # noqa: BLE001
+                    time.sleep(0.4)
+            return market, []
+
+        closes_map: dict[str, list[float]] = {}
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            for market, closes in pool.map(one, codes):
+                if closes:
+                    closes_map[market] = closes
+
+        # 절반도 못 받았으면(네트워크/차단) 기존 스냅샷을 유지한다
+        if len(closes_map) < len(codes) // 2:
+            existing = _read_json(out_file)
+            if existing and existing.get("closes"):
+                continue
+        if not closes_map:
+            continue
+
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text(json.dumps({
+            "generated_at": time.strftime("%Y-%m-%d %H:%M"),
+            "generated_ts": time.time(),
+            "interval": interval,
+            "count": COIN_CANDLE_COUNT,
+            "closes": closes_map,
+        }, ensure_ascii=False), encoding="utf-8")
 
 
 def portfolio_snapshot() -> dict:
@@ -494,6 +639,12 @@ def page(html: str, initial_portfolio: bool = False, stocks_live: bool = False,
         '<script src="/stockagent/chart-hts.js"></script>\n</body>',
         1,
     )
+    # 업비트 전체 마켓 + 실시간 시세(웹소켓): 목업·chart-hts 다음에 로드
+    html = html.replace(
+        "</body>",
+        '<script src="/stockagent/coin-live.js"></script>\n</body>',
+        1,
+    )
     if stocks_live:
         # 실시간 주식 시세(Yahoo Finance + CORS 프록시): 목업·chart-hts 다음에 로드
         html = html.replace(
@@ -519,6 +670,8 @@ def write(path: Path, html: str) -> None:
 def main() -> None:
     snapshot = ai_trade_snapshot()
     pf = portfolio_snapshot()
+    markets = coin_markets_snapshot()
+    coin_candles_snapshot(markets)
     write(DOCS / "index.html",
           page(web.COIN_HTML, initial_portfolio=True, ai_snapshot=snapshot, portfolio=pf))
     write(DOCS / "coin" / "index.html",

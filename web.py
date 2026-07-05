@@ -2220,9 +2220,12 @@ def _coin_page_html() -> str:
 COMMON_JS = """
 const KRW = (n, signed=false) => {
   if (n==null || isNaN(n)) return "—";
-  const r = Math.round(n);
-  const s = r.toLocaleString("ko-KR");
-  return (signed && r>0 ? "+" : "") + s;
+  const abs = Math.abs(n);
+  let s;
+  if (abs >= 100) s = Math.round(n).toLocaleString("ko-KR");
+  else if (abs >= 1) s = n.toLocaleString("ko-KR", {maximumFractionDigits: 2});
+  else s = n.toLocaleString("ko-KR", {maximumFractionDigits: 6});  // 1원 미만 코인(PEPE 등)
+  return (signed && n>0 ? "+" : "") + s;
 };
 const PCT = (n, signed=true) => {
   if (n==null || isNaN(n)) return "—";
