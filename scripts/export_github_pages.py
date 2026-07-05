@@ -412,6 +412,7 @@ def ai_trade_snapshot() -> dict:
             "tickers": tickers,
             "dry_run": _env_bool(env, "DRY_RUN", True),
             "allow_live_trading": _env_bool(env, "ALLOW_LIVE_TRADING", False),
+            "free_trade_mode": _env_bool(env, "FREE_TRADE_MODE", False),
             "risk": {
                 "max_order_krw": _env_num(env, "MAX_ORDER_KRW", 10_000),
                 "min_order_krw": _env_num(env, "MIN_ORDER_KRW", 5_000),

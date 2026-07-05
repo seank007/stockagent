@@ -78,6 +78,12 @@ MIN_ORDER_KRW = _env_int("MIN_ORDER_KRW", 5_000)
 MAX_DAILY_LOSS_KRW = _env_int("MAX_DAILY_LOSS_KRW", 30_000)
 MIN_CONFIDENCE = _env_float("MIN_CONFIDENCE", 0.6)
 
+# 자유 모드: 신뢰도/주문 한도/일일 손실 한도를 모두 끄고 AI가 주문 여부와
+# 금액(잔고 대비 %)을 스스로 결정한다. 업비트 최소 주문(5,000원)만 적용.
+FREE_TRADE_MODE = _env_bool("FREE_TRADE_MODE", False)
+# 업비트 거래소 자체 최소 주문 금액 (변경 불가)
+UPBIT_MIN_ORDER_KRW = 5_000
+
 # --- 성능 튜닝 ---
 # 종목별 시세 수집 + AI 판단을 병렬 처리할 최대 작업자 수.
 MAX_DECISION_WORKERS = _env_int("MAX_DECISION_WORKERS", 4)
