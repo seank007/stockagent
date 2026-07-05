@@ -3171,9 +3171,21 @@ function setCoinInterval(interval) {{
   loadCoinMarketBoard(true);
 }}
 
+function syncCoinSectionUrl() {{
+  try {{
+    const params = new URLSearchParams(window.location.search);
+    const section = window._coinSection || "market";
+    if (section === "market") params.delete("section"); else params.set("section", section);
+    if (section === "news" && window._coinNewsMapOpen) params.set("view", "map"); else params.delete("view");
+    const qs = params.toString();
+    history.replaceState(null, "", window.location.pathname + (qs ? "?" + qs : ""));
+  }} catch (e) {{}}
+}}
+
 function setCoinSection(section) {{
   section = ["portfolio", "news", "ai"].includes(section) ? section : "market";
   window._coinSection = section;
+  syncCoinSectionUrl();
   document.querySelectorAll("[data-coin-section]").forEach(b => {{
     b.classList.toggle("on", b.dataset.coinSection === section);
   }});
@@ -3754,9 +3766,7 @@ function openCoinNewsMap() {{
   if (listTools) listTools.hidden = true;
   renderCoinNewsMap();
   loadCoinNews(true);
-  if (window.location.pathname === "/coin" && window.location.search !== "?section=news&view=map") {{
-    window.history.replaceState(null, "", "/coin?section=news&view=map");
-  }}
+  syncCoinSectionUrl();
   if (mapPanel) mapPanel.scrollIntoView({{ behavior:"smooth", block:"start" }});
 }}
 
@@ -3768,9 +3778,7 @@ function closeCoinNewsMap() {{
   if (dashboard) dashboard.hidden = false;
   if (mapPanel) mapPanel.hidden = true;
   if (listTools) listTools.hidden = false;
-  if (window.location.pathname === "/coin" && window.location.search.includes("view=map")) {{
-    window.history.replaceState(null, "", "/coin?section=news");
-  }}
+  syncCoinSectionUrl();
   const newsSection = document.getElementById("coin-news-section");
   if (newsSection) newsSection.scrollIntoView({{ behavior:"smooth", block:"start" }});
 }}
