@@ -3183,6 +3183,7 @@ function syncCoinSectionUrl() {{
     const qs = params.toString();
     history.replaceState(null, "", window.location.pathname + (qs ? "?" + qs : ""));
   }} catch (e) {{}}
+  try {{ localStorage.setItem("coinSection", window._coinSection || "market"); }} catch (e) {{}}
 }}
 
 function setCoinSection(section) {{
@@ -4119,7 +4120,10 @@ async function tickCoinState() {{
 }}
 
 const coinInitialParams = new URLSearchParams(window.location.search);
-const coinInitialSection = coinInitialParams.get("section");
+let coinInitialSection = coinInitialParams.get("section");
+if (!["market", "portfolio", "news", "ai"].includes(coinInitialSection)) {{
+  try {{ coinInitialSection = localStorage.getItem("coinSection"); }} catch (e) {{ coinInitialSection = null; }}
+}}
 if (["market", "portfolio", "news", "ai"].includes(coinInitialSection)) {{
   window._coinSection = coinInitialSection;
 }}
@@ -4136,12 +4140,10 @@ setInterval(() => {{ if (window._coinSection === "news") loadCoinNews(window._co
 setInterval(() => {{ if (window._coinSection === "ai") loadCoinAiTrades(); }}, 10000);
 setInterval(() => {{ if (window._coinSection === "ai") loadCoinAiLive(); }}, 7000);
 if (["market", "portfolio", "news", "ai"].includes(coinInitialSection)) {{
-  requestAnimationFrame(() => {{
-    setCoinSection(coinInitialSection);
-    if (coinInitialSection === "news" && coinInitialParams.get("view") === "map") {{
-      setTimeout(openCoinNewsMap, 700);
-    }}
-  }});
+  setCoinSection(coinInitialSection);
+  if (coinInitialSection === "news" && coinInitialParams.get("view") === "map") {{
+    setTimeout(openCoinNewsMap, 700);
+  }}
 }}
 async function runAiNow() {{
   const btn = document.getElementById("btn-run-ai");
