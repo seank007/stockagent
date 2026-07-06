@@ -1806,7 +1806,7 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
             border-radius:4px; overflow:hidden; margin-bottom:24px; }
 .kpi { padding:14px 16px; border-right:1px solid #141a23; background:#0d1219; }
 .kpi:last-child { border-right:none; }
-.kpi .label { font-size:10px; color:#e0b341; letter-spacing:.06em;
+.kpi .label { font-size:11px; color:#e0b341; letter-spacing:.06em;
               text-transform:uppercase; margin-bottom:9px; }
 .kpi .val { font-size:19px; font-weight:700; color:#e6ebf2; }
 .up { color:#1fd6a8 !important; }
@@ -1828,7 +1828,7 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
                         border:1px solid #1c2430; border-radius:3px; padding:5px 8px; font-size:11px; outline:none; }
 .market-actions input:focus { border-color:#1fd6a8; }
 .market-actions .coin-market-search { width:190px; }
-.coin-market-count { color:#5a6577; font-size:10.5px; margin-left:2px; white-space:nowrap; }
+.coin-market-count { color:#5a6577; font-size:11px; margin-left:2px; white-space:nowrap; }
 .coin-market-directory { border:1px solid #1c2430; border-radius:4px; background:#0a0e14;
                          margin:0 0 18px; overflow:hidden; }
 .coin-market-directory-head { display:flex; justify-content:space-between; align-items:center;
@@ -1841,10 +1841,10 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 .coin-market-chip:hover { color:#e6ebf2; border-color:#3a4658; }
 .coin-market-chip.on { color:#1fd6a8; border-color:#1c3a32; background:rgba(31,214,168,.07); }
 .coin-market-chip .sym { display:block; font-size:11px; font-weight:900; color:inherit; }
-.coin-market-chip .name { display:block; margin-top:3px; font-size:9.5px; color:#5a6577;
+.coin-market-chip .name { display:block; margin-top:3px; font-size:11px; color:#5a6577;
                           white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .coin-board-toolbar { margin-top:4px; }
-.coin-board-sub { color:#5a6577; font-size:10.5px; margin-top:4px; }
+.coin-board-sub { color:#5a6577; font-size:11px; margin-top:4px; }
 .coin-market-board-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; margin-bottom:10px; }
 .coin-mini-card { min-height:154px; border:1px solid #1c2430; border-radius:4px; background:#0d1219;
                   padding:11px 12px; cursor:pointer; overflow:hidden; transition:border-color .15s ease, transform .15s ease;
@@ -1853,16 +1853,16 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 .coin-mini-card.on { border-color:#1c3a32; box-shadow:0 0 0 1px rgba(31,214,168,.1) inset; }
 .coin-mini-head { display:flex; align-items:flex-start; gap:8px; margin-bottom:8px; }
 .coin-mini-symbol { color:#e6ebf2; font-size:13px; font-weight:900; line-height:1.1; }
-.coin-mini-name { color:#5a6577; font-size:10px; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.coin-mini-name { color:#5a6577; font-size:11px; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .coin-mini-change { margin-left:auto; font-size:11px; font-weight:900; white-space:nowrap; }
 .coin-mini-price { color:#cdd5e0; font-size:13px; font-weight:800; margin-bottom:7px; }
 .coin-mini-chart { width:100%; height:58px; display:block; }
-.coin-mini-note { color:#3a4658; font-size:9.5px; margin-top:7px; }
+.coin-mini-note { color:#3a4658; font-size:11px; margin-top:7px; }
 .market-stat-grid { display:grid; grid-template-columns:repeat(4,1fr); border:1px solid #1c2430;
                     border-radius:4px; overflow:hidden; margin-bottom:20px; }
 .market-stat { padding:13px 15px; border-right:1px solid #141a23; background:#0d1219; }
 .market-stat:last-child { border-right:none; }
-.market-stat .label { font-size:10px; color:#e0b341; letter-spacing:.06em; text-transform:uppercase; margin-bottom:8px; }
+.market-stat .label { font-size:11px; color:#e0b341; letter-spacing:.06em; text-transform:uppercase; margin-bottom:8px; }
 .market-stat .val { font-size:18px; font-weight:700; color:#e6ebf2; }
 .orderbook-head, .orderbook-row { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; align-items:center; }
 .orderbook-row { padding:9px 15px; border-bottom:1px solid #11161f; font-size:11px; }
@@ -1885,13 +1885,13 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 .coin-holding-head, .coin-holding-row { display:grid; grid-template-columns:92px 1fr 108px 96px 72px; align-items:center; }
 .donut-panel { min-height:236px; display:flex; align-items:center; justify-content:center; padding:18px 12px 10px; background:#0a0e14; }
 .donut-svg { width:220px; height:220px; display:block; }
-.coin-pf-note { padding:11px 16px; font-size:10.5px; color:#3a4658; line-height:1.5;
+.coin-pf-note { padding:11px 16px; font-size:11px; color:#3a4658; line-height:1.5;
                 background:#0a0e14; border-top:1px solid #141a23; }
 .coin-trade-box { margin-bottom:24px; }
 .coin-trade-form { display:grid; grid-template-columns:1.1fr 1fr 1fr 1fr; gap:9px; padding:14px 15px;
                    border-bottom:1px solid #141a23; background:#0a0e14; }
 .coin-trade-field { min-width:0; }
-.coin-trade-field label { display:block; margin-bottom:6px; color:#5a6577; font-size:10px; letter-spacing:.05em; text-transform:uppercase; }
+.coin-trade-field label { display:block; margin-bottom:6px; color:#5a6577; font-size:11px; letter-spacing:.05em; text-transform:uppercase; }
 .coin-trade-input { width:100%; min-width:0; font-family:'JetBrains Mono',monospace; background:#070a0e;
                     color:#e6ebf2; border:1px solid #1c2430; border-radius:3px; padding:7px 9px; font-size:12px; outline:none; }
 .coin-trade-input:focus { border-color:#1fd6a8; }
@@ -1903,7 +1903,7 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 .coin-trade-status.ok { color:#1fd6a8; }
 .coin-trade-status.warn { color:#e0b341; }
 .coin-trade-status.err { color:#ff8a93; }
-.coin-trade-mode { color:#5a6577; font-size:10px; margin-left:auto; }
+.coin-trade-mode { color:#5a6577; font-size:11px; margin-left:auto; }
 .coin-news-grid { display:grid; grid-template-columns:1fr 310px; gap:18px; margin-bottom:24px; align-items:start; }
 .news-live-grid { margin-bottom:20px; }
 .news-live-grid .val { font-size:16px; }
@@ -1916,44 +1916,44 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
              border-bottom:1px solid #11161f; align-items:start; }
 .news-item:last-child { border-bottom:none; }
 .news-source-chip { display:inline-block; color:#e0b341; background:rgba(224,179,65,.08);
-                    border:1px solid #3a311f; border-radius:3px; padding:2px 6px; font-size:10px; font-weight:700; }
+                    border:1px solid #3a311f; border-radius:3px; padding:2px 6px; font-size:11px; font-weight:700; }
 .news-source-chip.live { color:#1fd6a8; background:rgba(31,214,168,.08); border-color:#1c3a32; margin-top:6px; }
 .news-title { color:#e6ebf2; text-decoration:none; font-size:13px; line-height:1.45; font-weight:800; }
 .news-title:hover { color:#1fd6a8; }
-.news-publisher { color:#5a6577; font-size:10.5px; margin-bottom:5px; }
+.news-publisher { color:#5a6577; font-size:11px; margin-bottom:5px; }
 .news-summary { color:#8a95a8; line-height:1.45; font-size:11px; margin-top:6px; }
-.news-time { color:#5a6577; font-size:10.5px; text-align:right; white-space:nowrap; }
+.news-time { color:#5a6577; font-size:11px; text-align:right; white-space:nowrap; }
 .news-source-row { display:grid; grid-template-columns:1fr 54px 38px; gap:8px; align-items:center;
                    padding:11px 15px; border-bottom:1px solid #11161f; font-size:11px; }
 .news-source-row:last-child { border-bottom:none; }
 .news-source-ok { color:#1fd6a8; font-weight:700; }
 .news-source-err { color:#ff5d6c; font-weight:700; }
-.news-note { padding:11px 15px; color:#5a6577; font-size:10.5px; line-height:1.5; background:#0a0e14; }
+.news-note { padding:11px 15px; color:#5a6577; font-size:11px; line-height:1.5; background:#0a0e14; }
 .ai-summary-box { margin-bottom:18px; }
 .ai-summary-body { padding:14px 15px; background:#0a0e14; }
 .ai-summary-headline { color:#e6ebf2; font-size:15px; line-height:1.45; font-weight:800; margin-bottom:10px; }
 .ai-summary-meta { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
 .ai-summary-chip { display:inline-flex; align-items:center; color:#1fd6a8; border:1px solid #1c3a32;
-                   background:rgba(31,214,168,.08); border-radius:3px; padding:2px 6px; font-size:10px; font-weight:700; }
+                   background:rgba(31,214,168,.08); border-radius:3px; padding:2px 6px; font-size:11px; font-weight:700; }
 .ai-summary-chip.warn { color:#e0b341; border-color:#3a311f; background:rgba(224,179,65,.08); }
 .ai-summary-list { margin:0 0 12px 0; padding:0; list-style:none; }
 .ai-summary-list li { color:#cdd5e0; line-height:1.48; font-size:11.5px; padding:7px 0; border-bottom:1px solid #11161f; }
 .ai-summary-list li:last-child { border-bottom:none; }
-.ai-summary-label { color:#e0b341; font-size:10px; letter-spacing:.06em; text-transform:uppercase; margin:13px 0 6px; }
+.ai-summary-label { color:#e0b341; font-size:11px; letter-spacing:.06em; text-transform:uppercase; margin:13px 0 6px; }
 .ai-summary-tags { display:flex; gap:6px; flex-wrap:wrap; }
-.ai-summary-tag { color:#8a95a8; border:1px solid #1c2430; border-radius:3px; padding:2px 6px; font-size:10px; }
-.ai-summary-error { color:#ff8a93; font-size:10.5px; line-height:1.45; margin-top:10px; }
+.ai-summary-tag { color:#8a95a8; border:1px solid #1c2430; border-radius:3px; padding:2px 6px; font-size:11px; }
+.ai-summary-error { color:#ff8a93; font-size:11px; line-height:1.45; margin-top:10px; }
 .ai-summary-box.is-clickable { cursor:pointer; transition:border-color .15s ease, transform .15s ease; }
 .ai-summary-box.is-clickable:hover { border-color:#3a4658; transform:translateY(-1px); }
 .ai-summary-box.is-clickable:hover .box-head { color:#f0c85e; }
 .coin-news-map-panel[hidden] { display:none !important; }
-.news-map-sub { color:#5a6577; font-size:10.5px; margin-top:-5px; }
+.news-map-sub { color:#5a6577; font-size:11px; margin-top:-5px; }
 .news-map-stats { grid-template-columns:repeat(4,1fr); }
 .news-map-return-row { position:sticky; top:104px; z-index:16; display:flex; align-items:center; gap:10px;
                        margin:-8px 0 12px; padding:8px 0; background:#070b0f; }
 .news-map-return-row .mini-btn,
 .news-map-back-btn { color:#e6ebf2; border-color:#3a4658; background:#101720; font-weight:800; }
-.news-map-return-row .muted { font-size:10.5px; }
+.news-map-return-row .muted { font-size:11px; }
 .news-map-back-btn { margin-left:2px; }
 .news-map-box { margin-bottom:24px; }
 .news-map-canvas { position:relative; padding:18px; min-height:548px; background:#070b0f; overflow:hidden; }
@@ -1965,26 +1965,26 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 .news-map-node { position:relative; z-index:1; border:1px solid #1c2430; border-radius:4px; background:#0d1219; padding:13px 14px; }
 .news-map-node.center { width:100%; min-height:230px; display:flex; flex-direction:column; justify-content:center;
                         border-color:#1c3a32; background:#101720; box-shadow:0 0 0 1px rgba(31,214,168,.06) inset; }
-.news-map-node h3 { margin:0 0 9px; color:#e0b341; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; }
+.news-map-node h3 { margin:0 0 9px; color:#e0b341; font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
 .news-map-headline { color:#e6ebf2; font-size:19px; line-height:1.42; font-weight:900; margin-bottom:12px; }
 .news-map-meta { display:flex; gap:6px; flex-wrap:wrap; }
 .news-map-chip { display:inline-flex; align-items:center; gap:5px; color:#1fd6a8; border:1px solid #1c3a32;
-                 background:rgba(31,214,168,.08); border-radius:3px; padding:3px 7px; font-size:10px; font-weight:800; }
+                 background:rgba(31,214,168,.08); border-radius:3px; padding:3px 7px; font-size:11px; font-weight:800; }
 .news-map-chip.warn { color:#e0b341; border-color:#3a311f; background:rgba(224,179,65,.08); }
 .news-map-list { margin:0; padding:0; list-style:none; display:grid; gap:7px; }
 .news-map-list li { color:#cdd5e0; font-size:11.5px; line-height:1.42; padding-bottom:7px; border-bottom:1px solid #11161f; }
 .news-map-list li:last-child { padding-bottom:0; border-bottom:none; }
 .news-map-tags { display:flex; gap:6px; flex-wrap:wrap; }
-.news-map-tag { color:#cdd5e0; border:1px solid #1c2430; background:#0a0e14; border-radius:3px; padding:5px 7px; font-size:10.5px; font-weight:700; }
+.news-map-tag { color:#cdd5e0; border:1px solid #1c2430; background:#0a0e14; border-radius:3px; padding:5px 7px; font-size:11px; font-weight:700; }
 .news-map-live { display:grid; grid-template-columns:1.04fr .96fr; gap:16px; align-items:start; }
 .news-map-news-row { display:grid; grid-template-columns:82px 1fr 72px; gap:10px; align-items:start; padding:9px 0; border-bottom:1px solid #11161f; }
 .news-map-news-row:last-child { border-bottom:none; }
 .news-map-news-row a { color:#e6ebf2; text-decoration:none; font-size:11.5px; line-height:1.35; font-weight:800; }
 .news-map-news-row a:hover { color:#1fd6a8; }
-.news-map-source { color:#e0b341; font-size:10px; font-weight:800; }
-.news-map-time { color:#5a6577; font-size:10px; text-align:right; white-space:nowrap; }
+.news-map-source { color:#e0b341; font-size:11px; font-weight:800; }
+.news-map-time { color:#5a6577; font-size:11px; text-align:right; white-space:nowrap; }
 
-.tbl-head { padding:9px 15px; font-size:10px; color:#5a6577;
+.tbl-head { padding:9px 15px; font-size:11px; color:#5a6577;
             text-transform:uppercase; letter-spacing:.05em; background:#0d1219;
             border-bottom:1px solid #1c2430; }
 .tbl-row { padding:11px 15px; border-bottom:1px solid #11161f; font-size:11.5px; }
@@ -1998,7 +1998,7 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 .portfolio-metrics { display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid #1c2430; }
 .portfolio-metric { padding:13px 15px; border-right:1px solid #141a23; background:#0d1219; }
 .portfolio-metric:last-child { border-right:none; }
-.portfolio-metric .label { font-size:10px; color:#e0b341; letter-spacing:.06em; text-transform:uppercase; margin-bottom:8px; }
+.portfolio-metric .label { font-size:11px; color:#e0b341; letter-spacing:.06em; text-transform:uppercase; margin-bottom:8px; }
 .portfolio-metric .val { font-size:17px; font-weight:700; color:#e6ebf2; }
 .holding-head, .holding-row { display:grid; grid-template-columns:92px 1fr 102px 86px 86px 78px; align-items:center; }
 .allocation-row { display:grid; grid-template-columns:74px 1fr 54px; gap:10px; align-items:center; padding:11px 15px; border-bottom:1px solid #11161f; font-size:11.5px; }
@@ -2014,12 +2014,12 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
               padding:9px 15px; border-bottom:1px solid #11161f; font-size:11px; cursor:pointer; }
 .manual-row:last-child { border-bottom:none; }
 .manual-row:hover { background:#101720; }
-.manual-status { padding:0 15px 10px; color:#5a6577; font-size:10.5px; min-height:20px; }
+.manual-status { padding:0 15px 10px; color:#5a6577; font-size:11px; min-height:20px; }
 
 .hist-grid { display:grid; grid-template-columns:74px 100px 120px 1fr 54px 70px 60px 130px; align-items:center; }
 .hist-head { display:grid; grid-template-columns:74px 100px 120px 1fr 54px 70px 60px 130px; }
 .action-chip { display:inline-block; min-width:42px; padding:2px 0; border-radius:3px;
-               font-weight:700; font-size:10.5px; text-align:center; }
+               font-weight:700; font-size:11px; text-align:center; }
 .act-BUY  { color:#1fd6a8; background:rgba(31,214,168,.12); }
 .act-SELL { color:#ff5d6c; background:rgba(255,93,108,.12); }
 .act-HOLD { color:#e0b341; background:rgba(224,179,65,.12); }
@@ -2052,7 +2052,7 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
              border-radius:4px; overflow:hidden; margin-bottom:20px; }
 .snap-card { padding:14px 16px; border-right:1px solid #141a23; background:#0d1219; }
 .snap-card:last-child { border-right:none; }
-.snap-card .label { font-size:10px; color:#e0b341; letter-spacing:.06em;
+.snap-card .label { font-size:11px; color:#e0b341; letter-spacing:.06em;
                     text-transform:uppercase; margin-bottom:9px; }
 .snap-card .val { font-size:18px; font-weight:700; }
 .snap-card .sub { font-size:11px; color:#5a6577; margin-top:4px; }
@@ -2063,7 +2063,7 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 .report-row .k { font-size:11px; color:#1fd6a8; letter-spacing:.03em; padding-top:1px; }
 .report-row .v { font-size:12.5px; color:#cdd5e0; line-height:1.6;
                  font-family:'IBM Plex Sans', sans-serif; }
-.report-note { padding:11px 16px; font-size:10.5px; color:#3a4658; line-height:1.5;
+.report-note { padding:11px 16px; font-size:11px; color:#3a4658; line-height:1.5;
                background:#0a0e14; border-top:1px solid #141a23; }
 .context-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:18px; }
 .context-row { display:grid; grid-template-columns:96px 1fr; gap:12px; padding:10px 15px; border-bottom:1px solid #11161f; font-size:11.5px; }
@@ -2077,17 +2077,17 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 .ai-live-kpis { display:grid; grid-template-columns:repeat(6,1fr); border-bottom:1px solid #141a23; }
 .ai-live-kpis .cell { padding:13px 15px; border-right:1px solid #141a23; min-width:0; }
 .ai-live-kpis .cell:last-child { border-right:none; }
-.ai-live-kpis .label { font-size:10px; color:#e0b341; letter-spacing:.06em; text-transform:uppercase; margin-bottom:7px; white-space:nowrap; }
+.ai-live-kpis .label { font-size:11px; color:#e0b341; letter-spacing:.06em; text-transform:uppercase; margin-bottom:7px; white-space:nowrap; }
 .ai-live-kpis .val { font-size:17px; font-weight:800; color:#e6ebf2; white-space:nowrap; }
-.ai-live-kpis .sub { font-size:10.5px; color:#5a6577; margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ai-live-kpis .sub { font-size:11px; color:#5a6577; margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .ai-account-map { position:relative; height:380px; background:#0a0e14; }
 .ai-map-tile { position:absolute; overflow:hidden; border:1.5px solid #0a0e14; border-radius:3px;
                display:flex; flex-direction:column; justify-content:center; align-items:center;
                text-align:center; gap:3px; padding:4px; box-sizing:border-box; }
 .ai-map-tile .sym { font-weight:900; color:#fff; line-height:1.1; text-shadow:0 1px 2px rgba(0,0,0,.4); }
 .ai-map-tile .ret { font-weight:800; color:#fff; line-height:1.1; text-shadow:0 1px 2px rgba(0,0,0,.4); }
-.ai-map-tile .meta { color:rgba(255,255,255,.72); font-size:10.5px; line-height:1.2; }
-.ai-map-legend { padding:10px 15px; font-size:10.5px; color:#5a6577; border-top:1px solid #141a23;
+.ai-map-tile .meta { color:rgba(255,255,255,.72); font-size:11px; line-height:1.2; }
+.ai-map-legend { padding:10px 15px; font-size:11px; color:#5a6577; border-top:1px solid #141a23;
                  display:flex; gap:16px; flex-wrap:wrap; background:#0d1219; }
 .ai-map-legend .live-note { color:#1fd6a8; }
 @media (max-width: 980px) {
@@ -2096,10 +2096,10 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
   .ai-account-map { height:320px; }
 }
 
-.foot { font-size:10.5px; color:#3a4658; margin-top:16px; }
+.foot { font-size:11px; color:#3a4658; margin-top:16px; }
 
-/* 배율은 COMMON_JS의 fitZoom()이 창 폭에 맞춰 연속으로 계산해 적용한다.
-   (고정 단계 배율은 창 폭과 설계 폭 1340px의 배수가 안 맞으면 가로로 넘쳤음) */
+/* 배율 확대는 사용하지 않는다(업비트·바이낸스 방식: 고정 px, 확대 없음).
+   글자 크기는 거래소 표준(본문·테이블 11~13px)에 맞춰 폰트 자체로 조절. */
 
 @media (max-width: 980px) {
   .hd-row { flex-wrap:wrap; padding:12px 14px; }
@@ -2213,20 +2213,18 @@ def _coin_page_html() -> str:
 
 # 공통 JS 헬퍼: 숫자/PnL/티커테이프/SVG 패스
 COMMON_JS = """
-// 화면 배율 자동 조절: 창이 설계 폭(1360px)보다 넓으면 "절반 강도"로만 키운다.
-// 예) 1440px→1.03, 2000px→1.24, 2560px→1.44 (최대 1.5 / 좁은 창·모바일 1배)
+// 화면 배율: 업비트·바이낸스와 동일하게 확대 없음(항상 1배).
+// 거래소 표준 크기는 폰트 자체로 맞춘다(본문·테이블 11~13px, 큰 숫자 16px+).
+// 사용자가 크게 보고 싶으면 localStorage.ui_zoom(예: "1.2")으로 조절 가능.
 (function () {
-  const DESIGN_WIDTH = 1360; // 레이아웃 1340px + 좌우 여백
-  let t = null;
-  function fitZoom() {
+  function applyZoom() {
     if (!document.body) return;
-    const fill = Math.max(0, window.innerWidth / DESIGN_WIDTH - 1);
-    const z = Math.min(1.5, 1 + fill * 0.5);
-    document.body.style.zoom = String(Math.round(z * 100) / 100);
+    const saved = parseFloat(localStorage.getItem("ui_zoom") || "1");
+    const z = isFinite(saved) && saved >= 0.7 && saved <= 2 ? saved : 1;
+    document.body.style.zoom = String(z);
   }
-  window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(fitZoom, 120); });
-  document.addEventListener("DOMContentLoaded", fitZoom);
-  fitZoom();
+  document.addEventListener("DOMContentLoaded", applyZoom);
+  applyZoom();
 })();
 
 const KRW = (n, signed=false) => {
@@ -2399,7 +2397,7 @@ function initAiBrain() {
     <div id="ai-brain-bar">
       <div class="brain-icon">🧠</div>
       <div class="brain-text" id="ai-brain-text"><span style="color:#8a95a8;">AI 에이전트 대기 중...</span></div>
-      <div style="font-size:10px; color:#5a6577;">[Click to Expand]</div>
+      <div style="font-size:11px; color:#5a6577;">[Click to Expand]</div>
     </div>
     <div id="ai-brain-panel"></div>
   `;
@@ -3375,16 +3373,16 @@ function renderCoinPortfolio(pf) {{
       <div class="tbl-row coin-holding-row">
         <div>
           <div style="font-weight:800;font-size:13px">${{escapeHtml(h.currency || "—")}}</div>
-          <div class="muted" style="font-size:10px;margin-top:2px">${{escapeHtml(h.ticker || "")}}</div>
+          <div class="muted" style="font-size:11px;margin-top:2px">${{escapeHtml(h.ticker || "")}}</div>
         </div>
         <div style="text-align:right">
           <div>${{KRW(h.current_value)}} 원</div>
-          <div class="muted" style="font-size:10px;margin-top:2px">${{NUM(h.balance)}} 개</div>
+          <div class="muted" style="font-size:11px;margin-top:2px">${{NUM(h.balance)}} 개</div>
         </div>
         <div style="text-align:right;color:#9aa3b5">${{KRW(h.avg_buy_price)}} 원</div>
         <div style="text-align:right">
           <div class="${{colorOf(pnl)}}" style="font-weight:700">${{KRW(pnl, true)}}</div>
-          <div class="${{colorOf(ret)}}" style="font-size:10px;margin-top:2px">${{PCT(ret)}}</div>
+          <div class="${{colorOf(ret)}}" style="font-size:11px;margin-top:2px">${{PCT(ret)}}</div>
         </div>
         <div style="text-align:right">
           <div style="font-size:11px;color:#8a95a8;margin-bottom:5px">${{Number(h._coinWeight || 0).toFixed(1)}}%</div>
@@ -4596,7 +4594,7 @@ function renderHistoryItems(items) {{
         <span style="text-align:center;color:#8a95a8">${{h.rsi != null ? h.rsi : "—"}}</span>
         <span style="text-align:center"><span class="action-chip act-${{action}}">${{action}}</span></span>
         <span style="text-align:right;font-weight:600;color:${{conf>=0.6?"#e6ebf2":"#5a6577"}}">${{conf.toFixed(2)}}</span>
-        <span style="text-align:right;color:#5a6577;font-size:10.5px">${{order}}</span>
+        <span style="text-align:right;color:#5a6577;font-size:11px">${{order}}</span>
       </div>`;
   }}).join("") || `<div class="tbl-row muted">아직 판단 없음</div>`;
 }}
@@ -4611,13 +4609,13 @@ function renderTradeItems(items) {{
       <div class="tbl-row trade-grid">
         <span class="muted">${{t.ts.replace("T"," ")}}</span>
         <span style="color:#cdd5e0;font-weight:600">${{t.ticker}}</span>
-        <span class="${{sideCls}}" style="font-weight:700;font-size:10.5px">${{t.side}}</span>
+        <span class="${{sideCls}}" style="font-weight:700;font-size:11px">${{t.side}}</span>
         <span style="text-align:right;color:#9aa3b5">${{KRW(t.price)}}</span>
         <span style="text-align:right;color:#9aa3b5">${{NUM(t.volume)}}</span>
         <span style="text-align:right">${{KRW(t.krw_amount)}}</span>
         <span style="text-align:right" class="muted">${{KRW(t.fee)}}</span>
         <span style="text-align:right;font-weight:600" class="${{pnlCls}}">${{pnlStr}}</span>
-        <span style="text-align:right;font-size:10px" class="muted">${{t.dry_run?"DRY":"LIVE"}}</span>
+        <span style="text-align:right;font-size:11px" class="muted">${{t.dry_run?"DRY":"LIVE"}}</span>
       </div>`;
   }}).join("") || `<div class="tbl-row muted">아직 거래 없음</div>`;
 }}
@@ -4750,7 +4748,7 @@ function renderCompactPortfolio(items, portVal) {{
       <div class="tbl-row port-grid">
         <div>
           <div style="font-weight:700;font-size:13px">${{p.currency || "—"}}</div>
-          <div style="font-size:10px;color:#5a6577;margin-top:2px">${{NUM(p.balance)}}</div>
+          <div style="font-size:11px;color:#5a6577;margin-top:2px">${{NUM(p.balance)}}</div>
         </div>
         <div style="text-align:right;font-size:12.5px">${{KRW(currentValue)}}</div>
         <div style="text-align:right">
@@ -4787,11 +4785,11 @@ function renderPortfolioDetail(pf) {{
       <div class="tbl-row holding-row">
         <div>
           <div style="font-weight:700;font-size:13px">${{h.currency || "—"}}</div>
-          <div class="muted" style="font-size:10px;margin-top:2px">${{isCash ? "현금" : NUM(h.balance)}}</div>
+          <div class="muted" style="font-size:11px;margin-top:2px">${{isCash ? "현금" : NUM(h.balance)}}</div>
         </div>
         <div style="text-align:right">
           <div>${{KRW(h.current_value)}} 원</div>
-          <div class="muted" style="font-size:10px;margin-top:2px">원금 ${{KRW(h.principal)}}</div>
+          <div class="muted" style="font-size:11px;margin-top:2px">원금 ${{KRW(h.principal)}}</div>
         </div>
         <div style="text-align:right;color:#9aa3b5">${{isCash ? "—" : KRW(h.avg_buy_price)}}</div>
         <div style="text-align:right;font-weight:600" class="${{colorOf(unrealized)}}">${{isCash ? "—" : KRW(unrealized, true)}}</div>
@@ -5005,7 +5003,7 @@ ANALYZE_HTML = f"""<!doctype html>
         <svg id="priceSvg" viewBox="0 0 1000 260" preserveAspectRatio="none"
              style="width:100%;height:230px;display:block"></svg>
       </div>
-      <div style="padding:6px 15px 4px;font-size:10.5px;color:#5aa3ff;border-top:1px solid #141a23;margin-top:4px">
+      <div style="padding:6px 15px 4px;font-size:11px;color:#5aa3ff;border-top:1px solid #141a23;margin-top:4px">
         RSI14 <span id="chart-rsi">—</span>
       </div>
       <div style="padding:0 8px 10px">
@@ -5017,7 +5015,7 @@ ANALYZE_HTML = f"""<!doctype html>
     <div class="box">
       <div class="box-head">
         <span>AI 분석 리포트</span>
-        <span style="color:#3a4658;font-size:10px;font-weight:400;text-transform:none;letter-spacing:0" id="ai-tag">— · 정보형</span>
+        <span style="color:#3a4658;font-size:11px;font-weight:400;text-transform:none;letter-spacing:0" id="ai-tag">— · 정보형</span>
       </div>
       <div id="report-rows" style="padding:6px 0">
         <div class="report-row"><span class="k">상태</span><span class="v muted">티커를 입력하고 [분석 실행]을 누르세요.</span></div>
