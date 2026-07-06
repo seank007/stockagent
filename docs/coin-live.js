@@ -68,6 +68,8 @@
   var wsOrderbookCode = null;    // 호가를 구독 중인 마켓
   var wsRetryMs = 1000;
   var wsStarted = false;
+  var wsSuspended = false;       // 백그라운드 탭 절전 중
+  var wsIdleTimer = null;
   var livePrices = {};           // market → {price, change_pct, ts}
   var liveOrderbooks = {};       // market → 호가 payload
 
@@ -120,9 +122,27 @@
 
   function scheduleReconnect() {
     ws = null;
-    setTimeout(function () { if (wsStarted) wsConnect(); }, wsRetryMs);
+    if (wsSuspended) return;  // 백그라운드 절전 중에는 재연결하지 않는다
+    setTimeout(function () { if (wsStarted && !wsSuspended && !ws) wsConnect(); }, wsRetryMs);
     wsRetryMs = Math.min(wsRetryMs * 2, 30000);
   }
+
+  // 백그라운드 탭에서는 1분 후 웹소켓을 끊어 CPU·배터리를 아끼고,
+  // 다시 보이면 즉시 재연결해 카드 시세를 갱신한다.
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) {
+      clearTimeout(wsIdleTimer);
+      wsIdleTimer = setTimeout(function () {
+        wsSuspended = true;
+        if (ws) { try { ws.close(); } catch (e) {} ws = null; }
+      }, 60000);
+    } else {
+      clearTimeout(wsIdleTimer);
+      wsSuspended = false;
+      if (wsStarted && !ws) { wsRetryMs = 1000; wsConnect(); }
+      refreshVisibleCards();
+    }
+  });
 
   function ensureWs() {
     if (wsStarted) return;
@@ -325,6 +345,29 @@
     });
   }
 
+  // ---- 보이는 미니 카드 실시간 갱신 -------------------------------------------------
+  // 보드 재로드(3분)를 기다리지 않고, 웹소켓 시세로 카드의 가격·전일대비만 바로 바꾼다.
+  function refreshVisibleCards() {
+    if (document.hidden) return;
+    if (window._coinSection && window._coinSection !== "market") return;
+    var cards = document.querySelectorAll("#coin-market-board-grid .coin-mini-card[data-ticker]");
+    for (var i = 0; i < cards.length; i++) {
+      var live = livePrices[cards[i].getAttribute("data-ticker")];
+      if (!live) continue;
+      // 페이지의 KRW/PCT는 const 선언이라 window에 안 붙는다 — 전역 바인딩을 직접 참조
+      var priceEl = cards[i].querySelector(".coin-mini-price");
+      if (priceEl && typeof KRW === "function") {
+        priceEl.textContent = KRW(live.price) + " 원";
+      }
+      var chgEl = cards[i].querySelector(".coin-mini-change");
+      if (chgEl && live.change_pct != null && typeof PCT === "function") {
+        chgEl.textContent = PCT(live.change_pct);
+        chgEl.className = "coin-mini-change " +
+          (live.change_pct > 0 ? "up" : live.change_pct < 0 ? "down" : "muted");
+      }
+    }
+  }
+
   // ---- fetch 오버라이드 ------------------------------------------------------------
   window.fetch = function (input, init) {
     try {
@@ -354,5 +397,6 @@
     if (typeof window.loadCoinConfig === "function") {
       loadMarkets().then(function () { window.loadCoinConfig(); }).catch(function () {});
     }
+    setInterval(refreshVisibleCards, 2000);
   }
 })();

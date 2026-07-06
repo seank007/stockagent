@@ -6,6 +6,10 @@ on:
     paths:
       - "docs/**"
       - ".github/workflows/pages.yml"
+  schedule:
+    # 30분마다 재배포해 코인 캔들 스냅샷(docs/data)을 최신으로 따라잡는다.
+    # export가 업비트 수집에 실패하면 커밋된 스냅샷을 그대로 쓰므로 안전하다.
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 permissions:

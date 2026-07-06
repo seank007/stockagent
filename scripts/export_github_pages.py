@@ -382,6 +382,12 @@ def _read_json(path: Path) -> dict | None:
         return None
 
 
+def _sig6(value: float) -> float | int:
+    """유효숫자 6자리 반올림, 정수는 int로 — 스냅샷 JSON 용량 절감(차트 표시에는 충분)."""
+    v = float(f"{float(value):.6g}")
+    return int(v) if v == int(v) else v
+
+
 def _snapshot_fresh(path: Path) -> bool:
     data = _read_json(path)
     if not data:
@@ -426,9 +432,9 @@ def coin_markets_snapshot() -> list[dict]:
                 if not m.startswith("KRW-"):
                     continue
                 if t.get("trade_price") is not None:
-                    prices[m] = float(t["trade_price"])
+                    prices[m] = _sig6(t["trade_price"])
                 if t.get("signed_change_rate") is not None:
-                    changes[m] = float(t["signed_change_rate"]) * 100
+                    changes[m] = round(float(t["signed_change_rate"]) * 100, 3)
                 if t.get("acc_trade_price_24h") is not None:
                     volumes[m] = float(t["acc_trade_price_24h"])
         except Exception:  # noqa: BLE001 - 시세 없이 목록만이라도 유지
@@ -487,7 +493,7 @@ def coin_candles_snapshot(markets: list[dict]) -> None:
                 try:
                     closes = web._upbit_candle_closes(market, interval, COIN_CANDLE_COUNT)
                     if closes:
-                        return market, [float(v) for v in closes]
+                        return market, [_sig6(v) for v in closes]
                 except Exception:  # noqa: BLE001
                     time.sleep(0.4)
             return market, []
