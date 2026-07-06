@@ -2098,13 +2098,8 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 
 .foot { font-size:10.5px; color:#3a4658; margin-top:16px; }
 
-/* base scaling: design is dense 11px-ish, so grow everything for readability */
-body { zoom: 1.25; }
-/* wide-monitor scaling: keeps 1340px design but grows so text isn't tiny on large displays */
-@media (min-width: 1500px) { body { zoom: 1.4; } }
-@media (min-width: 1800px) { body { zoom: 1.55; } }
-@media (min-width: 2200px) { body { zoom: 1.72; } }
-@media (min-width: 2600px) { body { zoom: 1.9; } }
+/* 배율은 COMMON_JS의 fitZoom()이 창 폭에 맞춰 연속으로 계산해 적용한다.
+   (고정 단계 배율은 창 폭과 설계 폭 1340px의 배수가 안 맞으면 가로로 넘쳤음) */
 
 @media (max-width: 980px) {
   .hd-row { flex-wrap:wrap; padding:12px 14px; }
@@ -2218,6 +2213,20 @@ def _coin_page_html() -> str:
 
 # 공통 JS 헬퍼: 숫자/PnL/티커테이프/SVG 패스
 COMMON_JS = """
+// 화면 배율 자동 조절: 1340px 설계를 창 폭에 맞게 키운다(좁으면 1배 유지).
+(function () {
+  const DESIGN_WIDTH = 1360; // 레이아웃 1340px + 좌우 여백
+  let t = null;
+  function fitZoom() {
+    if (!document.body) return;
+    const z = Math.min(1.9, Math.max(1, window.innerWidth / DESIGN_WIDTH));
+    document.body.style.zoom = String(Math.round(z * 100) / 100);
+  }
+  window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(fitZoom, 120); });
+  document.addEventListener("DOMContentLoaded", fitZoom);
+  fitZoom();
+})();
+
 const KRW = (n, signed=false) => {
   if (n==null || isNaN(n)) return "—";
   const abs = Math.abs(n);
