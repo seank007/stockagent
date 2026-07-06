@@ -387,6 +387,9 @@
     return prevFetch(input, init);
   };
 
+  // ai-live.js 등 다른 스크립트가 같은 웹소켓 시세를 재사용할 수 있게 공개한다.
+  window.__coinLive = { prices: livePrices, ensureWs: ensureWs };
+
   // 코인 대시보드에서는 미리 연결해 첫 렌더부터 실시간가가 잡히게 한다.
   if (document.getElementById("coin-ticker") || document.getElementById("coin-market-board-grid")) {
     loadMarkets().catch(function () {});

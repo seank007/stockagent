@@ -2,17 +2,18 @@
 // 보유 수량·평단은 배포 시점 스냅샷(window.__initialCoinPortfolio) 기준이고,
 // 시세·평가액·손익은 업비트 공개 API(CORS 허용)로 10초마다 다시 계산한다.
 (() => {
-  const base = window.__initialCoinPortfolio;
-  if (!base || !Array.isArray(base.holdings) || !base.holdings.length) return;
+  // ai-live.js가 최신 스냅샷으로 전역을 갱신하므로 매번 다시 읽는다.
+  const getBase = () => window.__initialCoinPortfolio;
+  if (!getBase() || !Array.isArray(getBase().holdings) || !getBase().holdings.length) return;
 
-  const markets = base.holdings
-    .map(h => h.ticker)
-    .filter(t => typeof t === "string" && t.startsWith("KRW-"));
-  if (!markets.length) return;
-
-  let lastPayload = base;
+  let lastPayload = getBase();
 
   async function revalue() {
+    const base = getBase();
+    const markets = base.holdings
+      .map(h => h.ticker)
+      .filter(t => typeof t === "string" && t.startsWith("KRW-"));
+    if (!markets.length) throw new Error("보유 코인 없음");
     const res = await fetch("https://api.upbit.com/v1/ticker?markets=" + markets.join(","));
     if (!res.ok) throw new Error("업비트 시세 HTTP " + res.status);
     const tickers = await res.json();
@@ -53,7 +54,7 @@
       if (typeof renderCoinPortfolio === "function") renderCoinPortfolio(p);
       const note = document.getElementById("coin-pf-note");
       if (note && !note.textContent.includes("실시간")) {
-        note.textContent += " · 수량은 " + (base.generated_at || "배포 시점") + " 기준, 시세는 업비트 실시간";
+        note.textContent += " · 수량은 " + (getBase().generated_at || "배포 시점") + " 기준, 시세는 업비트 실시간";
       }
     } catch (e) {
       // 시세 조회가 잠깐 실패하면 마지막 값 유지

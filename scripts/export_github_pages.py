@@ -229,12 +229,27 @@ STATIC_API = f"""
   }}
 
   function pnl() {{
-    const daily = Array.from({{length: 14}}, (_, i) => ({{
-      date: `07-${{String(i + 1).padStart(2, "0")}}`,
-      realized_pnl: Math.round(Math.sin(i / 2) * 1800),
-      trades_count: i % 3
-    }}));
-    return {{ today: 0, total: 0, today_trades: 0, win_rate: 0, daily, trades: [] }};
+    // 배포 스냅샷(또는 ai-live.js가 갱신한 최신 스냅샷)의 실데이터로 계산한다.
+    const pf = window.__initialCoinPortfolio || DEMO_PORTFOLIO;
+    const snap = window.__aiTradeSnapshot || {{}};
+    const trades = snap.trades || [];
+    const rows = pf.daily || [];
+    const today = new Date().toLocaleDateString("sv-SE", {{ timeZone: "Asia/Seoul" }});
+    const todayRow = rows.find(d => String(d.day || d.date || "") === today);
+    const todayFromTrades = trades.filter(t => String(t.ts || "").slice(0, 10) === today);
+    const closed = trades.filter(t => t.side === "sell" && Number(t.realized_pnl || 0) !== 0);
+    const wins = closed.filter(t => Number(t.realized_pnl) > 0).length;
+    const daily = rows.map(d => ({{ ...d, date: String(d.day || d.date || "").slice(5) }}));
+    return {{
+      today: todayRow ? Number(todayRow.realized_pnl || 0)
+        : todayFromTrades.reduce((sum, t) => sum + Number(t.realized_pnl || 0), 0),
+      total: Number((pf.summary || {{}}).realized_pnl || 0),
+      today_trades: todayRow ? Number(todayRow.trades_count || 0) : todayFromTrades.length,
+      win_rate: closed.length ? wins / closed.length * 100 : 0,
+      daily,
+      trades,
+      as_of: pf.generated_at || snap.generated_at || null
+    }};
   }}
 
   function manualOrderPreview(init) {{
@@ -309,7 +324,9 @@ STATIC_API = f"""
     if (path === "/api/config") return {{dry_run:true, allow_live_trading:false, provider:"mock", model:"github-pages-static", tickers:["KRW-BTC","KRW-SOL"], coin_markets:MARKETS, intervals:[{{value:"minute15",label:"15분"}},{{value:"minute60",label:"1시간"}},{{value:"day",label:"일봉"}}], risk:{{max_order_krw:10000,min_order_krw:5000,max_daily_loss_krw:30000,min_confidence:0.6,cycle_seconds:600}}}};
     if (path === "/api/state") return state();
     if (path === "/api/pnl") return pnl();
-    if (path === "/api/portfolio") return clone(DEMO_PORTFOLIO);
+    // ai-live.js가 window.__initialCoinPortfolio를 최신 스냅샷으로 바꿔치기하므로
+    // 상수 대신 전역을 읽어 갱신이 전파되게 한다.
+    if (path === "/api/portfolio") return clone(window.__initialCoinPortfolio || DEMO_PORTFOLIO);
     if (path === "/api/manual_portfolio") return {{items:[]}};
     if (path === "/api/manual_order/preview") return manualOrderPreview(init);
     if (path === "/api/manual_order") return {{...manualOrderPreview(init), result:{{dry_run:true}}, portfolio: clone(DEMO_PORTFOLIO)}};
@@ -608,7 +625,7 @@ def ai_trade_snapshot() -> dict:
                 "cycle_seconds": _env_num(env, "INTERVAL_SECONDS", 600),
             },
         },
-        "trades": db.recent_trades(limit=20),
+        "trades": db.recent_trades(limit=50),
     }
     SNAPSHOT_FILE.parent.mkdir(parents=True, exist_ok=True)
     SNAPSHOT_FILE.write_text(
@@ -663,6 +680,12 @@ def page(html: str, initial_portfolio: bool = False, stocks_live: bool = False,
         html = html.replace(
             "</body>",
             '<script src="/stockagent/portfolio-live.js"></script>\n</body>',
+            1,
+        )
+        # AI 거래 탭 실시간 계좌: 웹소켓 시세 재평가 + 스냅샷 자동 새로고침
+        html = html.replace(
+            "</body>",
+            '<script src="/stockagent/ai-live.js"></script>\n</body>',
             1,
         )
     return html
