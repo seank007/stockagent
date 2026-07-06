@@ -28,6 +28,9 @@ ROOT = Path(__file__).resolve().parents[1]
 BOT = "http://localhost:8000"
 STATE_FILE = Path.home() / ".stockagent_live_sync.json"
 LOOP_SECONDS = 45
+# Pages 배포가 연속으로 몰리면 "Deployment failed, try again later"가 나므로
+# push 사이 최소 간격을 둔다. 그 사이 변경은 다음 push에 묶여 나간다.
+MIN_PUSH_INTERVAL = 150
 
 
 def log(msg: str) -> None:
@@ -118,15 +121,24 @@ def export_and_push() -> bool:
     return False
 
 
+_last_push_ts = 0.0
+
+
 def cycle(force: bool = False) -> None:
+    global _last_push_ts
     sig = signature()
     if sig is None:
         return
-    if not force and sig == load_state():
+    state = load_state() or {}
+    if not force and sig == state.get("sig"):
         return  # 거래·잔고·판단 변화 없음
+    since_push = time.time() - max(_last_push_ts, float(state.get("pushed_ts") or 0))
+    if not force and since_push < MIN_PUSH_INTERVAL:
+        return  # 변경은 있지만 직전 push와 너무 가까움 — 다음 주기에 묶어서
     log("변경 감지" if not force else "강제 실행")
     if export_and_push():
-        save_state(sig)
+        _last_push_ts = time.time()
+        save_state({"sig": sig, "pushed_ts": _last_push_ts})
 
 
 def main() -> None:
