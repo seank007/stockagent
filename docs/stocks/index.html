@@ -793,13 +793,15 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 
 <script>
 
-// 화면 배율 자동 조절: 1340px 설계를 창 폭에 맞게 키운다(좁으면 1배 유지).
+// 화면 배율 자동 조절: 창이 설계 폭(1360px)보다 넓으면 "절반 강도"로만 키운다.
+// 예) 1440px→1.03, 2000px→1.24, 2560px→1.44 (최대 1.5 / 좁은 창·모바일 1배)
 (function () {
   const DESIGN_WIDTH = 1360; // 레이아웃 1340px + 좌우 여백
   let t = null;
   function fitZoom() {
     if (!document.body) return;
-    const z = Math.min(1.9, Math.max(1, window.innerWidth / DESIGN_WIDTH));
+    const fill = Math.max(0, window.innerWidth / DESIGN_WIDTH - 1);
+    const z = Math.min(1.5, 1 + fill * 0.5);
     document.body.style.zoom = String(Math.round(z * 100) / 100);
   }
   window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(fitZoom, 120); });
