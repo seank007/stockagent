@@ -132,7 +132,9 @@ def export_and_push() -> bool:
             return True
         log(f"push 실패(시도 {attempt}): {push.stderr.strip()[-500:]}")
         if attempt == 1:
-            pull = run(["git", "pull", "--rebase", "origin", "main"], timeout=120)
+            # --autostash: 작업트리에 커밋 안 된 수정(전략 파일 등)이 있어도 rebase 가능
+            pull = run(["git", "pull", "--rebase", "--autostash", "origin", "main"],
+                       timeout=120)
             if pull.returncode != 0:
                 run(["git", "rebase", "--abort"])
                 log("rebase 실패 — 다음 주기에 재시도")
