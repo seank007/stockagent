@@ -558,6 +558,75 @@ def _stock_chart(code: str, timeframe: str, count: int) -> dict:
     return payload
 
 
+def _finance_table(finance_info: dict) -> dict:
+    """네이버 finance/annual|quarter 응답을 {periods, rows} 표로 변환."""
+    titles = finance_info.get("trTitleList") or []
+    periods = [{"key": t.get("key"), "label": t.get("title"),
+                "estimate": t.get("isConsensus") == "Y"} for t in titles]
+    rows = []
+    for row in finance_info.get("rowList") or []:
+        cols = row.get("columns") or {}
+        rows.append({
+            "title": row.get("title"),
+            "values": [(cols.get(p["key"]) or {}).get("value") or "—" for p in periods],
+        })
+    return {"periods": periods, "rows": rows}
+
+
+def _stock_analysis(code: str) -> dict:
+    """기업 종합 분석: 재무제표(연간·분기) + 동일업종 비교 + 컨센서스 + 리서치."""
+    integration = _urlopen_json(f"https://m.stock.naver.com/api/stock/{code}/integration")
+
+    annual = quarter = {"periods": [], "rows": []}
+    try:
+        annual = _finance_table(
+            _urlopen_json(f"https://m.stock.naver.com/api/stock/{code}/finance/annual")
+            .get("financeInfo") or {})
+    except Exception:  # noqa: BLE001 - 재무 없는 종목(ETF·신규상장 등)
+        pass
+    try:
+        quarter = _finance_table(
+            _urlopen_json(f"https://m.stock.naver.com/api/stock/{code}/finance/quarter")
+            .get("financeInfo") or {})
+    except Exception:  # noqa: BLE001
+        pass
+
+    industry = []
+    for r in (integration.get("industryCompareInfo") or [])[:6]:
+        tmr = r.get("threeMonthEarningRate")
+        industry.append({
+            "code": r.get("itemCode"),
+            "name": r.get("stockName"),
+            "price": r.get("closePrice"),
+            "change_pct": _number_from_text(r.get("fluctuationsRatio")),
+            "market_value": r.get("marketValue"),
+            "three_month_return": None if tmr in (None, "N/A", "-") else _number_from_text(tmr),
+        })
+
+    consensus = integration.get("consensusInfo") or {}
+    researches = [{
+        "title": r.get("tit"),
+        "broker": r.get("bnm"),
+        "date": r.get("wdt"),
+        "views": r.get("rcnt"),
+    } for r in (integration.get("researches") or [])[:8]]
+
+    return {
+        "code": code,
+        "name": integration.get("stockName") or code,
+        "industry_code": integration.get("industryCode"),
+        "annual": annual,
+        "quarter": quarter,
+        "industry_compare": industry,
+        "consensus": {
+            "target_price": consensus.get("priceTargetMean"),
+            "recommend": consensus.get("recommMean"),
+            "as_of": consensus.get("createDate"),
+        },
+        "researches": researches,
+    }
+
+
 def _stock_quote(code: str) -> dict:
     basic = _urlopen_json(f"https://m.stock.naver.com/api/stock/{code}/basic")
     integration = _urlopen_json(f"https://m.stock.naver.com/api/stock/{code}/integration")
@@ -1643,6 +1712,28 @@ def api_stock_quote():
     return jsonify(payload)
 
 
+_stock_analysis_cache: dict[str, tuple[float, dict]] = {}
+STOCK_ANALYSIS_CACHE_SECONDS = 600
+
+
+@app.route("/api/stocks/analysis")
+def api_stock_analysis():
+    try:
+        code = _stock_code(request.args.get("code", "005930"))
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 400
+    now = time.time()
+    hit = _stock_analysis_cache.get(code)
+    if hit and now - hit[0] < STOCK_ANALYSIS_CACHE_SECONDS:
+        return jsonify({**hit[1], "cached": True})
+    try:
+        payload = _stock_analysis(code)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"기업 분석 조회 실패: {e}"}), 400
+    _stock_analysis_cache[code] = (now, payload)
+    return jsonify(payload)
+
+
 _stock_watchlist_cache: tuple[float, list] | None = None
 STOCK_WATCHLIST_CACHE_SECONDS = 20
 
@@ -1709,8 +1800,32 @@ def stock_ai_payload() -> dict:
         "decisions": stock_db.recent_decisions(limit=20),
         "trades": stock_db.recent_trades(limit=20),
         "watchlist": _stock_watchlist_items(),
+        # 관심종목 재무분석을 미리 구워둔다(Pages에서 프록시 없이 즉시·안정 표시).
+        # 관심 밖 종목은 브라우저가 프록시로 실시간 조회한다.
+        "analysis": _watchlist_analysis(),
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
+
+
+def _watchlist_analysis() -> dict:
+    """관심종목 종합분석을 code→payload 로 반환(서버 캐시 재사용)."""
+    out = {}
+    for i, p in enumerate(STOCK_PRESETS):
+        code = p["code"]
+        hit = _stock_analysis_cache.get(code)
+        now = time.time()
+        if hit and now - hit[0] < STOCK_ANALYSIS_CACHE_SECONDS:
+            out[code] = hit[1]
+            continue
+        if i:
+            time.sleep(0.3)  # 네이버 연속 호출 완화(레이트리밋 회피)
+        try:
+            payload = _stock_analysis(code)
+            _stock_analysis_cache[code] = (now, payload)
+            out[code] = payload
+        except Exception:  # noqa: BLE001 - 개별 실패는 건너뜀
+            pass
+    return out
 
 
 @app.route("/api/stocks/ai")
@@ -1915,6 +2030,24 @@ body.krx-colors .down { color:#4a94f7 !important; }
 /* id 셀렉터로 고정: stocks-live.js가 class를 갈아끼워도 크기 유지 */
 #stock-price { font-size:26px; font-weight:800; letter-spacing:-0.5px; }
 #stock-change { font-size:13px; font-weight:700; }
+
+/* 기업 분석: 재무제표 표 */
+.fin-table { width:100%; border-collapse:collapse; font-size:11.5px; }
+.fin-table th, .fin-table td { padding:7px 10px; text-align:right; white-space:nowrap;
+  border-bottom:1px solid #11161f; }
+.fin-table th { color:#5a6577; font-weight:600; background:#0d1219; position:sticky; top:0; }
+.fin-table th:first-child, .fin-table td:first-child { text-align:left; color:#c6cfdd; }
+.fin-table td.est { color:#e0b341; }         /* 컨센서스 추정 컬럼 */
+.fin-table th.est { color:#e0b341; }
+.fin-scroll { overflow-x:auto; }
+.consensus-strip { display:flex; gap:20px; flex-wrap:wrap; padding:12px 14px; }
+.consensus-strip .item .label { font-size:10.5px; color:#5a6577; }
+.consensus-strip .item .val { font-size:16px; font-weight:800; }
+.research-row { display:grid; grid-template-columns:1fr auto auto; gap:10px; padding:9px 14px;
+  border-bottom:1px solid #11161f; font-size:11.5px; align-items:center; }
+.research-row .tit { color:#c6cfdd; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.research-row .br { color:#8b95a5; }
+.research-row .dt { color:#5a6577; font-size:10.5px; }
 
 .box { border:1px solid #1c2430; border-radius:4px; overflow:hidden; }
 .box-head { display:flex; align-items:center; gap:14px; padding:10px 15px; background:#0d1219;
@@ -4536,6 +4669,35 @@ STOCKS_HTML = f"""<!doctype html>
     </div>
   </div>
 
+  <!-- 기업 분석: 재무제표 · 동일업종 · 컨센서스 · 리서치 -->
+  <div class="section-line" style="margin-top:22px;">
+    <div class="section-title">기업 분석 <span id="analysis-name" class="muted" style="font-size:12px;">—</span></div>
+    <div class="market-actions">
+      <button class="mini-btn on" data-fin-period="annual" onclick="setFinPeriod('annual')">연간</button>
+      <button class="mini-btn" data-fin-period="quarter" onclick="setFinPeriod('quarter')">분기</button>
+    </div>
+  </div>
+
+  <div class="consensus-strip box" id="analysis-consensus" style="margin-bottom:12px;"></div>
+
+  <div class="hts-grid2" style="margin-top:0;">
+    <div class="box">
+      <div class="box-head"><span>재무제표 (억원·%)</span><span class="total muted" id="fin-note">연간</span></div>
+      <div class="fin-scroll" id="analysis-financials">
+        <div class="muted" style="padding:12px 14px;">종목을 조회하면 재무제표가 표시됩니다.</div>
+      </div>
+    </div>
+    <div class="box">
+      <div class="box-head"><span>동일업종 비교</span></div>
+      <div class="fin-scroll" id="analysis-industry"></div>
+    </div>
+  </div>
+
+  <div class="box" style="margin-top:12px;">
+    <div class="box-head"><span>증권사 리서치 리포트</span><span class="total" id="analysis-rcount">—</span></div>
+    <div id="analysis-research"><div class="muted" style="padding:12px 14px;">—</div></div>
+  </div>
+
   <!-- stocks-live.js가 이 앵커 뒤에 '글로벌 마켓 라이브' 보드를 주입한다 -->
   <div class="market-stat-grid" style="display:none;"></div>
 
@@ -4634,6 +4796,83 @@ function renderStockQuote(q) {{
     latest.bizdate ? `개인 ${{latest.individualPureBuyQuant || "—"}} · 외국인 ${{latest.foreignerPureBuyQuant || "—"}} · 기관 ${{latest.organPureBuyQuant || "—"}}` : "—";
 }}
 
+window._finPeriod = "annual";
+window._analysisData = null;
+
+function setFinPeriod(period) {{
+  window._finPeriod = period;
+  document.querySelectorAll("[data-fin-period]").forEach(b =>
+    b.classList.toggle("on", b.dataset.finPeriod === period));
+  document.getElementById("fin-note").textContent = period === "annual" ? "연간" : "분기";
+  if (window._analysisData) renderFinancials(window._analysisData);
+}}
+
+function renderFinancials(a) {{
+  const tbl = (window._finPeriod === "quarter" ? a.quarter : a.annual) || {{}};
+  const periods = tbl.periods || [];
+  const el = document.getElementById("analysis-financials");
+  if (!periods.length || !(tbl.rows || []).length) {{
+    el.innerHTML = a.financials_pending
+      ? '<div class="muted" style="padding:12px 14px;">재무제표 불러오는 중…</div>'
+      : '<div class="muted" style="padding:12px 14px;">재무 데이터가 없는 종목입니다(ETF 등).</div>';
+    return;
+  }}
+  const head = '<tr><th>항목</th>' + periods.map(p =>
+    `<th class="${{p.estimate ? "est" : ""}}">${{escapeHtml(p.label)}}${{p.estimate ? "(E)" : ""}}</th>`).join("") + '</tr>';
+  const body = tbl.rows.map(r => '<tr><td>' + escapeHtml(r.title) + '</td>' +
+    r.values.map((v, i) => `<td class="${{periods[i] && periods[i].estimate ? "est" : ""}}">${{escapeHtml(v)}}</td>`).join("") +
+    '</tr>').join("");
+  el.innerHTML = `<table class="fin-table"><thead>${{head}}</thead><tbody>${{body}}</tbody></table>`;
+}}
+
+function renderAnalysis(a) {{
+  window._analysisData = a;
+  document.getElementById("analysis-name").textContent = (a.name || "") + " · " + (a.code || "");
+
+  const c = a.consensus || {{}};
+  const recomm = c.recommend ? Number(c.recommend) : null;
+  const opinion = recomm == null ? "—"
+    : recomm >= 4 ? "매수" : recomm >= 3.5 ? "매수 우위" : recomm >= 2.5 ? "중립" : "매도 우위";
+  document.getElementById("analysis-consensus").innerHTML = `
+    <div class="item"><div class="label">목표주가 (컨센서스)</div><div class="val up">${{c.target_price ? c.target_price + " 원" : "—"}}</div></div>
+    <div class="item"><div class="label">투자의견</div><div class="val">${{opinion}}${{recomm ? ` <span class="muted" style="font-size:11px;">${{recomm.toFixed(2)}}/5</span>` : ""}}</div></div>
+    <div class="item"><div class="label">기준일</div><div class="val" style="font-size:12px;color:#8b95a5;">${{c.as_of || "—"}}</div></div>`;
+
+  renderFinancials(a);
+
+  const ind = a.industry_compare || [];
+  document.getElementById("analysis-industry").innerHTML = !ind.length ? '<div class="muted" style="padding:12px 14px;">—</div>' :
+    `<table class="fin-table"><thead><tr><th>종목</th><th>현재가</th><th>등락</th><th>3개월</th><th>시총(억)</th></tr></thead><tbody>` +
+    ind.map(x => `<tr>
+      <td>${{escapeHtml(x.name || x.code)}}${{x.code === a.code ? ' <span class="muted">•</span>' : ""}}</td>
+      <td>${{x.price || "—"}}</td>
+      <td class="${{colorOf(x.change_pct)}}">${{x.change_pct == null ? "—" : PCT(x.change_pct)}}</td>
+      <td class="${{colorOf(x.three_month_return)}}">${{x.three_month_return == null ? "—" : PCT(x.three_month_return)}}</td>
+      <td>${{x.market_value || "—"}}</td>
+    </tr>`).join("") + '</tbody></table>';
+
+  const rs = a.researches || [];
+  document.getElementById("analysis-rcount").textContent = rs.length + "건";
+  document.getElementById("analysis-research").innerHTML = !rs.length ? '<div class="muted" style="padding:12px 14px;">최근 리포트가 없습니다.</div>' :
+    rs.map(r => {{
+      const d = String(r.date || "");
+      const dt = d.length === 8 ? d.slice(0,4)+"."+d.slice(4,6)+"."+d.slice(6,8) : d;
+      return `<div class="research-row">
+        <span class="tit">${{escapeHtml(r.title || "")}}</span>
+        <span class="br">${{escapeHtml(r.broker || "")}}</span>
+        <span class="dt">${{dt}}</span>
+      </div>`;
+    }}).join("");
+}}
+
+async function loadStockAnalysis(code) {{
+  try {{
+    const res = await fetch(`/api/stocks/analysis?code=${{code}}`);
+    const a = await res.json();
+    if (res.ok && !a.error) renderAnalysis(a);
+  }} catch (e) {{ /* 분석 실패는 시세 표시에 영향 없음 */ }}
+}}
+
 async function loadStock() {{
   const code = stockCode();
   document.getElementById("stock-code").value = code;
@@ -4642,6 +4881,7 @@ async function loadStock() {{
     const quote = await quoteRes.json();
     if (!quoteRes.ok) throw new Error(quote.error || "주식 시세 조회 실패");
     renderStockQuote(quote);
+    loadStockAnalysis(code);
     document.querySelectorAll("#stock-watchlist .watch-row").forEach(row => {{
       const cd = row.querySelector(".cd");
       row.classList.toggle("on", !!cd && cd.textContent.trim() === code);

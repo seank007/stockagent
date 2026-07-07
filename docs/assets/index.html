@@ -122,6 +122,24 @@ body.krx-colors .down { color:#4a94f7 !important; }
 #stock-price { font-size:26px; font-weight:800; letter-spacing:-0.5px; }
 #stock-change { font-size:13px; font-weight:700; }
 
+/* 기업 분석: 재무제표 표 */
+.fin-table { width:100%; border-collapse:collapse; font-size:11.5px; }
+.fin-table th, .fin-table td { padding:7px 10px; text-align:right; white-space:nowrap;
+  border-bottom:1px solid #11161f; }
+.fin-table th { color:#5a6577; font-weight:600; background:#0d1219; position:sticky; top:0; }
+.fin-table th:first-child, .fin-table td:first-child { text-align:left; color:#c6cfdd; }
+.fin-table td.est { color:#e0b341; }         /* 컨센서스 추정 컬럼 */
+.fin-table th.est { color:#e0b341; }
+.fin-scroll { overflow-x:auto; }
+.consensus-strip { display:flex; gap:20px; flex-wrap:wrap; padding:12px 14px; }
+.consensus-strip .item .label { font-size:10.5px; color:#5a6577; }
+.consensus-strip .item .val { font-size:16px; font-weight:800; }
+.research-row { display:grid; grid-template-columns:1fr auto auto; gap:10px; padding:9px 14px;
+  border-bottom:1px solid #11161f; font-size:11.5px; align-items:center; }
+.research-row .tit { color:#c6cfdd; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.research-row .br { color:#8b95a5; }
+.research-row .dt { color:#5a6577; font-size:10.5px; }
+
 .box { border:1px solid #1c2430; border-radius:4px; overflow:hidden; }
 .box-head { display:flex; align-items:center; gap:14px; padding:10px 15px; background:#0d1219;
             border-bottom:1px solid #1c2430; font-size:11px; color:#e0b341;
