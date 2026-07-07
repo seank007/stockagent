@@ -135,9 +135,9 @@
   }
 
   // ---- HTTP: 헤지 병렬 레이스 ---------------------------------------------------
-  function fetchWithTimeout(url, wrapped) {
+  function fetchWithTimeout(url, wrapped, timeoutMs) {
     var ctrl = new AbortController();
-    var timer = setTimeout(function () { ctrl.abort(); }, TRY_TIMEOUT_MS);
+    var timer = setTimeout(function () { ctrl.abort(); }, timeoutMs || TRY_TIMEOUT_MS);
     return prevFetch(url, { signal: ctrl.signal, redirect: "follow" })
       .then(function (res) {
         clearTimeout(timer);
@@ -549,6 +549,135 @@
     return Promise.resolve(jsonResponse({ items: items, live: true }));
   }
 
+  // ---- 네이버 금융 프록시(기업 분석용): 임의 URL을 CORS 프록시로 레이스 -----------------
+  // 네이버는 프록시를 통과하면 느려서(재무 응답은 특히) per-try 타임아웃을 넉넉히 준다.
+  var NAVER_TRY_MS = 13000;
+  var NAVER_DEADLINE_MS = 30000;
+
+  function fetchProxied(targetUrl, validate) {
+    var attempts = PROXIES.map(function (p, pi) { return { proxy: p, proxyIdx: pi }; });
+    attempts.sort(function (a, b) {
+      return (a.proxyIdx === goodProxyIdx ? 0 : 1) - (b.proxyIdx === goodProxyIdx ? 0 : 1);
+    });
+    return new Promise(function (resolve, reject) {
+      var settled = false, next = 0, failed = 0, timers = [];
+      var deadline = setTimeout(function () { fail(new Error("deadline")); }, NAVER_DEADLINE_MS);
+      function done(json, pi) {
+        if (settled) return; settled = true;
+        clearTimeout(deadline); timers.forEach(clearTimeout);
+        goodProxyIdx = pi; LS.set("proxy", pi); resolve(json);
+      }
+      function fail(err) {
+        if (settled) return; settled = true;
+        clearTimeout(deadline); timers.forEach(clearTimeout); reject(err);
+      }
+      function launchNext() {
+        if (settled || next >= attempts.length) return;
+        var a = attempts[next++];
+        fetchWithTimeout(a.proxy.build(targetUrl), a.proxy.wrapped, NAVER_TRY_MS)
+          .then(function (json) {
+            if (validate && !validate(json)) throw new Error("응답 형식 불일치");
+            done(json, a.proxyIdx);
+          })
+          .catch(function () {
+            failed++;
+            if (failed >= attempts.length) fail(new Error("모든 프록시 실패"));
+            else launchNext();
+          });
+      }
+      launchNext();
+      // 재무는 무거워서 헤지 간격을 조금 넓게(1.4초) — 프록시 동시 과부하 방지
+      for (var k = 1; k < attempts.length; k++) timers.push(setTimeout(launchNext, 1400 * k));
+    });
+  }
+
+  function naverApi(code, ep) {
+    return fetchProxied("https://m.stock.naver.com/api/stock/" + code + "/" + ep,
+      function (j) { return j && typeof j === "object"; });
+  }
+
+  function num(v) {
+    if (v == null) return null;
+    var t = String(v).replace(/[,%원배\s]/g, "");
+    var n = parseFloat(t);
+    return isNaN(n) ? null : n;
+  }
+
+  function financeTable(financeInfo) {
+    var titles = (financeInfo && financeInfo.trTitleList) || [];
+    var periods = titles.map(function (t) {
+      return { key: t.key, label: t.title, estimate: t.isConsensus === "Y" };
+    });
+    var rows = ((financeInfo && financeInfo.rowList) || []).map(function (row) {
+      var cols = row.columns || {};
+      return {
+        title: row.title,
+        values: periods.map(function (p) { return (cols[p.key] || {}).value || "—"; })
+      };
+    });
+    return { periods: periods, rows: rows };
+  }
+
+  var analysisCache = {};
+  var EMPTY_FIN = { periods: [], rows: [] };
+
+  // 재무제표는 프록시 통과가 느려서 별도로 받아 늦게 채운다. 완료되면 화면 패치.
+  function fetchFinancials(code, base) {
+    Promise.all([
+      naverApi(code, "finance/annual").catch(function () { return null; }),
+      naverApi(code, "finance/quarter").catch(function () { return null; })
+    ]).then(function (fin) {
+      base.annual = financeTable(fin[0] && fin[0].financeInfo);
+      base.quarter = financeTable(fin[1] && fin[1].financeInfo);
+      base.financials_pending = false;
+      analysisCache[code] = { t: Date.now(), data: base };
+      // 사용자가 아직 같은 종목을 보고 있으면 재무 표만 다시 그린다.
+      if (window._analysisData && window._analysisData.code === code &&
+          typeof window.renderFinancials === "function") {
+        window._analysisData.annual = base.annual;
+        window._analysisData.quarter = base.quarter;
+        window._analysisData.financials_pending = false;
+        window.renderFinancials(window._analysisData);
+      }
+    });
+  }
+
+  function liveAnalysis(code) {
+    // 배포 스냅샷에 구워진 관심종목 분석이 있으면 프록시 없이 즉시 사용(안정).
+    var baked = window.__stockAiSnapshot && window.__stockAiSnapshot.analysis;
+    if (baked && baked[code] && baked[code].annual) {
+      return Promise.resolve(jsonResponse(baked[code]));
+    }
+    var cached = analysisCache[code];
+    if (cached && cached.data.annual.rows.length && Date.now() - cached.t < 10 * 60000) {
+      return Promise.resolve(jsonResponse(cached.data));
+    }
+    return naverApi(code, "integration").then(function (integ) {
+      var industry = ((integ.industryCompareInfo || []).slice(0, 6)).map(function (r) {
+        var tmr = r.threeMonthEarningRate;
+        return {
+          code: r.itemCode, name: r.stockName, price: r.closePrice,
+          change_pct: num(r.fluctuationsRatio), market_value: r.marketValue,
+          three_month_return: (tmr == null || tmr === "N/A" || tmr === "-") ? null : num(tmr)
+        };
+      });
+      var c = integ.consensusInfo || {};
+      var researches = ((integ.researches || []).slice(0, 8)).map(function (r) {
+        return { title: r.tit, broker: r.bnm, date: r.wdt, views: r.rcnt };
+      });
+      var data = {
+        code: code, name: integ.stockName || code, industry_code: integ.industryCode,
+        annual: EMPTY_FIN, quarter: EMPTY_FIN,
+        industry_compare: industry,
+        consensus: { target_price: c.priceTargetMean, recommend: c.recommMean, as_of: c.createDate },
+        researches: researches, financials_pending: true
+      };
+      analysisCache[code] = { t: Date.now(), data: data };
+      fetchFinancials(code, data);            // 백그라운드로 재무 채우기
+      return jsonResponse(data);              // 나머지는 즉시 표시
+    });
+  }
+
   window.fetch = function (input, init) {
     try {
       var raw = typeof input === "string" ? input : input.url;
@@ -557,6 +686,10 @@
       var fallback = function () { return prevFetch(input, init); };
       if (path === "/api/stocks/quote") return liveQuote(url.searchParams).catch(fallback);
       if (path === "/api/stocks/candles") return liveCandles(url.searchParams).catch(fallback);
+      if (path === "/api/stocks/analysis") {
+        var code = (url.searchParams.get("code") || "005930").replace(/\D/g, "").slice(0, 6);
+        return liveAnalysis(code).catch(fallback);
+      }
       if (path === "/api/ticker_quotes" && document.getElementById("stockSvg")) {
         return liveTape().catch(fallback);
       }
