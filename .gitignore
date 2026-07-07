@@ -9,3 +9,6 @@ data/
 stockagent.db
 stockagent.db-shm
 stockagent.db-wal
+stock_trading.db
+stock_trading.db-shm
+stock_trading.db-wal

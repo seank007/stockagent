@@ -346,6 +346,7 @@ STATIC_API = f"""
     if (path === "/api/coin/news") return news();
     if (path === "/api/coin/news_summary") return newsSummary();
     if (path === "/api/stocks/quote") return {{code:params.get("code") || "005930", name:"삼성전자", price:74200, change:800, change_pct:1.09, timestamp:now()}};
+    if (path === "/api/stocks/ai") return window.__stockAiSnapshot || {{error:"주식 AI 스냅샷 없음"}};
     if (path === "/api/ticker_quotes") return {{items:Object.keys(PRICES).slice(0, 6).map(t => ({{sym:symbol(t), price:PRICES[t], chg_pct:CHANGES[t] || 0}}))}};
     if (path === "/api/analyze_context") return {{ticker:params.get("ticker") || "KRW-BTC", holding:DEMO_PORTFOLIO.holdings[1], position:null, decisions:state().history, trades:[], portfolio_summary:DEMO_PORTFOLIO.summary}};
     if (path === "/api/analyze") return analyze(params.get("ticker") || "KRW-BTC");
@@ -386,6 +387,7 @@ def _env_num(env: dict, name: str, default: float) -> float:
 
 SNAPSHOT_FILE = DOCS / "data" / "ai_snapshot.json"
 PORTFOLIO_FILE = DOCS / "data" / "portfolio_snapshot.json"
+STOCK_AI_FILE = DOCS / "data" / "stock_snapshot.json"
 COIN_MARKETS_FILE = DOCS / "data" / "coin_markets.json"
 COIN_CANDLE_INTERVALS = ["minute60", "minute15", "day"]
 COIN_CANDLE_COUNT = 120
@@ -634,8 +636,23 @@ def ai_trade_snapshot() -> dict:
     return snapshot
 
 
+def stock_ai_snapshot() -> dict | None:
+    """주식 AI 자동매매 스냅샷. 로컬(.env 존재) export에서 생성, CI는 커밋본 재사용."""
+    if not (ROOT / ".env").exists():
+        return _read_json(STOCK_AI_FILE)
+    try:
+        payload = web.stock_ai_payload()
+    except Exception:  # noqa: BLE001 - 주식 모듈 장애가 전체 export를 막지 않게
+        return _read_json(STOCK_AI_FILE)
+    STOCK_AI_FILE.parent.mkdir(parents=True, exist_ok=True)
+    STOCK_AI_FILE.write_text(
+        json.dumps(payload, ensure_ascii=False, default=str), encoding="utf-8")
+    return payload
+
+
 def page(html: str, initial_portfolio: bool = False, stocks_live: bool = False,
-         ai_snapshot: dict | None = None, portfolio: dict | None = None) -> str:
+         ai_snapshot: dict | None = None, portfolio: dict | None = None,
+         stock_ai: dict | None = None) -> str:
     pf = portfolio if portfolio is not None else DEMO_PORTFOLIO
     pf_json = json.dumps(pf, ensure_ascii=False, default=str).replace("</", "<\\/")
     if initial_portfolio:
@@ -648,6 +665,12 @@ def page(html: str, initial_portfolio: bool = False, stocks_live: bool = False,
         html = html.replace(
             "<!-- AI_TRADE_SNAPSHOT -->",
             f"<script>window.__aiTradeSnapshot = {payload};</script>",
+        )
+    if stock_ai is not None:
+        payload = json.dumps(stock_ai, ensure_ascii=False, default=str).replace("</", "<\\/")
+        html = html.replace(
+            "<!-- STOCK_AI_SNAPSHOT -->",
+            f"<script>window.__stockAiSnapshot = {payload};</script>",
         )
     html = html.replace("<body>", "<body>\n" + STATIC_API.replace("__PORTFOLIO_JSON__", pf_json), 1)
     html = html.replace('href="/stocks"', 'href="/stockagent/stocks/"')
@@ -705,7 +728,8 @@ def main() -> None:
           page(web.COIN_HTML, initial_portfolio=True, ai_snapshot=snapshot, portfolio=pf))
     write(DOCS / "coin" / "index.html",
           page(web.COIN_HTML, initial_portfolio=True, ai_snapshot=snapshot, portfolio=pf))
-    write(DOCS / "stocks" / "index.html", page(web.STOCKS_HTML, stocks_live=True))
+    write(DOCS / "stocks" / "index.html",
+          page(web.STOCKS_HTML, stocks_live=True, stock_ai=stock_ai_snapshot()))
     write(DOCS / "assets" / "index.html", page(web.DASHBOARD_HTML))
     write(DOCS / "analyze" / "index.html", page(web.ANALYZE_HTML))
     write(

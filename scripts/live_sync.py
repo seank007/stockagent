@@ -42,6 +42,24 @@ def _get(path: str, timeout: int = 15) -> dict:
         return json.loads(res.read().decode("utf-8"))
 
 
+def _stock_signature() -> dict:
+    """주식 DB(stock_trading.db)의 마지막 거래·판단 id. 봇 API 재시작 없이 직접 읽는다."""
+    import sqlite3
+    db_file = ROOT / "stock_trading.db"
+    if not db_file.exists():
+        return {}
+    try:
+        conn = sqlite3.connect(f"file:{db_file}?mode=ro", uri=True)
+        try:
+            trade = conn.execute("SELECT MAX(id) FROM trades").fetchone()[0]
+            decision = conn.execute("SELECT MAX(id) FROM decisions").fetchone()[0]
+        finally:
+            conn.close()
+        return {"stock_trade": trade, "stock_decision": decision}
+    except Exception:  # noqa: BLE001 - 주식 DB 문제로 코인 sync를 막지 않는다
+        return {}
+
+
 def signature() -> dict | None:
     """봇 API 기준 '의미 있는 변경' 서명. 시세 변동은 포함하지 않는다."""
     try:
@@ -66,6 +84,7 @@ def signature() -> dict | None:
         "holdings": holdings,
         "last_trade": (trade_items[0].get("id"), trade_items[0].get("ts")) if trade_items else None,
         "last_decision": decision_items[0].get("ts") if decision_items else None,
+        **_stock_signature(),
     }
 
 
