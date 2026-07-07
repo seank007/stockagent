@@ -1643,6 +1643,33 @@ def api_stock_quote():
     return jsonify(payload)
 
 
+_stock_watchlist_cache: tuple[float, list] | None = None
+STOCK_WATCHLIST_CACHE_SECONDS = 20
+
+
+def _stock_watchlist_items() -> list[dict]:
+    """관심종목(프리셋) 시세 — 네이버, 20초 캐시."""
+    global _stock_watchlist_cache
+    now = time.time()
+    if _stock_watchlist_cache and now - _stock_watchlist_cache[0] < STOCK_WATCHLIST_CACHE_SECONDS:
+        return _stock_watchlist_cache[1]
+    from brokers.kis import naver_quote
+    items = []
+    for p in STOCK_PRESETS:
+        try:
+            items.append(naver_quote(p["code"]))
+        except Exception:  # noqa: BLE001 - 개별 종목 실패는 이름만이라도
+            items.append({"code": p["code"], "name": p["name"], "price": None, "change_pct": None})
+    _stock_watchlist_cache = (now, items)
+    return items
+
+
+@app.route("/api/stocks/watchlist")
+def api_stocks_watchlist():
+    return jsonify({"items": _stock_watchlist_items(),
+                    "updated_at": datetime.now().strftime("%H:%M:%S")})
+
+
 _stock_ai_cache: tuple[float, dict] | None = None
 STOCK_AI_CACHE_SECONDS = 10
 
@@ -1681,6 +1708,7 @@ def stock_ai_payload() -> dict:
         "daily": daily,
         "decisions": stock_db.recent_decisions(limit=20),
         "trades": stock_db.recent_trades(limit=20),
+        "watchlist": _stock_watchlist_items(),
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
 
@@ -1865,6 +1893,28 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 .up { color:#1fd6a8 !important; }
 .down { color:#ff5d6c !important; }
 .muted { color:#5a6577; }
+
+/* 국내 증시 관례색: 상승=빨강, 하락=파랑 (주식 페이지 body.krx-colors 한정) */
+body.krx-colors .up { color:#ff5d6c !important; }
+body.krx-colors .down { color:#4a94f7 !important; }
+
+/* HTS 3단 레이아웃: 관심종목 | 차트 | 현재가 상세 */
+.hts-grid { display:grid; grid-template-columns:236px minmax(0,1fr) 300px; gap:14px; align-items:start; }
+.hts-grid2 { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); gap:14px; align-items:start; margin-top:14px; }
+@media (max-width: 1200px) { .hts-grid { grid-template-columns:200px minmax(0,1fr); } .hts-quote-box { display:none; } }
+@media (max-width: 980px) { .hts-grid, .hts-grid2 { grid-template-columns:1fr; } .hts-quote-box { display:block; } }
+.watch-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 8px; padding:8px 12px;
+             border-bottom:1px solid #11161f; cursor:pointer; }
+.watch-row:hover { background:#0f1520; }
+.watch-row.on { background:#101a28; box-shadow:inset 2px 0 0 #e0b341; }
+.watch-row .nm { font-size:11.5px; color:#c6cfdd; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.watch-row .cd { font-size:11px; color:#3a4658; }
+.watch-row .pr { font-size:12px; text-align:right; font-weight:700; }
+.watch-row .ch { font-size:11px; text-align:right; }
+.hts-price-row { display:flex; align-items:baseline; gap:12px; padding:12px 14px 10px; flex-wrap:wrap; }
+/* id 셀렉터로 고정: stocks-live.js가 class를 갈아끼워도 크기 유지 */
+#stock-price { font-size:26px; font-weight:800; letter-spacing:-0.5px; }
+#stock-change { font-size:13px; font-weight:700; }
 
 .box { border:1px solid #1c2430; border-radius:4px; overflow:hidden; }
 .box-head { display:flex; align-items:center; gap:14px; padding:10px 15px; background:#0d1219;
@@ -4270,49 +4320,58 @@ STOCKS_HTML = f"""<!doctype html>
   <div class="err-banner" id="err"></div>
 
   <div class="section-line">
-    <div class="section-title">주식 마켓</div>
+    <div class="section-title">국내 주식</div>
     <div class="market-actions">
       <select class="terminal-select" id="stock-preset" onchange="setStockPreset(this.value)"></select>
       <input id="stock-code" value="005930" autocomplete="off" inputmode="numeric">
       <button class="mini-btn" onclick="loadStock()">조회</button>
-      <button class="mini-btn on" data-stock-frame="day" onclick="setStockFrame('day')">일봉</button>
-      <button class="mini-btn" data-stock-frame="week" onclick="setStockFrame('week')">주봉</button>
-      <button class="mini-btn" data-stock-frame="month" onclick="setStockFrame('month')">월봉</button>
     </div>
   </div>
 
-  <div class="market-stat-grid">
-    <div class="market-stat"><div class="label">현재가</div><div class="val" id="stock-price">—</div></div>
-    <div class="market-stat"><div class="label">등락</div><div class="val" id="stock-change">—</div></div>
-    <div class="market-stat"><div class="label">상태</div><div class="val" id="stock-status">—</div></div>
-    <div class="market-stat"><div class="label">RSI14</div><div class="val" id="stock-rsi">—</div></div>
+  <!-- 현재가 헤더 (HTS 현재가창 상단) -->
+  <div class="box" style="margin-bottom:14px;">
+    <div class="hts-price-row">
+      <span style="font-size:15px;font-weight:700;color:#e6ebf2;" id="stock-title">—</span>
+      <span id="stock-price">—</span>
+      <span id="stock-change">—</span>
+      <span style="flex:1"></span>
+      <span class="muted" style="font-size:11px;">상태 <span id="stock-status" style="color:#c6cfdd;">—</span></span>
+      <span class="muted" style="font-size:11px;">RSI14 <span id="stock-rsi" style="color:#c6cfdd;">—</span></span>
+      <span class="muted" style="font-size:11px;" id="stock-updated">—</span>
+    </div>
   </div>
 
-  <div class="market-grid">
+  <!-- HTS 3단: 관심종목 | 차트 | 현재가 상세 -->
+  <div class="hts-grid">
+    <div class="box">
+      <div class="box-head"><span>관심종목</span><span class="total" id="stock-watch-upd">—</span></div>
+      <div id="stock-watchlist"><div class="muted" style="padding:12px;">불러오는 중…</div></div>
+    </div>
+
     <div class="box">
       <div class="box-head">
         <span id="stock-chart-title">— · —</span>
         <span style="flex:1"></span>
-        <span class="legend"><span class="swatch" style="background:#1fd6a8"></span>종가</span>
-        <span class="legend"><span class="swatch" style="background:#e0b341"></span>MA5</span>
-        <span class="legend"><span class="swatch" style="background:#5a6577"></span>MA20</span>
+        <button class="mini-btn on" data-stock-frame="day" onclick="setStockFrame('day')">일봉</button>
+        <button class="mini-btn" data-stock-frame="week" onclick="setStockFrame('week')">주봉</button>
+        <button class="mini-btn" data-stock-frame="month" onclick="setStockFrame('month')">월봉</button>
       </div>
       <div style="padding:8px 8px 0">
         <svg id="stockSvg" viewBox="0 0 1000 260" preserveAspectRatio="none"
-             style="width:100%;height:360px;display:block"></svg>
+             style="width:100%;height:420px;display:block"></svg>
       </div>
     </div>
 
-    <div class="box">
-      <div class="box-head">
-        <span>HOGA / QUOTE</span>
-        <span class="total" id="stock-updated">—</span>
-      </div>
+    <div class="box hts-quote-box">
+      <div class="box-head"><span>현재가 상세</span></div>
       <div id="stock-quote-rows"></div>
       <div class="metric-list" id="stock-metric-rows"></div>
       <div class="report-note" id="stock-flow">—</div>
     </div>
   </div>
+
+  <!-- stocks-live.js가 이 앵커 뒤에 '글로벌 마켓 라이브' 보드를 주입한다 -->
+  <div class="market-stat-grid" style="display:none;"></div>
 
   <div class="section-line" style="margin-top:26px;">
     <div class="section-title">AI 자동매매 (국내주식)</div>
@@ -4335,14 +4394,15 @@ STOCKS_HTML = f"""<!doctype html>
     <div id="stock-ai-holdings"></div>
   </div>
 
-  <div class="box" style="margin-top:14px;">
-    <div class="box-head"><span>AI 판단 히스토리</span><span class="total" id="stock-ai-dcount">—</span></div>
-    <div id="stock-ai-decisions"><div class="muted" style="padding:12px 14px;">아직 판단 기록이 없습니다.</div></div>
-  </div>
-
-  <div class="box" style="margin-top:14px;">
-    <div class="box-head"><span>거래 체결 내역</span><span class="total" id="stock-ai-tcount">—</span></div>
-    <div id="stock-ai-trades"><div class="muted" style="padding:12px 14px;">아직 체결 내역이 없습니다.</div></div>
+  <div class="hts-grid2">
+    <div class="box">
+      <div class="box-head"><span>거래 체결 내역</span><span class="total" id="stock-ai-tcount">—</span></div>
+      <div id="stock-ai-trades"><div class="muted" style="padding:12px 14px;">아직 체결 내역이 없습니다.</div></div>
+    </div>
+    <div class="box">
+      <div class="box-head"><span>AI 판단 히스토리</span><span class="total" id="stock-ai-dcount">—</span></div>
+      <div id="stock-ai-decisions"><div class="muted" style="padding:12px 14px;">아직 판단 기록이 없습니다.</div></div>
+    </div>
   </div>
 
   <div class="foot" id="foot">—</div>
@@ -4350,6 +4410,7 @@ STOCKS_HTML = f"""<!doctype html>
 
 <!-- STOCK_AI_SNAPSHOT -->
 <script>
+document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 빨강 / 하락 파랑
 {COMMON_JS}
 
 const stockPresets = {json.dumps(STOCK_PRESETS, ensure_ascii=False)};
@@ -4380,10 +4441,14 @@ function stockCode() {{
 function renderStockQuote(q) {{
   const change = Number(q.change || 0);
   const pct = q.change_pct == null ? null : Number(q.change_pct);
+  const preset = stockPresets.find(p => p.code === q.code);
+  document.getElementById("stock-title").textContent =
+    (q.name || (preset ? preset.name : q.code)) + " · " + (q.code || "");
+  document.getElementById("stock-price").className = colorOf(change);
   document.getElementById("stock-price").textContent = q.price_text ? q.price_text + " 원" : KRW(q.price) + " 원";
   document.getElementById("stock-change").textContent =
     (q.change_text || KRW(change, true)) + (pct == null ? "" : ` (${{PCT(pct)}})`);
-  document.getElementById("stock-change").className = "val " + colorOf(change);
+  document.getElementById("stock-change").className = colorOf(change);
   document.getElementById("stock-status").textContent = q.status || "—";
   document.getElementById("stock-updated").textContent = q.updated_at || "—";
   document.getElementById("stock-quote-rows").innerHTML = (q.rows || []).map(r => `
@@ -4411,6 +4476,10 @@ async function loadStock() {{
     const quote = await quoteRes.json();
     if (!quoteRes.ok) throw new Error(quote.error || "주식 시세 조회 실패");
     renderStockQuote(quote);
+    document.querySelectorAll("#stock-watchlist .watch-row").forEach(row => {{
+      const cd = row.querySelector(".cd");
+      row.classList.toggle("on", !!cd && cd.textContent.trim() === code);
+    }});
 
     const chartRes = await fetch(`/api/stocks/candles?code=${{code}}&timeframe=${{window._stockFrame}}&count=140`);
     const chart = await chartRes.json();
@@ -4509,8 +4578,40 @@ async function loadStockAi() {{
   }} catch (e) {{ /* 다음 주기에 재시도 */ }}
 }}
 
+// ---- 관심종목 (HTS 워치리스트) ----
+function renderStockWatchlist(items, updated) {{
+  const el = document.getElementById("stock-watchlist");
+  if (!el) return;
+  if (!items || !items.length) {{
+    items = stockPresets.map(p => ({{ code: p.code, name: p.name, price: null, change_pct: null }}));
+  }}
+  const active = stockCode();
+  el.innerHTML = items.map(w => {{
+    const pct = w.change_pct == null ? null : Number(w.change_pct);
+    return `<div class="watch-row${{w.code === active ? " on" : ""}}" onclick="setStockPreset('${{w.code}}')">
+      <span class="nm">${{escapeHtml(w.name || w.code)}}</span>
+      <span class="pr ${{pct == null ? "muted" : colorOf(pct)}}">${{w.price == null ? "—" : KRW(w.price)}}</span>
+      <span class="cd">${{w.code}}</span>
+      <span class="ch ${{pct == null ? "muted" : colorOf(pct)}}">${{pct == null ? "—" : PCT(pct)}}</span>
+    </div>`;
+  }}).join("");
+  const upd = document.getElementById("stock-watch-upd");
+  if (upd && updated) upd.textContent = updated;
+}}
+
+async function loadStockWatchlist() {{
+  if (document.hidden) return;
+  try {{
+    const res = await fetch("/api/stocks/watchlist");
+    const data = await res.json();
+    if (data && data.items) renderStockWatchlist(data.items, data.updated_at);
+  }} catch (e) {{ /* 다음 주기에 재시도 */ }}
+}}
+
 loadStockAi();
+loadStockWatchlist();
 setInterval(loadStockAi, 20000);
+setInterval(loadStockWatchlist, 20000);
 </script>
 </body></html>"""
 

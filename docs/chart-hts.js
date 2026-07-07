@@ -12,7 +12,12 @@
 (function () {
   "use strict";
 
-  var UP = "#1fd6a8", DOWN = "#ff5d6c", MA5 = "#e0b341", MA20 = "#7d8798",
+  // 국내 주식 페이지(body.krx-colors)는 한국 관례색: 상승 빨강 / 하락 파랑
+  var KRX = document.body && document.body.classList.contains("krx-colors");
+  var UP = KRX ? "#ff5d6c" : "#1fd6a8", DOWN = KRX ? "#4a94f7" : "#ff5d6c",
+    UP_VOL = KRX ? "rgba(255,93,108,.45)" : "rgba(31,214,168,.45)",
+    DOWN_VOL = KRX ? "rgba(74,148,247,.45)" : "rgba(255,93,108,.45)",
+    MA5 = "#e0b341", MA20 = "#7d8798",
     RSI = "#5aa3ff", GRID = "#161d27", GRID2 = "#10151d", AXIS = "#5a6577",
     BG = "#0a0e14", PANEL = "#090d13";
   var HEIGHT = 440;
@@ -192,7 +197,7 @@
     var bw = L.plotW / n, body = Math.max(1, Math.min(bw * 0.64, 14));
     for (i = 0; i < n; i++) {
       var vh = vMax ? (bars[i].v / vMax) * (L.volH - 2) : 0;
-      ctx.fillStyle = bars[i].up ? "rgba(31,214,168,.45)" : "rgba(255,93,108,.45)";
+      ctx.fillStyle = bars[i].up ? UP_VOL : DOWN_VOL;
       ctx.fillRect(pX(i) - body / 2, L.volTop + L.volH - vh, body, vh);
     }
 

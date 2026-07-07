@@ -100,6 +100,28 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 .down { color:#ff5d6c !important; }
 .muted { color:#5a6577; }
 
+/* 국내 증시 관례색: 상승=빨강, 하락=파랑 (주식 페이지 body.krx-colors 한정) */
+body.krx-colors .up { color:#ff5d6c !important; }
+body.krx-colors .down { color:#4a94f7 !important; }
+
+/* HTS 3단 레이아웃: 관심종목 | 차트 | 현재가 상세 */
+.hts-grid { display:grid; grid-template-columns:236px minmax(0,1fr) 300px; gap:14px; align-items:start; }
+.hts-grid2 { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); gap:14px; align-items:start; margin-top:14px; }
+@media (max-width: 1200px) { .hts-grid { grid-template-columns:200px minmax(0,1fr); } .hts-quote-box { display:none; } }
+@media (max-width: 980px) { .hts-grid, .hts-grid2 { grid-template-columns:1fr; } .hts-quote-box { display:block; } }
+.watch-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 8px; padding:8px 12px;
+             border-bottom:1px solid #11161f; cursor:pointer; }
+.watch-row:hover { background:#0f1520; }
+.watch-row.on { background:#101a28; box-shadow:inset 2px 0 0 #e0b341; }
+.watch-row .nm { font-size:11.5px; color:#c6cfdd; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.watch-row .cd { font-size:11px; color:#3a4658; }
+.watch-row .pr { font-size:12px; text-align:right; font-weight:700; }
+.watch-row .ch { font-size:11px; text-align:right; }
+.hts-price-row { display:flex; align-items:baseline; gap:12px; padding:12px 14px 10px; flex-wrap:wrap; }
+/* id 셀렉터로 고정: stocks-live.js가 class를 갈아끼워도 크기 유지 */
+#stock-price { font-size:26px; font-weight:800; letter-spacing:-0.5px; }
+#stock-change { font-size:13px; font-weight:700; }
+
 .box { border:1px solid #1c2430; border-radius:4px; overflow:hidden; }
 .box-head { display:flex; align-items:center; gap:14px; padding:10px 15px; background:#0d1219;
             border-bottom:1px solid #1c2430; font-size:11px; color:#e0b341;
@@ -694,6 +716,7 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
     if (path === "/api/coin/news_summary") return newsSummary();
     if (path === "/api/stocks/quote") return {code:params.get("code") || "005930", name:"삼성전자", price:74200, change:800, change_pct:1.09, timestamp:now()};
     if (path === "/api/stocks/ai") return window.__stockAiSnapshot || {error:"주식 AI 스냅샷 없음"};
+    if (path === "/api/stocks/watchlist") return {items:(window.__stockAiSnapshot || {}).watchlist || [], updated_at:(window.__stockAiSnapshot || {}).generated_at || null};
     if (path === "/api/ticker_quotes") return {items:Object.keys(PRICES).slice(0, 6).map(t => ({sym:symbol(t), price:PRICES[t], chg_pct:CHANGES[t] || 0}))};
     if (path === "/api/analyze_context") return {ticker:params.get("ticker") || "KRW-BTC", holding:DEMO_PORTFOLIO.holdings[1], position:null, decisions:state().history, trades:[], portfolio_summary:DEMO_PORTFOLIO.summary};
     if (path === "/api/analyze") return analyze(params.get("ticker") || "KRW-BTC");

@@ -347,6 +347,7 @@ STATIC_API = f"""
     if (path === "/api/coin/news_summary") return newsSummary();
     if (path === "/api/stocks/quote") return {{code:params.get("code") || "005930", name:"삼성전자", price:74200, change:800, change_pct:1.09, timestamp:now()}};
     if (path === "/api/stocks/ai") return window.__stockAiSnapshot || {{error:"주식 AI 스냅샷 없음"}};
+    if (path === "/api/stocks/watchlist") return {{items:(window.__stockAiSnapshot || {{}}).watchlist || [], updated_at:(window.__stockAiSnapshot || {{}}).generated_at || null}};
     if (path === "/api/ticker_quotes") return {{items:Object.keys(PRICES).slice(0, 6).map(t => ({{sym:symbol(t), price:PRICES[t], chg_pct:CHANGES[t] || 0}}))}};
     if (path === "/api/analyze_context") return {{ticker:params.get("ticker") || "KRW-BTC", holding:DEMO_PORTFOLIO.holdings[1], position:null, decisions:state().history, trades:[], portfolio_summary:DEMO_PORTFOLIO.summary}};
     if (path === "/api/analyze") return analyze(params.get("ticker") || "KRW-BTC");

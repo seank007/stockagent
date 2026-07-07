@@ -611,13 +611,20 @@
   window.renderStockQuote = function (q) {
     var change = Number(q.change || 0);
     var pct = q.change_pct == null ? null : Number(q.change_pct);
+    var titleEl = document.getElementById("stock-title");
+    if (titleEl && (q.name || q.code)) {
+      titleEl.textContent = (q.name || q.code) + (q.code ? " · " + q.code : "");
+    }
     var priceEl = document.getElementById("stock-price");
-    if (priceEl) priceEl.textContent = q.price_text || (window.KRW ? KRW(q.price) + " 원" : q.price);
+    if (priceEl) {
+      priceEl.textContent = q.price_text || (window.KRW ? KRW(q.price) + " 원" : q.price);
+      priceEl.className = change > 0 ? "up" : change < 0 ? "down" : "muted";
+    }
     var chEl = document.getElementById("stock-change");
     if (chEl) {
       chEl.textContent = (q.change_text || (window.KRW ? KRW(change, true) : change)) +
         (pct == null ? "" : " (" + (pct > 0 ? "+" : "") + pct.toFixed(2) + "%)");
-      chEl.className = "val " + (change > 0 ? "up" : change < 0 ? "down" : "muted");
+      chEl.className = change > 0 ? "up" : change < 0 ? "down" : "muted";
     }
     var stEl = document.getElementById("stock-status");
     if (stEl) {
