@@ -1643,6 +1643,59 @@ def api_stock_quote():
     return jsonify(payload)
 
 
+_stock_ai_cache: tuple[float, dict] | None = None
+STOCK_AI_CACHE_SECONDS = 10
+
+
+def stock_ai_payload() -> dict:
+    """주식 AI 자동매매 현황 (계좌·손익·판단·거래). Pages export에서도 사용."""
+    import stock_db
+    from brokers.kis import get_stock_broker, market_status
+    from datetime import date as _date
+
+    broker = get_stock_broker()
+    try:
+        bal = broker.balance()
+    except Exception as exc:  # noqa: BLE001 - KIS 장애·네트워크 오류에도 화면은 뜬다
+        bal = {"cash": 0.0, "total_eval": 0.0, "holdings": [],
+               "paper": True, "source": f"계좌 조회 실패: {exc}"}
+
+    holdings = bal.get("holdings") or []
+    principal = sum(float(h.get("avg_price") or 0) * int(h.get("qty") or 0) for h in holdings)
+    unrealized = sum(float(h.get("pnl") or 0) for h in holdings)
+    daily = stock_db.get_daily_pnl(days=30)
+    today = _date.today().isoformat()
+    trow = next((d for d in daily if d["day"] == today), None)
+    return {
+        "market": market_status(),
+        "mode": bal.get("source"),
+        "paper": bool(bal.get("paper", True)),
+        "cash": float(bal.get("cash") or 0),
+        "total_eval": float(bal.get("total_eval") or 0),
+        "principal": principal,
+        "unrealized_pnl": unrealized,
+        "today_realized": float(trow["realized_pnl"]) if trow else 0.0,
+        "today_trades": int(trow["trades_count"]) if trow else 0,
+        "total_realized": stock_db.total_realized_pnl(),
+        "holdings": holdings,
+        "daily": daily,
+        "decisions": stock_db.recent_decisions(limit=20),
+        "trades": stock_db.recent_trades(limit=20),
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    }
+
+
+@app.route("/api/stocks/ai")
+def api_stocks_ai():
+    global _stock_ai_cache
+    now = time.time()
+    if _stock_ai_cache and now - _stock_ai_cache[0] < STOCK_AI_CACHE_SECONDS:
+        return jsonify({**_stock_ai_cache[1], "cached": True})
+    payload = stock_ai_payload()
+    _stock_ai_cache = (now, payload)
+    return jsonify(payload)
+
+
 @app.route("/api/ticker_quotes")
 def api_ticker_quotes():
     """헤더 티커 테이프용. 보유 종목 + 주요 코인 시세."""
@@ -4261,9 +4314,41 @@ STOCKS_HTML = f"""<!doctype html>
     </div>
   </div>
 
+  <div class="section-line" style="margin-top:26px;">
+    <div class="section-title">AI 자동매매 (국내주식)</div>
+    <span class="total" id="stock-ai-mode">—</span>
+  </div>
+
+  <div class="box">
+    <div class="box-head">
+      <span>STOCK ACCOUNT · 주식 계좌</span>
+      <span class="total" id="stock-ai-upd">—</span>
+    </div>
+    <div class="ai-live-kpis">
+      <div class="cell"><div class="label">총 평가</div><div class="val" id="sai-total">—</div><div class="sub" id="sai-cash">예수금 —</div></div>
+      <div class="cell"><div class="label">평가손익 · 미실현</div><div class="val" id="sai-unreal">—</div><div class="sub">보유 종목 평단 대비</div></div>
+      <div class="cell"><div class="label">오늘 실현손익</div><div class="val" id="sai-today">—</div><div class="sub" id="sai-todaytrades">오늘 거래 —</div></div>
+      <div class="cell"><div class="label">실현손익 · 누적</div><div class="val" id="sai-realized">—</div><div class="sub">수수료·거래세 반영</div></div>
+      <div class="cell"><div class="label">장 상태</div><div class="val" id="sai-market">—</div><div class="sub" id="sai-market-note">—</div></div>
+      <div class="cell"><div class="label">매매 주기</div><div class="val">장중 15분</div><div class="sub">hermes agent 자율 판단</div></div>
+    </div>
+    <div id="stock-ai-holdings"></div>
+  </div>
+
+  <div class="box" style="margin-top:14px;">
+    <div class="box-head"><span>AI 판단 히스토리</span><span class="total" id="stock-ai-dcount">—</span></div>
+    <div id="stock-ai-decisions"><div class="muted" style="padding:12px 14px;">아직 판단 기록이 없습니다.</div></div>
+  </div>
+
+  <div class="box" style="margin-top:14px;">
+    <div class="box-head"><span>거래 체결 내역</span><span class="total" id="stock-ai-tcount">—</span></div>
+    <div id="stock-ai-trades"><div class="muted" style="padding:12px 14px;">아직 체결 내역이 없습니다.</div></div>
+  </div>
+
   <div class="foot" id="foot">—</div>
 </div>
 
+<!-- STOCK_AI_SNAPSHOT -->
 <script>
 {COMMON_JS}
 
@@ -4352,6 +4437,80 @@ setupStockPresets(); loadStock(); tickTape(); tickStockState();
 setInterval(tickTape, 15000);
 setInterval(tickStockState, 3000);
 setInterval(loadStock, 30000);
+
+// ---- AI 자동매매 (국내주식) ----
+function renderStockAi(d) {{
+  const set = (id, text, n) => {{
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    if (n !== undefined) el.className = "val " + colorOf(n);
+  }};
+  document.getElementById("stock-ai-mode").textContent = d.mode || "—";
+  document.getElementById("stock-ai-upd").textContent = d.generated_at || "—";
+  set("sai-total", KRW(d.total_eval) + " 원");
+  document.getElementById("sai-cash").textContent = "예수금 " + KRW(d.cash) + " 원";
+  set("sai-unreal", KRW(d.unrealized_pnl, true) + " 원", d.unrealized_pnl);
+  set("sai-today", KRW(d.today_realized, true) + " 원", d.today_realized);
+  document.getElementById("sai-todaytrades").textContent = "오늘 거래 " + (d.today_trades || 0) + "건";
+  set("sai-realized", KRW(d.total_realized, true) + " 원", d.total_realized);
+  const mk = d.market || {{}};
+  set("sai-market", mk.open ? "OPEN" : "CLOSED", mk.open ? 1 : 0);
+  document.getElementById("sai-market-note").textContent = (mk.note || "—") + " · " + (mk.now || "");
+
+  const holdings = d.holdings || [];
+  document.getElementById("stock-ai-holdings").innerHTML = !holdings.length
+    ? '<div class="muted" style="padding:12px 14px;">보유 종목이 없습니다.</div>'
+    : `<div class="tbl-head" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr;">
+         <span>종목</span><span>수량</span><span>평단</span><span>현재가</span><span>평가액</span><span>수익률</span>
+       </div>` + holdings.map(h => `
+      <div class="tbl-row" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr;">
+        <span>${{escapeHtml(h.name || h.code)}} <span class="muted">${{h.code}}</span></span>
+        <span>${{NUM(h.qty, 0)}}주</span>
+        <span>${{KRW(h.avg_price)}}</span>
+        <span>${{KRW(h.current_price)}}</span>
+        <span>${{KRW(h.eval_amount)}}</span>
+        <span class="${{colorOf(h.return_pct)}}">${{PCT(h.return_pct)}}</span>
+      </div>`).join("");
+
+  const decisions = d.decisions || [];
+  document.getElementById("stock-ai-dcount").textContent = decisions.length + "건";
+  if (decisions.length) {{
+    document.getElementById("stock-ai-decisions").innerHTML = decisions.map(r => `
+      <div class="tbl-row" style="display:grid;grid-template-columns:110px 150px 70px 1fr;gap:8px;">
+        <span class="muted">${{String(r.ts || "").replace("T", " ").slice(5, 16)}}</span>
+        <span>${{escapeHtml(r.name || r.code)}}</span>
+        <span class="${{r.action === "BUY" ? "up" : r.action === "SELL" ? "down" : "muted"}}">${{r.action}}</span>
+        <span class="muted">${{escapeHtml(r.reasoning || "")}}</span>
+      </div>`).join("");
+  }}
+
+  const trades = d.trades || [];
+  document.getElementById("stock-ai-tcount").textContent = trades.length + "건";
+  if (trades.length) {{
+    document.getElementById("stock-ai-trades").innerHTML = trades.map(t => `
+      <div class="tbl-row" style="display:grid;grid-template-columns:110px 150px 60px 1fr 1fr 1fr;gap:8px;">
+        <span class="muted">${{String(t.ts || "").replace("T", " ").slice(5, 16)}}</span>
+        <span>${{escapeHtml(t.name || t.code)}}</span>
+        <span class="${{t.side === "buy" ? "up" : "down"}}">${{t.side === "buy" ? "매수" : "매도"}}</span>
+        <span>${{NUM(t.qty, 0)}}주 · ${{KRW(t.price)}}원</span>
+        <span>${{KRW(t.krw_amount)}}원</span>
+        <span class="${{colorOf(t.realized_pnl)}}">${{t.side === "sell" ? KRW(t.realized_pnl, true) + "원" : "—"}}</span>
+      </div>`).join("");
+  }}
+}}
+
+async function loadStockAi() {{
+  if (document.hidden) return;
+  try {{
+    const res = await fetch("/api/stocks/ai");
+    const data = await res.json();
+    if (data && !data.error) renderStockAi(data);
+  }} catch (e) {{ /* 다음 주기에 재시도 */ }}
+}}
+
+loadStockAi();
+setInterval(loadStockAi, 20000);
 </script>
 </body></html>"""
 
