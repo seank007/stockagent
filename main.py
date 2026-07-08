@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 
 import config
 import db
+import notify
 from agent.decision import DecisionAgent
 from brokers.upbit import UpbitBroker
 from risk import RiskManager
@@ -165,6 +166,8 @@ def run_once(broker: UpbitBroker, agent: DecisionAgent, risk: RiskManager) -> No
                 ticker, "buy", price_now, volume, order.krw_amount, result
             )
             log(f"  ▶ 매수 {order.krw_amount:,}원 (≈{volume:.6f}) | {order.reason} | {result}")
+            notify.send_order(side="buy", ticker=ticker, krw_amount=order.krw_amount,
+                              volume=volume, price=price_now, dry_run=config.DRY_RUN, source="AI")
         elif order.side == "sell":
             result = broker.sell(ticker, order.volume)
             krw_value = order.volume * price_now
@@ -176,6 +179,8 @@ def run_once(broker: UpbitBroker, agent: DecisionAgent, risk: RiskManager) -> No
                 f"  ▶ 매도 {order.volume} (≈{krw_value:,.0f}원) | "
                 f"실현손익 {trade_info['realized_pnl']:+,.0f}원 | {order.reason}"
             )
+            notify.send_order(side="sell", ticker=ticker, krw_amount=krw_value,
+                              volume=order.volume, price=price_now, dry_run=config.DRY_RUN, source="AI")
         else:
             log(f"  · 주문 없음 | {order.reason}")
 

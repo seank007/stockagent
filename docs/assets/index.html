@@ -821,6 +821,10 @@ body.reduce-motion *, body.reduce-motion *:before, body.reduce-motion *:after {
     <div class="kpi"><div class="label">총 평가금액</div>   <div class="val" id="kpi-port">—</div></div>
     <div class="kpi"><div class="label">오늘 매매</div>     <div class="val" id="kpi-trades">—</div></div>
     <div class="kpi"><div class="label">승률</div>          <div class="val" id="kpi-win">—</div></div>
+    <div class="kpi"><div class="label">손익비(PF)</div>    <div class="val" id="kpi-pf">—</div></div>
+    <div class="kpi"><div class="label">최대낙폭(MDD)</div> <div class="val" id="kpi-mdd">—</div></div>
+    <div class="kpi"><div class="label">최고 / 최저 체결</div><div class="val" id="kpi-bestworst" style="font-size:13px">—</div></div>
+    <div class="kpi"><div class="label">누적 수수료</div>  <div class="val" id="kpi-fees">—</div></div>
   </div>
 
   <div class="row-grid">
@@ -1701,6 +1705,14 @@ async function tickPnl() {
     const j = await (await fetch("/api/pnl")).json();
     document.getElementById("kpi-trades").textContent = (j.today_trades || 0) + " 회";
     document.getElementById("kpi-win").textContent = (j.win_rate || 0).toFixed(0) + " %";
+    try {
+      const p = await (await fetch("/api/performance")).json();
+      const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      setTxt("kpi-pf", p.profit_factor == null ? "∞" : Number(p.profit_factor).toFixed(2));
+      setTxt("kpi-mdd", KRW(p.max_drawdown || 0) + " 원");
+      setTxt("kpi-bestworst", KRW(p.best_trade || 0, true) + " / " + KRW(p.worst_trade || 0, true));
+      setTxt("kpi-fees", KRW(p.total_fees || 0) + " 원");
+    } catch(e) {}
     const qs = new URLSearchParams({ limit: "100" });
     const ticker = document.getElementById("trade-ticker").value;
     const side = document.getElementById("trade-side").value;

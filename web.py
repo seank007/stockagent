@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import csv
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+import hmac
 import html as html_lib
 import io
 import json
@@ -29,6 +30,7 @@ from flask import Flask, Response, jsonify, request
 
 import config
 import db
+import notify
 from agent.analysis import analyze
 from agent.providers import get_provider
 from brokers.upbit import UpbitBroker
@@ -36,6 +38,35 @@ from main import trading_loop
 from state import store
 
 app = Flask(__name__)
+
+# 헬스체크는 인증 없이 열어둔다(Render/모니터링용). 그 외 모든 경로는
+# WEB_AUTH_TOKEN이 설정된 경우 HTTP Basic 인증을 요구한다.
+_AUTH_EXEMPT_PATHS = {"/healthz", "/readyz"}
+
+
+def _auth_password_ok(supplied: str) -> bool:
+    token = config.WEB_AUTH_TOKEN
+    if not token:
+        return True
+    return hmac.compare_digest(str(supplied or ""), str(token))
+
+
+@app.before_request
+def _require_auth():  # noqa: ANN202
+    if not config.WEB_AUTH_TOKEN:
+        return None  # 인증 비활성(모의/공개 배포)
+    if request.path in _AUTH_EXEMPT_PATHS:
+        return None
+    auth = request.authorization
+    if auth is not None and _auth_password_ok(auth.password):
+        return None
+    return Response(
+        "인증이 필요합니다.",
+        401,
+        {"WWW-Authenticate": 'Basic realm="stockagent", charset="UTF-8"'},
+    )
+
+
 _broker_for_web: UpbitBroker | None = None
 _trading_thread: threading.Thread | None = None
 _analysis_cache: dict[tuple[str, str, int], tuple[float, dict]] = {}
@@ -1210,6 +1241,14 @@ def _manual_order_context(payload: dict, *, execute: bool) -> dict:
         if not dry_run and coin_balance < volume:
             raise ValueError(f"보유 수량 부족: {coin_balance:.8f}")
 
+    # 서버측 안전 상한: 1건이 한도를 넘으면(실수·무단 조작) 실행/미리보기 모두 막는다.
+    cap = int(getattr(config, "MAX_MANUAL_ORDER_KRW", 0) or 0)
+    if cap > 0 and krw_amount > cap:
+        raise ValueError(
+            f"주문 금액 {krw_amount:,.0f}원이 1건 한도({cap:,}원)를 초과합니다. "
+            "한도를 높이려면 .env의 MAX_MANUAL_ORDER_KRW를 조정하세요."
+        )
+
     return {
         "ticker": ticker,
         "side": side,
@@ -1327,8 +1366,10 @@ def api_control():
     action = str(payload.get("action", "")).lower()
     if action == "pause":
         store.set_paused(True)
+        notify.send("⏸️ 봇 <b>일시정지</b> 되었습니다.")
     elif action == "resume":
         store.set_paused(False)
+        notify.send("▶️ 봇 <b>재개</b> 되었습니다.")
     else:
         return jsonify({"error": "지원하지 않는 action입니다"}), 400
     return jsonify(store.snapshot())
@@ -1371,6 +1412,17 @@ def api_pnl():
         "daily": daily,
         "trades": trades,
     })
+
+
+@app.route("/api/performance")
+def api_performance():
+    stats = db.performance_stats()
+    # JSON은 Infinity를 표현하지 못하므로 profit_factor 무한대는 None으로.
+    pf = stats.get("profit_factor")
+    if pf == float("inf"):
+        stats["profit_factor"] = None
+    stats["daily"] = db.get_daily_pnl(days=30)
+    return jsonify(stats)
 
 
 @app.route("/api/portfolio")
@@ -1449,6 +1501,14 @@ def api_manual_order():
         _portfolio_cache = None
         try:
             store.set_pnl(db.get_today_realized_pnl(), db.total_realized_pnl())
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            notify.send_order(
+                side=ctx["side"], ticker=ctx["ticker"], krw_amount=ctx["krw_amount"],
+                volume=ctx["volume"], price=ctx["price"], dry_run=ctx["dry_run"],
+                source="manual",
+            )
         except Exception:  # noqa: BLE001
             pass
     except ValueError as exc:
@@ -5064,6 +5124,10 @@ DASHBOARD_HTML = f"""<!doctype html>
     <div class="kpi"><div class="label">총 평가금액</div>   <div class="val" id="kpi-port">—</div></div>
     <div class="kpi"><div class="label">오늘 매매</div>     <div class="val" id="kpi-trades">—</div></div>
     <div class="kpi"><div class="label">승률</div>          <div class="val" id="kpi-win">—</div></div>
+    <div class="kpi"><div class="label">손익비(PF)</div>    <div class="val" id="kpi-pf">—</div></div>
+    <div class="kpi"><div class="label">최대낙폭(MDD)</div> <div class="val" id="kpi-mdd">—</div></div>
+    <div class="kpi"><div class="label">최고 / 최저 체결</div><div class="val" id="kpi-bestworst" style="font-size:13px">—</div></div>
+    <div class="kpi"><div class="label">누적 수수료</div>  <div class="val" id="kpi-fees">—</div></div>
   </div>
 
   <div class="row-grid">
@@ -5558,6 +5622,14 @@ async function tickPnl() {{
     const j = await (await fetch("/api/pnl")).json();
     document.getElementById("kpi-trades").textContent = (j.today_trades || 0) + " 회";
     document.getElementById("kpi-win").textContent = (j.win_rate || 0).toFixed(0) + " %";
+    try {{
+      const p = await (await fetch("/api/performance")).json();
+      const setTxt = (id, v) => {{ const el = document.getElementById(id); if (el) el.textContent = v; }};
+      setTxt("kpi-pf", p.profit_factor == null ? "∞" : Number(p.profit_factor).toFixed(2));
+      setTxt("kpi-mdd", KRW(p.max_drawdown || 0) + " 원");
+      setTxt("kpi-bestworst", KRW(p.best_trade || 0, true) + " / " + KRW(p.worst_trade || 0, true));
+      setTxt("kpi-fees", KRW(p.total_fees || 0) + " 원");
+    }} catch(e) {{}}
     const qs = new URLSearchParams({{ limit: "100" }});
     const ticker = document.getElementById("trade-ticker").value;
     const side = document.getElementById("trade-side").value;

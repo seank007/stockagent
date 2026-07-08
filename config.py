@@ -83,6 +83,9 @@ TARGET_PROFIT_KRW = _env_int("TARGET_PROFIT_KRW", 15_000)
 FREE_TRADE_MODE = _env_bool("FREE_TRADE_MODE", False)
 # 업비트 거래소 자체 최소 주문 금액 (변경 불가)
 UPBIT_MIN_ORDER_KRW = 5_000
+# 대시보드 수동 주문 1건의 상한(원). 실수/무단 조작으로 계좌가 한 번에
+# 빠지는 것을 막는 서버측 안전 상한. .env의 MAX_MANUAL_ORDER_KRW로 조절.
+MAX_MANUAL_ORDER_KRW = _env_int("MAX_MANUAL_ORDER_KRW", 1_000_000)
 
 # --- 성능 튜닝 ---
 # 종목별 시세 수집 + AI 판단을 병렬 처리할 최대 작업자 수.
@@ -95,8 +98,19 @@ STATE_HISTORY_LIMIT = _env_int("STATE_HISTORY_LIMIT", 80)
 STATE_REASON_MAX_CHARS = _env_int("STATE_REASON_MAX_CHARS", 260)
 API_REASON_MAX_CHARS = _env_int("API_REASON_MAX_CHARS", 360)
 
+# --- 보안/알림 ---
+# 설정하면 대시보드(모든 페이지·API)에 HTTP Basic 인증을 요구한다. 사용자명은
+# 아무거나, 비밀번호가 이 토큰과 일치해야 한다. 비우면 인증 없음(모의/공개 배포용).
+# 실거래 로컬 서버는 반드시 설정할 것.
+WEB_AUTH_TOKEN = os.getenv("WEB_AUTH_TOKEN", "")
+# 텔레그램 알림(체결·정지·에러). 둘 다 있어야 전송. 비우면 알림 끔.
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+
 # --- 서버/배포 ---
-WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
+# 기본은 로컬 전용(127.0.0.1). LAN/외부 접속이 필요하면 .env에서 0.0.0.0으로
+# 명시하되, 반드시 WEB_AUTH_TOKEN을 함께 설정한다.
+WEB_HOST = os.getenv("WEB_HOST", "127.0.0.1")
 # Render/most hosts inject PORT at runtime. Keep WEB_PORT for local Docker, but
 # let PORT win when the hosting platform provides it.
 WEB_PORT = _env_int("PORT", _env_int("WEB_PORT", 8000))

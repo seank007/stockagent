@@ -229,6 +229,61 @@ def get_daily_pnl(days: int = 30) -> list[dict]:
         return [dict(r) for r in rows]
 
 
+def performance_stats() -> dict:
+    """체결 이력으로 성과 지표를 계산한다.
+
+    매도 체결의 realized_pnl로 승률·손익비·MDD(누적손익 기준)를,
+    전체 체결로 거래 수·수수료 합계를 낸다.
+    """
+    with _lock:
+        conn = _connect()
+        sells = conn.execute(
+            "SELECT realized_pnl, ts FROM trades WHERE side = 'sell' ORDER BY id ASC"
+        ).fetchall()
+        totals = conn.execute(
+            "SELECT COUNT(*) AS n, "
+            "COALESCE(SUM(fee), 0) AS fees, "
+            "COALESCE(SUM(CASE WHEN side='buy' THEN 1 ELSE 0 END), 0) AS buys, "
+            "COALESCE(SUM(CASE WHEN side='sell' THEN 1 ELSE 0 END), 0) AS sells "
+            "FROM trades"
+        ).fetchone()
+
+    pnls = [float(r["realized_pnl"] or 0.0) for r in sells]
+    wins = [p for p in pnls if p > 0]
+    losses = [p for p in pnls if p < 0]
+    closed = len(pnls)
+    total_realized = sum(pnls)
+
+    # 누적 실현손익 곡선의 최대 낙폭(MDD)
+    cum = 0.0
+    peak = 0.0
+    mdd = 0.0
+    for p in pnls:
+        cum += p
+        peak = max(peak, cum)
+        mdd = min(mdd, cum - peak)
+
+    gross_win = sum(wins)
+    gross_loss = -sum(losses)
+    return {
+        "trades_total": int(totals["n"]),
+        "buys": int(totals["buys"]),
+        "sells": int(totals["sells"]),
+        "closed_trades": closed,
+        "wins": len(wins),
+        "losses": len(losses),
+        "win_rate": (len(wins) / closed * 100.0) if closed else 0.0,
+        "total_realized_pnl": total_realized,
+        "avg_win": (gross_win / len(wins)) if wins else 0.0,
+        "avg_loss": (-gross_loss / len(losses)) if losses else 0.0,
+        "profit_factor": (gross_win / gross_loss) if gross_loss > 0 else (float("inf") if gross_win > 0 else 0.0),
+        "best_trade": max(pnls) if pnls else 0.0,
+        "worst_trade": min(pnls) if pnls else 0.0,
+        "max_drawdown": mdd,          # 0 또는 음수
+        "total_fees": float(totals["fees"]),
+    }
+
+
 def recent_trades(limit: int = 50, ticker: str | None = None, side: str | None = None) -> list[dict]:
     with _lock:
         conn = _connect()
