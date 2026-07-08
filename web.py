@@ -39,8 +39,18 @@ from state import store
 
 app = Flask(__name__)
 
+# 멀티유저 포털: /app(로그인·자산확인), /auth/*(인증·키·자동매매 API).
+# 기존 단일 봇 라우트(/, /analyze 등)와 독립적으로 동작한다.
+try:
+    import multiuser.web_auth as _mu_web_auth
+
+    _mu_web_auth.register(app)
+except Exception as _mu_err:  # noqa: BLE001
+    app.logger.warning("멀티유저 라우트 비활성화(무시): %s", _mu_err)
+
 # 헬스체크는 인증 없이 열어둔다(Render/모니터링용). 그 외 모든 경로는
 # WEB_AUTH_TOKEN이 설정된 경우 HTTP Basic 인증을 요구한다.
+# 멀티유저 포털(/app, /auth/*)은 자체 세션 로그인을 쓰므로 Basic 게이트에서 제외한다.
 _AUTH_EXEMPT_PATHS = {"/healthz", "/readyz"}
 
 
@@ -51,11 +61,15 @@ def _auth_password_ok(supplied: str) -> bool:
     return hmac.compare_digest(str(supplied or ""), str(token))
 
 
+def _is_multiuser_path(path: str) -> bool:
+    return path == "/app" or path.startswith("/auth/")
+
+
 @app.before_request
 def _require_auth():  # noqa: ANN202
     if not config.WEB_AUTH_TOKEN:
         return None  # 인증 비활성(모의/공개 배포)
-    if request.path in _AUTH_EXEMPT_PATHS:
+    if request.path in _AUTH_EXEMPT_PATHS or _is_multiuser_path(request.path):
         return None
     auth = request.authorization
     if auth is not None and _auth_password_ok(auth.password):
@@ -65,7 +79,6 @@ def _require_auth():  # noqa: ANN202
         401,
         {"WWW-Authenticate": 'Basic realm="stockagent", charset="UTF-8"'},
     )
-
 
 _broker_for_web: UpbitBroker | None = None
 _trading_thread: threading.Thread | None = None
