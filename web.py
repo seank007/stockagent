@@ -2490,10 +2490,22 @@ body.krx-colors .down { color:#4a94f7 !important; }
 .typewriter-text { display:inline-block; overflow:hidden; white-space:nowrap; animation:typewriter 2s steps(40,end); }
 
 /* Settings (세팅) */
-.hd-settings-btn { font-family:'JetBrains Mono',monospace; font-size:14px; line-height:1;
-  border:1px solid #1c2430; background:#0a0e14; color:#8a95a8; padding:5px 8px;
-  border-radius:4px; cursor:pointer; margin-left:6px; }
-.hd-settings-btn:hover { color:#e6ebf2; border-color:#3a4658; }
+.hd-settings-btn { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; line-height:1;
+  display:inline-flex; align-items:center; gap:6px;
+  border:1px solid #2a3546; background:#131a24; color:#c6cfdd; padding:7px 13px;
+  border-radius:5px; cursor:pointer; margin-left:8px; }
+.hd-settings-btn:hover { color:#fff; border-color:#3a4658; background:#1c2430; }
+.hd-settings-btn .gear { font-size:14px; }
+/* HTS식 설정 레이아웃: 좌측 카테고리 + 우측 패널 */
+.settings-layout { display:flex; min-height:340px; }
+.settings-cats { flex:0 0 148px; border-right:1px solid #1f2937; padding:8px; background:#0d1219;
+  display:flex; flex-direction:column; gap:3px; }
+.settings-cat-btn { font-family:'JetBrains Mono',monospace; font-size:12.5px; text-align:left;
+  padding:9px 12px; border-radius:6px; border:1px solid transparent; background:none; color:#8a95a8;
+  cursor:pointer; white-space:nowrap; }
+.settings-cat-btn:hover { color:#e6ebf2; background:#141a23; }
+.settings-cat-btn.on { color:#e6ebf2; background:#1c2430; font-weight:700; border-color:#2a3546; }
+.settings-panel { flex:1; overflow-y:auto; max-height:60vh; }
 .settings-body { padding:8px 4px; }
 .settings-row { display:flex; align-items:center; justify-content:space-between;
   gap:16px; padding:14px 20px; border-bottom:1px solid #141a23; }
@@ -2512,10 +2524,26 @@ body.krx-colors .down { color:#4a94f7 !important; }
   background:#5a6577; border-radius:50%; transition:.15s; }
 .switch input:checked + .slider { background:rgba(31,214,168,.25); }
 .switch input:checked + .slider:before { transform:translateX(20px); background:#1fd6a8; }
-.settings-footer { padding:14px 20px; display:flex; justify-content:flex-end; gap:8px;
+.settings-footer { padding:14px 20px; display:flex; justify-content:space-between; align-items:center; gap:8px;
   border-top:1px solid #1f2937; }
+.settings-footer .foot-left { display:flex; gap:8px; }
+.settings-select { font-family:'JetBrains Mono',monospace; font-size:12px; border-radius:4px;
+  border:1px solid #2a3546; background:#0d1219; color:#e6ebf2; padding:6px 8px; outline:none; cursor:pointer; }
+.settings-select:focus { border-color:#1fd6a8; }
+.settings-seg { display:inline-flex; gap:3px; background:#0a0e14; border:1px solid #1c2430; border-radius:6px; padding:3px; }
+.settings-seg button { font-family:'JetBrains Mono',monospace; font-size:11.5px; padding:5px 11px; border-radius:4px;
+  border:none; background:none; color:#8a95a8; cursor:pointer; }
+.settings-seg button.on { background:#1c2430; color:#e6ebf2; font-weight:700; }
+.settings-note { padding:14px 20px; font-size:12px; color:#8a95a8; line-height:1.7; }
+.settings-note b { color:#e6ebf2; }
+.settings-note .kbd { font-family:'JetBrains Mono',monospace; font-size:11px; color:#1fd6a8;
+  background:#0a0e14; border:1px solid #1c2430; border-radius:3px; padding:1px 5px; }
 body.reduce-motion *, body.reduce-motion *:before, body.reduce-motion *:after {
   animation-duration:0s !important; animation-iteration-count:1 !important; transition-duration:0s !important; }
+/* 고대비 모드: 흐린 회색 글자를 더 밝게 */
+body.high-contrast .muted, body.high-contrast .settings-desc, body.high-contrast .sub,
+body.high-contrast .coin-mini-name, body.high-contrast .upd { color:#aab4c4 !important; }
+body.high-contrast .pill-ai, body.high-contrast .pill-bot, body.high-contrast .tab { color:#c6cfdd; }
 """
 
 
@@ -2551,156 +2579,186 @@ def _coin_page_html() -> str:
 
 # 공통 JS 헬퍼: 숫자/PnL/티커테이프/SVG 패스
 COMMON_JS = """
-// 세팅(설정): 화면 배율·시세 티커·모션 등 사용자 취향을 localStorage에 저장하고
-// 모든 페이지 헤더 오른쪽 위의 톱니바퀴 버튼(⚙)에서 조절한다.
+// 세팅(설정): HTS식 환경설정. 헤더의 "⚙ 설정" 버튼에서 카테고리별로 조절하며,
+// 모든 값은 이 브라우저의 localStorage에 저장돼 새로고침·페이지 이동 후에도 유지된다.
 (function () {
-  const PREF = {
-    zoom: { key: "ui_zoom", def: 1 },
-    tape: { key: "sa.pref.tape", def: true },
-    motion: { key: "sa.pref.reduceMotion", def: false },
+  function gnum(k, def) { const v = parseFloat(localStorage.getItem(k)); return isFinite(v) ? v : def; }
+  function gbool(k, def) { const v = localStorage.getItem(k); return v == null ? def : (v === "1" || v === "true"); }
+  function gstr(k, def) { const v = localStorage.getItem(k); return v == null ? def : v; }
+
+  // ---- 적용 함수(실제 화면 반영) ----
+  function applyZoom(z) { if (document.body) { z = (isFinite(z) && z >= 0.7 && z <= 2) ? z : 1; document.body.style.zoom = String(z); } }
+  function applyTape(show) { document.querySelectorAll(".tape-wrap").forEach(function (el) { el.style.display = show ? "" : "none"; }); }
+  function applyTapeSpeed(v) { var d = { slow: "90s", normal: "60s", fast: "30s" }[v] || "60s"; document.querySelectorAll(".tape-row").forEach(function (el) { el.style.animationDuration = d; }); }
+  function applyMotion(x) { if (document.body) document.body.classList.toggle("reduce-motion", !!x); }
+  function applyContrast(x) { if (document.body) document.body.classList.toggle("high-contrast", !!x); }
+  function applyColor(v) { if (!document.body) return; if (v === "kr") document.body.classList.add("krx-colors"); else if (v === "global") document.body.classList.remove("krx-colors"); /* auto: 페이지 기본 유지 */ }
+  function applyChartFrame(v) { if (v && v !== "auto" && typeof window.setStockFrame === "function" && window._stockFrame !== v) { try { window.setStockFrame(v); } catch (e) {} } }
+
+  // ---- 설정 스키마 ----
+  // 기존 사용자 값 호환을 위해 zoom/tape/motion 키는 유지한다.
+  var P = {
+    zoom:       { key: "ui_zoom",              type: "num",  def: 1,        apply: applyZoom },
+    contrast:   { key: "sa.pref.contrast",     type: "bool", def: false,    apply: applyContrast },
+    motion:     { key: "sa.pref.reduceMotion", type: "bool", def: false,    apply: applyMotion },
+    color:      { key: "sa.pref.color",        type: "str",  def: "auto",   apply: applyColor },
+    chartFrame: { key: "sa.pref.chartFrame",   type: "str",  def: "auto",   apply: applyChartFrame },
+    tape:       { key: "sa.pref.tape",         type: "bool", def: true,     apply: applyTape },
+    tapeSpeed:  { key: "sa.pref.tapeSpeed",    type: "str",  def: "normal", apply: applyTapeSpeed }
   };
-  function getNum(k, def) {
-    const v = parseFloat(localStorage.getItem(k));
-    return isFinite(v) ? v : def;
-  }
-  function getBool(k, def) {
-    const v = localStorage.getItem(k);
-    return v == null ? def : v === "1" || v === "true";
+  function readPref(p) { return p.type === "num" ? gnum(p.key, p.def) : p.type === "bool" ? gbool(p.key, p.def) : gstr(p.key, p.def); }
+  function writePref(p, val) { localStorage.setItem(p.key, p.type === "bool" ? (val ? "1" : "0") : String(val)); }
+  function applyAll() { Object.keys(P).forEach(function (k) { try { P[k].apply(readPref(P[k])); } catch (e) {} }); }
+
+  // body 준비 전에도 배율은 즉시 반영(깜빡임 최소화)
+  applyZoom(gnum(P.zoom.key, P.zoom.def));
+
+  // ---- 카테고리 구성 ----
+  var CATS = [
+    { id: "display", label: "표시", items: [
+      { pref: "zoom", name: "화면 배율", desc: "글자·표 크기 (70~150%)", ctrl: "range", min: 0.7, max: 1.5, step: 0.05, fmt: function (v) { return Math.round(v * 100) + "%"; } },
+      { pref: "contrast", name: "고대비 모드", desc: "흐린 회색 글자를 더 밝게", ctrl: "toggle" },
+      { pref: "motion", name: "모션 줄이기", desc: "깜빡임·애니메이션 최소화", ctrl: "toggle" }
+    ]},
+    { id: "color", label: "색상·차트", items: [
+      { pref: "color", name: "상승/하락 색상", desc: "한국식 빨강↑ · 글로벌식 초록↑", ctrl: "seg", options: [["auto", "자동"], ["kr", "한국식"], ["global", "글로벌식"]] },
+      { pref: "chartFrame", name: "기본 봉 주기", desc: "주식 차트 기본 주기", ctrl: "seg", options: [["auto", "기본"], ["day", "일봉"], ["week", "주봉"], ["month", "월봉"]] }
+    ]},
+    { id: "ticker", label: "시세·데이터", items: [
+      { pref: "tape", name: "하단 시세 티커", desc: "헤더 아래 흐르는 시세 표시", ctrl: "toggle" },
+      { pref: "tapeSpeed", name: "티커 속도", desc: "흐르는 속도", ctrl: "seg", options: [["slow", "느림"], ["normal", "보통"], ["fast", "빠름"]] }
+    ]},
+    { id: "info", label: "정보", note: true }
+  ];
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function ctrlHtml(item) {
+    var p = P[item.pref], val = readPref(p);
+    if (item.ctrl === "range") {
+      return '<div class="settings-ctrl">' +
+        '<input type="range" class="settings-range" data-pref="' + item.pref + '" min="' + item.min + '" max="' + item.max + '" step="' + item.step + '" value="' + val + '">' +
+        '<span class="settings-val" data-val="' + item.pref + '">' + (item.fmt ? item.fmt(val) : val) + '</span></div>';
+    }
+    if (item.ctrl === "toggle") {
+      return '<label class="switch"><input type="checkbox" data-pref="' + item.pref + '"' + (val ? " checked" : "") + '><span class="slider"></span></label>';
+    }
+    if (item.ctrl === "seg") {
+      return '<div class="settings-seg" data-pref="' + item.pref + '">' + item.options.map(function (o) {
+        return '<button data-opt="' + o[0] + '"' + (String(val) === o[0] ? ' class="on"' : "") + '>' + esc(o[1]) + "</button>";
+      }).join("") + "</div>";
+    }
+    return "";
   }
 
-  function applyZoom(z) {
-    if (!document.body) return;
-    z = isFinite(z) && z >= 0.7 && z <= 2 ? z : 1;
-    document.body.style.zoom = String(z);
+  function panelHtml(cat) {
+    if (cat.note) {
+      return '<div class="settings-note">' +
+        '<b>설정 저장</b> — 모든 설정은 이 브라우저에만 저장됩니다(기기·브라우저별).<br>' +
+        '<b>알림·인증</b> — 텔레그램 알림과 대시보드 인증(WEB_AUTH_TOKEN)은 서버 <span class="kbd">.env</span>에서 설정합니다.<br>' +
+        '<b>단축키</b> — <span class="kbd">ESC</span> 닫기 · 바깥 클릭 닫기.<br>' +
+        '<b>실시간 반영</b> — 값을 바꾸면 즉시 화면에 적용됩니다.' +
+        '</div>';
+    }
+    return '<div class="settings-body">' + cat.items.map(function (item) {
+      return '<div class="settings-row"><div class="settings-info">' +
+        '<span class="settings-name">' + esc(item.name) + "</span>" +
+        '<span class="settings-desc">' + esc(item.desc || "") + "</span></div>" +
+        ctrlHtml(item) + "</div>";
+    }).join("") + "</div>";
   }
-  function applyTape(show) {
-    document.querySelectorAll(".tape-wrap").forEach(function (el) {
-      el.style.display = show ? "" : "none";
-    });
-  }
-  function applyMotion(reduce) {
-    if (!document.body) return;
-    document.body.classList.toggle("reduce-motion", !!reduce);
-  }
-
-  function applyAll() {
-    applyZoom(getNum(PREF.zoom.key, PREF.zoom.def));
-    applyTape(getBool(PREF.tape.key, PREF.tape.def));
-    applyMotion(getBool(PREF.motion.key, PREF.motion.def));
-  }
-  // body가 준비되기 전이라도 zoom은 즉시 반영 시도(깜빡임 최소화)
-  applyZoom(getNum(PREF.zoom.key, PREF.zoom.def));
 
   function buildUI() {
-    if (!document.querySelector(".hd-row")) return;
-    if (document.getElementById("settings-btn")) return;
+    if (!document.querySelector(".hd-row") || document.getElementById("settings-btn")) return;
 
-    // 헤더 오른쪽 위 톱니바퀴 버튼
-    const btn = document.createElement("button");
+    var btn = document.createElement("button");
     btn.id = "settings-btn";
     btn.className = "hd-settings-btn";
-    btn.title = "설정";
-    btn.setAttribute("aria-label", "설정");
-    btn.textContent = "⚙";
-    const row = document.querySelector(".hd-row");
-    row.appendChild(btn);
+    btn.title = "환경설정";
+    btn.innerHTML = '<span class="gear">⚙</span><span>설정</span>';
+    document.querySelector(".hd-row").appendChild(btn);
 
-    // 모달
-    const modal = document.createElement("div");
+    var modal = document.createElement("div");
     modal.className = "modal";
     modal.id = "settings-modal";
     modal.style.display = "none";
-    modal.innerHTML = [
-      '<div class="modal-content" style="max-width:480px">',
-      '  <div class="modal-header">설정',
-      '    <button class="modal-close" id="settings-close" aria-label="닫기">×</button>',
-      '  </div>',
-      '  <div class="modal-body settings-body">',
-      '    <div class="settings-row">',
-      '      <div class="settings-info">',
-      '        <span class="settings-name">화면 배율</span>',
-      '        <span class="settings-desc">글자·표를 크게/작게 (70~150%)</span>',
-      '      </div>',
-      '      <div class="settings-ctrl">',
-      '        <input type="range" id="set-zoom" class="settings-range" min="0.7" max="1.5" step="0.05">',
-      '        <span class="settings-val" id="set-zoom-val">100%</span>',
-      '      </div>',
-      '    </div>',
-      '    <div class="settings-row">',
-      '      <div class="settings-info">',
-      '        <span class="settings-name">하단 시세 티커</span>',
-      '        <span class="settings-desc">헤더 아래 흐르는 시세 표시</span>',
-      '      </div>',
-      '      <label class="switch"><input type="checkbox" id="set-tape"><span class="slider"></span></label>',
-      '    </div>',
-      '    <div class="settings-row">',
-      '      <div class="settings-info">',
-      '        <span class="settings-name">모션 줄이기</span>',
-      '        <span class="settings-desc">깜빡임·애니메이션 최소화</span>',
-      '      </div>',
-      '      <label class="switch"><input type="checkbox" id="set-motion"><span class="slider"></span></label>',
-      '    </div>',
-      '  </div>',
-      '  <div class="settings-footer">',
-      '    <button class="mini-btn" id="settings-reset">기본값</button>',
-      '    <button class="mini-btn on" id="settings-done">완료</button>',
-      '  </div>',
-      '</div>',
-    ].join("");
+    modal.innerHTML =
+      '<div class="modal-content" style="max-width:640px;width:94%">' +
+      '  <div class="modal-header">환경설정' +
+      '    <button class="modal-close" id="settings-close" aria-label="닫기">×</button>' +
+      '  </div>' +
+      '  <div class="modal-body" style="padding:0">' +
+      '    <div class="settings-layout">' +
+      '      <div class="settings-cats" id="settings-cats">' +
+      CATS.map(function (c, i) { return '<button class="settings-cat-btn' + (i === 0 ? " on" : "") + '" data-cat="' + c.id + '">' + esc(c.label) + "</button>"; }).join("") +
+      '      </div>' +
+      '      <div class="settings-panel" id="settings-panel"></div>' +
+      '    </div>' +
+      '  </div>' +
+      '  <div class="settings-footer">' +
+      '    <div class="foot-left"><button class="mini-btn" id="settings-reset">전체 기본값</button></div>' +
+      '    <button class="mini-btn on" id="settings-done">완료</button>' +
+      '  </div>' +
+      '</div>';
     document.body.appendChild(modal);
 
-    const zoomEl = modal.querySelector("#set-zoom");
-    const zoomVal = modal.querySelector("#set-zoom-val");
-    const tapeEl = modal.querySelector("#set-tape");
-    const motionEl = modal.querySelector("#set-motion");
+    var panel = modal.querySelector("#settings-panel");
+    var curCat = CATS[0].id;
 
-    function syncFromStorage() {
-      const z = getNum(PREF.zoom.key, PREF.zoom.def);
-      zoomEl.value = String(z);
-      zoomVal.textContent = Math.round(z * 100) + "%";
-      tapeEl.checked = getBool(PREF.tape.key, PREF.tape.def);
-      motionEl.checked = getBool(PREF.motion.key, PREF.motion.def);
+    function renderPanel() {
+      var cat = CATS.filter(function (c) { return c.id === curCat; })[0] || CATS[0];
+      panel.innerHTML = panelHtml(cat);
     }
 
-    zoomEl.addEventListener("input", function () {
-      const z = parseFloat(zoomEl.value);
-      localStorage.setItem(PREF.zoom.key, String(z));
-      zoomVal.textContent = Math.round(z * 100) + "%";
-      applyZoom(z);
+    // 값 변경 위임 처리 (실시간 적용)
+    panel.addEventListener("input", function (e) {
+      var r = e.target.closest("[data-pref]");
+      if (!r || r.type !== "range") return;
+      var p = P[r.getAttribute("data-pref")], val = parseFloat(r.value);
+      writePref(p, val); p.apply(val);
+      var item = null;
+      CATS.forEach(function (c) { (c.items || []).forEach(function (it) { if (it.pref === r.getAttribute("data-pref")) item = it; }); });
+      var lab = panel.querySelector('[data-val="' + r.getAttribute("data-pref") + '"]');
+      if (lab) lab.textContent = item && item.fmt ? item.fmt(val) : val;
     });
-    tapeEl.addEventListener("change", function () {
-      localStorage.setItem(PREF.tape.key, tapeEl.checked ? "1" : "0");
-      applyTape(tapeEl.checked);
+    panel.addEventListener("change", function (e) {
+      var cb = e.target.closest('input[type="checkbox"][data-pref]');
+      if (cb) { var p = P[cb.getAttribute("data-pref")]; writePref(p, cb.checked); p.apply(cb.checked); }
     });
-    motionEl.addEventListener("change", function () {
-      localStorage.setItem(PREF.motion.key, motionEl.checked ? "1" : "0");
-      applyMotion(motionEl.checked);
+    panel.addEventListener("click", function (e) {
+      var opt = e.target.closest(".settings-seg [data-opt]");
+      if (!opt) return;
+      var seg = opt.closest(".settings-seg"), p = P[seg.getAttribute("data-pref")], val = opt.getAttribute("data-opt");
+      writePref(p, val); p.apply(val);
+      seg.querySelectorAll("[data-opt]").forEach(function (b) { b.classList.toggle("on", b === opt); });
     });
 
-    function open() { syncFromStorage(); modal.style.display = "flex"; }
+    modal.querySelector("#settings-cats").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-cat]");
+      if (!b) return;
+      curCat = b.getAttribute("data-cat");
+      modal.querySelectorAll(".settings-cat-btn").forEach(function (x) { x.classList.toggle("on", x === b); });
+      renderPanel();
+    });
+
+    function open() { renderPanel(); modal.style.display = "flex"; }
     function close() { modal.style.display = "none"; }
     btn.addEventListener("click", open);
     modal.querySelector("#settings-close").addEventListener("click", close);
     modal.querySelector("#settings-done").addEventListener("click", close);
     modal.querySelector("#settings-reset").addEventListener("click", function () {
-      localStorage.removeItem(PREF.zoom.key);
-      localStorage.removeItem(PREF.tape.key);
-      localStorage.removeItem(PREF.motion.key);
+      Object.keys(P).forEach(function (k) { localStorage.removeItem(P[k].key); });
+      // color=auto/global 복원: krx-colors는 페이지 기본으로 되돌릴 수 없으니 그대로 두되 재적용
       applyAll();
-      syncFromStorage();
+      renderPanel();
     });
     modal.addEventListener("click", function (e) { if (e.target === modal) close(); });
-    document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape" && modal.style.display === "flex") close();
-    });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && modal.style.display === "flex") close(); });
   }
 
   function init() { applyAll(); buildUI(); }
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
 })();
 
 const KRW = (n, signed=false) => {
