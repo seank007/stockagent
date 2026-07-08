@@ -501,6 +501,7 @@
         LS.set("board", boardCache);
         renderBoard();
         renderPortfolio();
+        if (window.__syncSecNav) window.__syncSecNav();
         if (typeof window.loadTickerTape === "function" && !document.hidden) window.loadTickerTape();
         return true;
       })
@@ -1031,6 +1032,75 @@
       '<div class="cell"><div class="label">수익률</div><div class="val ' + pcls + '">' + (totalPct != null ? psign + totalPct.toFixed(2) + "%" : "—") + "</div></div>";
   }
 
+  // ==== 섹션 바로가기 네비게이션 ====================================================================
+  // 페이지가 길어 원하는 섹션을 찾기 어려우므로, 헤더에 붙는 버튼 바로 각 섹션으로 점프한다.
+  // 스크롤 위치에 따라 현재 섹션 버튼을 강조(scroll-spy)한다.
+  function injectSectionNav() {
+    var hd = document.querySelector(".hd");
+    if (!hd || document.getElementById("stock-secnav")) return;
+    var SECTIONS = [
+      { id: "sec-quote", label: "종목조회" },
+      { id: "sec-analysis", label: "기업분석" },
+      { id: "stock-portfolio", label: "내 포트폴리오" },
+      { id: "global-board", label: "글로벌마켓" },
+      { id: "sec-ai", label: "AI매매" }
+    ].filter(function (s) { return document.getElementById(s.id); });
+    if (SECTIONS.length < 2) return;
+
+    var st = document.createElement("style");
+    st.textContent =
+      "#stock-secnav{display:flex;gap:4px;overflow-x:auto;padding:7px 22px;background:#0b1017;" +
+      "border-top:1px solid #141a23;-webkit-overflow-scrolling:touch;scrollbar-width:none}" +
+      "#stock-secnav::-webkit-scrollbar{display:none}" +
+      "#stock-secnav .secnav-btn{flex:0 0 auto;font-family:'JetBrains Mono',monospace;font-size:11.5px;" +
+      "padding:5px 12px;border-radius:5px;border:1px solid #1c2430;background:#0a0e14;color:#8a95a8;" +
+      "cursor:pointer;white-space:nowrap}" +
+      "#stock-secnav .secnav-btn:hover{color:#e6ebf2;border-color:#3a4658}" +
+      "#stock-secnav .secnav-btn.on{background:#1c2430;color:#e6ebf2;font-weight:700;border-color:#3a4658}";
+    document.head.appendChild(st);
+
+    var nav = document.createElement("div");
+    nav.id = "stock-secnav";
+    nav.innerHTML = SECTIONS.map(function (s) {
+      return '<button class="secnav-btn" data-sec="' + s.id + '">' + esc(s.label) + "</button>";
+    }).join("");
+    hd.appendChild(nav);
+
+    function headerOffset() { return hd.offsetHeight + 6; }
+    nav.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-sec]");
+      if (!btn) return;
+      var el = document.getElementById(btn.getAttribute("data-sec"));
+      if (!el) return;
+      var y = el.getBoundingClientRect().top + window.scrollY - headerOffset();
+      window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+    });
+
+    function updateActive() {
+      var off = headerOffset() + 16;
+      var current = SECTIONS[0].id;
+      SECTIONS.forEach(function (s) {
+        var el = document.getElementById(s.id);
+        if (el && el.getBoundingClientRect().top <= off) current = s.id;
+      });
+      // 페이지 맨 아래면 마지막 섹션을 강조(마지막 섹션이 화면 상단까지 못 오는 경우 대비)
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
+        current = SECTIONS[SECTIONS.length - 1].id;
+      }
+      nav.querySelectorAll(".secnav-btn").forEach(function (b) {
+        b.classList.toggle("on", b.getAttribute("data-sec") === current);
+      });
+    }
+    var raf = null;
+    window.addEventListener("scroll", function () {
+      if (raf) return;
+      raf = requestAnimationFrame(function () { raf = null; updateActive(); });
+    }, { passive: true });
+    window.addEventListener("resize", updateActive);
+    window.__syncSecNav = updateActive;   // 보드/포트폴리오 재렌더로 레이아웃이 바뀌면 다시 계산
+    updateActive();
+  }
+
   function injectBoardSection() {
     var statGrid = document.querySelector(".market-stat-grid");
     if (!statGrid || document.getElementById("global-board")) return;
@@ -1313,6 +1383,7 @@
 
   injectBoardSection();
   injectPortfolioSection(document.getElementById("global-board"));  // 내 포트폴리오를 글로벌 보드 위에
+  injectSectionNav();               // 섹션 바로가기 버튼(헤더 하단)
   renderBoard();                    // localStorage 캐시가 있으면 즉시 그려짐
   renderPortfolio();                // 캐시된 시세로 즉시 표시
   if (Object.keys(boardCache).length && typeof window.loadTickerTape === "function") {

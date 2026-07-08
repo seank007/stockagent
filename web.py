@@ -4692,7 +4692,7 @@ STOCKS_HTML = f"""<!doctype html>
 <div class="wrap">
   <div class="err-banner" id="err"></div>
 
-  <div class="section-line">
+  <div class="section-line" id="sec-quote">
     <div class="section-title">국내 주식</div>
     <div class="market-actions">
       <select class="terminal-select" id="stock-preset" onchange="setStockPreset(this.value)"></select>
@@ -4744,7 +4744,7 @@ STOCKS_HTML = f"""<!doctype html>
   </div>
 
   <!-- 기업 분석: 재무제표 · 동일업종 · 컨센서스 · 리서치 -->
-  <div class="section-line" style="margin-top:22px;">
+  <div class="section-line" id="sec-analysis" style="margin-top:22px;">
     <div class="section-title">기업 분석 <span id="analysis-name" class="muted" style="font-size:12px;">—</span></div>
     <div class="market-actions">
       <button class="mini-btn on" data-fin-period="annual" onclick="setFinPeriod('annual')">연간</button>
@@ -4775,7 +4775,7 @@ STOCKS_HTML = f"""<!doctype html>
   <!-- stocks-live.js가 이 앵커 뒤에 '글로벌 마켓 라이브' 보드를 주입한다 -->
   <div class="market-stat-grid" style="display:none;"></div>
 
-  <div class="section-line" style="margin-top:26px;">
+  <div class="section-line" id="sec-ai" style="margin-top:26px;">
     <div class="section-title">AI 자동매매 (국내주식)</div>
     <span class="total" id="stock-ai-mode">—</span>
   </div>
