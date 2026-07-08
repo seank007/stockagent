@@ -561,6 +561,27 @@ body.reduce-motion *, body.reduce-motion *:before, body.reduce-motion *:after {
 body.high-contrast .muted, body.high-contrast .settings-desc, body.high-contrast .sub,
 body.high-contrast .coin-mini-name, body.high-contrast .upd { color:#aab4c4 !important; }
 body.high-contrast .pill-ai, body.high-contrast .pill-bot, body.high-contrast .tab { color:#c6cfdd; }
+/* 테마: 라이트 / OLED 블랙 (라이트는 밝기 반전 + 색상 유지 회전으로 상승·하락색 보존) */
+html.theme-light { filter: invert(1) hue-rotate(180deg); background:#e9edf2; }
+html.theme-light img, html.theme-light .no-invert { filter: invert(1) hue-rotate(180deg); }
+html.theme-oled, html.theme-oled body { background:#000 !important; }
+html.theme-oled .hd, html.theme-oled .box, html.theme-oled .kpi, html.theme-oled .cell,
+html.theme-oled .tape-wrap, html.theme-oled .tabs, html.theme-oled .coin-section-nav,
+html.theme-oled #stock-secnav { background:#050608 !important; }
+/* 글꼴: 고딕(가독성) */
+body.font-sans, body.font-sans .brand, body.font-sans .mini-btn, body.font-sans .tab,
+body.font-sans input, body.font-sans button, body.font-sans select, body.font-sans textarea,
+body.font-sans .secnav-btn, body.font-sans .terminal-select {
+  font-family:'IBM Plex Sans', system-ui, -apple-system, sans-serif !important; }
+/* 정보 밀도: 컴팩트(여백 축소) */
+body.compact .kpi { padding:8px 11px; }
+body.compact .ai-live-kpis .cell { padding:8px 11px; }
+body.compact .box-head { padding-top:8px !important; padding-bottom:8px !important; }
+body.compact .hts-grid, body.compact .hts-grid2 { gap:9px; }
+body.compact .section-line { margin-bottom:9px !important; margin-top:12px !important; }
+body.compact .settings-row { padding:9px 20px; }
+/* 차트 높이: 크게 */
+body.chart-tall #stockSvg { height:560px !important; }
 </style>
 </head><body>
 
@@ -1013,35 +1034,48 @@ body.high-contrast .pill-ai, body.high-contrast .pill-bot, body.high-contrast .t
   function applyContrast(x) { if (document.body) document.body.classList.toggle("high-contrast", !!x); }
   function applyColor(v) { if (!document.body) return; if (v === "kr") document.body.classList.add("krx-colors"); else if (v === "global") document.body.classList.remove("krx-colors"); /* auto: 페이지 기본 유지 */ }
   function applyChartFrame(v) { if (v && v !== "auto" && typeof window.setStockFrame === "function" && window._stockFrame !== v) { try { window.setStockFrame(v); } catch (e) {} } }
+  function applyTheme(v) { var el = document.documentElement; el.classList.remove("theme-light", "theme-oled"); if (v === "light") el.classList.add("theme-light"); else if (v === "oled") el.classList.add("theme-oled"); }
+  function applyFont(v) { if (document.body) document.body.classList.toggle("font-sans", v === "sans"); }
+  function applyDensity(v) { if (document.body) document.body.classList.toggle("compact", v === "compact"); }
+  function applyChartHeight(v) { if (document.body) document.body.classList.toggle("chart-tall", v === "tall"); }
 
   // ---- 설정 스키마 ----
   // 기존 사용자 값 호환을 위해 zoom/tape/motion 키는 유지한다.
   var P = {
-    zoom:       { key: "ui_zoom",              type: "num",  def: 1,        apply: applyZoom },
-    contrast:   { key: "sa.pref.contrast",     type: "bool", def: false,    apply: applyContrast },
-    motion:     { key: "sa.pref.reduceMotion", type: "bool", def: false,    apply: applyMotion },
-    color:      { key: "sa.pref.color",        type: "str",  def: "auto",   apply: applyColor },
-    chartFrame: { key: "sa.pref.chartFrame",   type: "str",  def: "auto",   apply: applyChartFrame },
-    tape:       { key: "sa.pref.tape",         type: "bool", def: true,     apply: applyTape },
-    tapeSpeed:  { key: "sa.pref.tapeSpeed",    type: "str",  def: "normal", apply: applyTapeSpeed }
+    theme:       { key: "sa.pref.theme",        type: "str",  def: "dark",   apply: applyTheme },
+    zoom:        { key: "ui_zoom",              type: "num",  def: 1,        apply: applyZoom },
+    font:        { key: "sa.pref.font",         type: "str",  def: "mono",   apply: applyFont },
+    density:     { key: "sa.pref.density",      type: "str",  def: "normal", apply: applyDensity },
+    contrast:    { key: "sa.pref.contrast",     type: "bool", def: false,    apply: applyContrast },
+    motion:      { key: "sa.pref.reduceMotion", type: "bool", def: false,    apply: applyMotion },
+    color:       { key: "sa.pref.color",        type: "str",  def: "auto",   apply: applyColor },
+    chartFrame:  { key: "sa.pref.chartFrame",   type: "str",  def: "auto",   apply: applyChartFrame },
+    chartHeight: { key: "sa.pref.chartHeight",  type: "str",  def: "normal", apply: applyChartHeight },
+    tape:        { key: "sa.pref.tape",         type: "bool", def: true,     apply: applyTape },
+    tapeSpeed:   { key: "sa.pref.tapeSpeed",    type: "str",  def: "normal", apply: applyTapeSpeed }
   };
   function readPref(p) { return p.type === "num" ? gnum(p.key, p.def) : p.type === "bool" ? gbool(p.key, p.def) : gstr(p.key, p.def); }
   function writePref(p, val) { localStorage.setItem(p.key, p.type === "bool" ? (val ? "1" : "0") : String(val)); }
   function applyAll() { Object.keys(P).forEach(function (k) { try { P[k].apply(readPref(P[k])); } catch (e) {} }); }
 
-  // body 준비 전에도 배율은 즉시 반영(깜빡임 최소화)
+  // body 준비 전에도 배율·테마는 즉시 반영(깜빡임 최소화)
   applyZoom(gnum(P.zoom.key, P.zoom.def));
+  applyTheme(gstr(P.theme.key, P.theme.def));
 
   // ---- 카테고리 구성 ----
   var CATS = [
-    { id: "display", label: "표시", items: [
+    { id: "display", label: "테마·표시", items: [
+      { pref: "theme", name: "테마", desc: "전체 색 테마", ctrl: "seg", options: [["dark", "다크"], ["light", "라이트"], ["oled", "OLED 블랙"]] },
       { pref: "zoom", name: "화면 배율", desc: "글자·표 크기 (70~150%)", ctrl: "range", min: 0.7, max: 1.5, step: 0.05, fmt: function (v) { return Math.round(v * 100) + "%"; } },
+      { pref: "font", name: "글꼴", desc: "모노스페이스 / 고딕(가독성)", ctrl: "seg", options: [["mono", "모노"], ["sans", "고딕"]] },
+      { pref: "density", name: "정보 밀도", desc: "여백 크기", ctrl: "seg", options: [["normal", "보통"], ["compact", "컴팩트"]] },
       { pref: "contrast", name: "고대비 모드", desc: "흐린 회색 글자를 더 밝게", ctrl: "toggle" },
       { pref: "motion", name: "모션 줄이기", desc: "깜빡임·애니메이션 최소화", ctrl: "toggle" }
     ]},
     { id: "color", label: "색상·차트", items: [
       { pref: "color", name: "상승/하락 색상", desc: "한국식 빨강↑ · 글로벌식 초록↑", ctrl: "seg", options: [["auto", "자동"], ["kr", "한국식"], ["global", "글로벌식"]] },
-      { pref: "chartFrame", name: "기본 봉 주기", desc: "주식 차트 기본 주기", ctrl: "seg", options: [["auto", "기본"], ["day", "일봉"], ["week", "주봉"], ["month", "월봉"]] }
+      { pref: "chartFrame", name: "기본 봉 주기", desc: "주식 차트 기본 주기", ctrl: "seg", options: [["auto", "기본"], ["day", "일봉"], ["week", "주봉"], ["month", "월봉"]] },
+      { pref: "chartHeight", name: "차트 높이", desc: "주식 차트 크기", ctrl: "seg", options: [["normal", "보통"], ["tall", "크게"]] }
     ]},
     { id: "ticker", label: "시세·데이터", items: [
       { pref: "tape", name: "하단 시세 티커", desc: "헤더 아래 흐르는 시세 표시", ctrl: "toggle" },
