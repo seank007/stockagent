@@ -494,11 +494,13 @@
     var tab = MARKET_TABS.filter(function (t) { return t.id === activeTab; })[0] || MARKET_TABS[0];
     var codes = tab.codes().slice();
     tapeCodes().forEach(function (c) { if (codes.indexOf(c) === -1) codes.push(c); });
+    pfCodes().forEach(function (c) { if (codes.indexOf(c) === -1) codes.push(c); });  // 내 포트폴리오 종목 시세도 함께
     return refreshCodes(codes)
       .then(function () {
         boardUpdatedAt = new Date();
         LS.set("board", boardCache);
         renderBoard();
+        renderPortfolio();
         if (typeof window.loadTickerTape === "function" && !document.hidden) window.loadTickerTape();
         return true;
       })
@@ -827,6 +829,208 @@
     return d.trim();
   }
 
+  // ==== 내 주식 포트폴리오 =========================================================================
+  // 보유 종목을 localStorage(sa.portfolio)에 { code: {qty, avg} } 로 저장한다. 시세는 boardCache를
+  // 재사용하고, "KIS 계좌 연결" 버튼으로 로컬 봇의 /api/stocks/portfolio(실계좌/모의/페이퍼)에서
+  // 자동으로 불러올 수도 있다.
+  var PF = LS.get("portfolio", {});
+
+  function pfCodes() { return Object.keys(PF); }
+  function savePF() { LS.set("portfolio", PF); }
+
+  function pfNumber(n, digits) {
+    if (n == null || isNaN(n)) return "—";
+    return Number(n).toLocaleString("ko-KR", { maximumFractionDigits: digits == null ? 0 : digits });
+  }
+
+  function isKrCode(code) { return /^\d{6}$/.test(code); }
+
+  function injectPortfolioSection(beforeEl) {
+    if (document.getElementById("stock-portfolio")) return;
+    var st = document.createElement("style");
+    st.textContent =
+      "#stock-portfolio{margin:6px 0 14px}" +
+      "#pf-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:8px 0}" +
+      "#pf-summary .cell{background:#0d1219;border:1px solid #1c2430;border-radius:6px;padding:9px 12px}" +
+      "#pf-summary .label{font-size:10.5px;color:#5a6577}" +
+      "#pf-summary .val{font-size:15px;font-weight:700;margin-top:3px}" +
+      ".pf-table{width:100%;border-collapse:collapse;font-size:12px}" +
+      ".pf-table th,.pf-table td{padding:7px 9px;border-bottom:1px solid #141a23;text-align:right;white-space:nowrap}" +
+      ".pf-table th{color:#5a6577;font-weight:600;font-size:10.5px;text-align:right}" +
+      ".pf-table th:first-child,.pf-table td:first-child{text-align:left}" +
+      ".pf-table tr:hover td{background:#101720}" +
+      ".pf-name{color:#e6ebf2;font-weight:700}.pf-code{color:#5a6577;font-size:10px}" +
+      ".pf-del{cursor:pointer;color:#5a6577;border:none;background:none;font-size:14px}" +
+      ".pf-del:hover{color:#ff5d6c}" +
+      ".pf-row-btn{cursor:pointer}" +
+      "#pf-addform{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0;padding:10px;" +
+      "background:#0a0e14;border:1px solid #1c2430;border-radius:6px}" +
+      "#pf-addform input{font-family:inherit;font-size:12px;background:#0d1219;border:1px solid #1c2430;" +
+      "color:#e6ebf2;border-radius:4px;padding:6px 8px;width:110px}" +
+      ".pf-up{color:#1fd6a8}.pf-down{color:#ff5d6c}" +
+      ".pf-empty{color:#5a6577;font-size:12px;padding:14px 4px}";
+    document.head.appendChild(st);
+
+    var wrap = document.createElement("div");
+    wrap.id = "stock-portfolio";
+    wrap.innerHTML =
+      '<div class="section-line" style="flex-wrap:wrap;gap:10px">' +
+      '  <div class="section-title" style="margin:0">내 주식 포트폴리오</div>' +
+      '  <div class="inline-tools">' +
+      '    <button class="mini-btn" id="pf-connect" title="로컬 봇의 KIS/페이퍼 계좌에서 보유 종목 불러오기">KIS 계좌 연결</button>' +
+      '    <button class="mini-btn on" id="pf-add-toggle">+ 종목 추가</button>' +
+      "  </div>" +
+      "</div>" +
+      '<div id="pf-msg" style="font-size:11px;color:#5a6577;margin:2px 0"></div>' +
+      '<div id="pf-addform" hidden>' +
+      '  <input id="pf-in-code" placeholder="종목코드 (예: 005930)" autocomplete="off">' +
+      '  <input id="pf-in-qty" type="number" min="0" step="1" placeholder="수량">' +
+      '  <input id="pf-in-avg" type="number" min="0" step="0.01" placeholder="평균단가">' +
+      '  <button class="mini-btn on" id="pf-save">저장</button>' +
+      '  <button class="mini-btn" id="pf-cancel">취소</button>' +
+      "</div>" +
+      '<div id="pf-summary"></div>' +
+      '<div id="pf-table"></div>';
+    if (beforeEl && beforeEl.parentNode) beforeEl.parentNode.insertBefore(wrap, beforeEl);
+    else document.body.appendChild(wrap);
+
+    var form = wrap.querySelector("#pf-addform");
+    var codeIn = wrap.querySelector("#pf-in-code");
+    var qtyIn = wrap.querySelector("#pf-in-qty");
+    var avgIn = wrap.querySelector("#pf-in-avg");
+
+    function openForm(code) {
+      form.hidden = false;
+      if (code) {
+        codeIn.value = code;
+        qtyIn.value = PF[code] ? PF[code].qty : "";
+        avgIn.value = PF[code] ? PF[code].avg : "";
+      }
+      (code ? qtyIn : codeIn).focus();
+    }
+    function closeForm() { form.hidden = true; codeIn.value = qtyIn.value = avgIn.value = ""; }
+
+    wrap.querySelector("#pf-add-toggle").addEventListener("click", function () {
+      if (form.hidden) openForm(); else closeForm();
+    });
+    wrap.querySelector("#pf-cancel").addEventListener("click", closeForm);
+    wrap.querySelector("#pf-save").addEventListener("click", function () {
+      var code = cleanCode(codeIn.value);
+      var qty = parseFloat(qtyIn.value);
+      var avg = parseFloat(avgIn.value);
+      if (!code || !isFinite(qty) || qty <= 0) { setPfMsg("종목코드와 수량을 정확히 입력하세요.", true); return; }
+      PF[code] = { qty: qty, avg: isFinite(avg) && avg > 0 ? avg : (PF[code] ? PF[code].avg : 0) };
+      savePF();
+      closeForm();
+      setPfMsg("");
+      renderPortfolio();
+      refreshBoard(true);   // 새 종목 시세 즉시 로드
+    });
+    codeIn.addEventListener("keydown", function (e) { if (e.key === "Enter") qtyIn.focus(); });
+    avgIn.addEventListener("keydown", function (e) { if (e.key === "Enter") wrap.querySelector("#pf-save").click(); });
+
+    // 행 클릭(편집) / 삭제
+    wrap.querySelector("#pf-table").addEventListener("click", function (e) {
+      var del = e.target.closest("[data-pf-del]");
+      if (del) {
+        e.stopPropagation();
+        delete PF[del.getAttribute("data-pf-del")];
+        savePF();
+        renderPortfolio();
+        return;
+      }
+      var row = e.target.closest("[data-pf-edit]");
+      if (row) openForm(row.getAttribute("data-pf-edit"));
+    });
+
+    wrap.querySelector("#pf-connect").addEventListener("click", connectAccount);
+    wrap.__openForm = openForm;
+  }
+
+  function setPfMsg(text, warn) {
+    var el = document.getElementById("pf-msg");
+    if (!el) return;
+    el.textContent = text || "";
+    el.style.color = warn ? "#e0b341" : "#5a6577";
+  }
+
+  function connectAccount() {
+    setPfMsg("계좌 조회 중…");
+    fetch("/api/stocks/portfolio", { headers: { "Accept": "application/json" } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        var holdings = (j && j.holdings) || [];
+        if (!j || j.ok === false) { setPfMsg("연결 실패: " + ((j && j.error) || "로컬 봇에서만 가능합니다"), true); return; }
+        if (!holdings.length) { setPfMsg("계좌에 보유 종목이 없습니다. (출처: " + (j.source || "-") + ")", true); return; }
+        var n = 0;
+        holdings.forEach(function (h) {
+          var code = cleanCode(h.code);
+          if (!code || !(h.qty > 0)) return;
+          PF[code] = { qty: Number(h.qty), avg: Number(h.avg_price) || 0 };
+          if (h.name) rememberName(code, h.name);
+          n++;
+        });
+        savePF();
+        setPfMsg(n + "개 종목을 불러왔습니다. (출처: " + (j.source || "-") + ")");
+        renderPortfolio();
+        refreshBoard(true);
+      })
+      .catch(function () {
+        setPfMsg("연결 실패 — GitHub Pages에서는 계좌 연결이 불가하고, 로컬 봇 실행 중일 때만 됩니다.", true);
+      });
+  }
+
+  function renderPortfolio() {
+    var table = document.getElementById("pf-table");
+    var summary = document.getElementById("pf-summary");
+    if (!table || !summary) return;
+    var codes = pfCodes();
+    if (!codes.length) {
+      summary.innerHTML = "";
+      table.innerHTML = '<div class="pf-empty">보유 종목이 없습니다. "+ 종목 추가"로 직접 입력하거나 "KIS 계좌 연결"로 자동으로 불러오세요.</div>';
+      return;
+    }
+    var totalEval = 0, totalCost = 0, priced = 0;
+    var rows = codes.map(function (code) {
+      var pos = PF[code];
+      var e = boardCache[code];
+      var name = nameOf(code);
+      var cur = e ? e.price : null;
+      var evalAmt = cur != null ? cur * pos.qty : null;
+      var cost = pos.avg > 0 ? pos.avg * pos.qty : null;
+      if (evalAmt != null) { totalEval += evalAmt; if (cost != null) { totalCost += cost; priced++; } }
+      var pnl = (evalAmt != null && cost != null) ? evalAmt - cost : null;
+      var pct = (pnl != null && cost > 0) ? (pnl / cost) * 100 : null;
+      var cls = pnl == null ? "" : (pnl >= 0 ? "pf-up" : "pf-down");
+      var sign = pnl != null && pnl > 0 ? "+" : "";
+      return "<tr>" +
+        '<td class="pf-row-btn" data-pf-edit="' + esc(code) + '">' +
+        '<div class="pf-name">' + esc(name) + '</div><div class="pf-code">' + esc(code) + "</div></td>" +
+        "<td>" + pfNumber(pos.qty, 4) + "</td>" +
+        "<td>" + (pos.avg > 0 ? pfNumber(pos.avg, 2) : "—") + "</td>" +
+        "<td>" + (cur != null ? pfNumber(cur, 2) : "…") + "</td>" +
+        "<td>" + (evalAmt != null ? pfNumber(evalAmt) : "…") + "</td>" +
+        '<td class="' + cls + '">' + (pnl != null ? sign + pfNumber(pnl) : "—") + "</td>" +
+        '<td class="' + cls + '">' + (pct != null ? sign + pct.toFixed(2) + "%" : "—") + "</td>" +
+        '<td><button class="pf-del" data-pf-del="' + esc(code) + '" title="삭제">×</button></td>' +
+        "</tr>";
+    }).join("");
+    table.innerHTML =
+      '<table class="pf-table"><thead><tr>' +
+      "<th>종목</th><th>수량</th><th>평균단가</th><th>현재가</th><th>평가금액</th><th>평가손익</th><th>수익률</th><th></th>" +
+      "</tr></thead><tbody>" + rows + "</tbody></table>";
+
+    var totalPnl = totalCost > 0 ? totalEval - totalCost : null;
+    var totalPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : null;
+    var pcls = totalPnl == null ? "" : (totalPnl >= 0 ? "pf-up" : "pf-down");
+    var psign = totalPnl != null && totalPnl > 0 ? "+" : "";
+    summary.innerHTML =
+      '<div class="cell"><div class="label">평가금액</div><div class="val">' + pfNumber(totalEval) + " 원</div></div>" +
+      '<div class="cell"><div class="label">매입금액</div><div class="val">' + (totalCost > 0 ? pfNumber(totalCost) + " 원" : "—") + "</div></div>" +
+      '<div class="cell"><div class="label">평가손익</div><div class="val ' + pcls + '">' + (totalPnl != null ? psign + pfNumber(totalPnl) + " 원" : "—") + "</div></div>" +
+      '<div class="cell"><div class="label">수익률</div><div class="val ' + pcls + '">' + (totalPct != null ? psign + totalPct.toFixed(2) + "%" : "—") + "</div></div>";
+  }
+
   function injectBoardSection() {
     var statGrid = document.querySelector(".market-stat-grid");
     if (!statGrid || document.getElementById("global-board")) return;
@@ -1108,7 +1312,9 @@
   if (stEl0) stEl0.textContent = "로딩…";
 
   injectBoardSection();
+  injectPortfolioSection(document.getElementById("global-board"));  // 내 포트폴리오를 글로벌 보드 위에
   renderBoard();                    // localStorage 캐시가 있으면 즉시 그려짐
+  renderPortfolio();                // 캐시된 시세로 즉시 표시
   if (Object.keys(boardCache).length && typeof window.loadTickerTape === "function") {
     liveTape().then(function () { window.loadTickerTape(); }).catch(function () {});
   }

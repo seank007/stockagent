@@ -1821,6 +1821,20 @@ def api_stocks_watchlist():
                     "updated_at": datetime.now().strftime("%H:%M:%S")})
 
 
+@app.route("/api/stocks/portfolio")
+def api_stocks_portfolio():
+    """내 주식 계좌(KIS 실계좌/모의, 또는 페이퍼) 보유 종목을 자동 연결한다.
+
+    holdings: [{code, name, qty, avg_price, current_price, eval_amount, pnl, return_pct}]
+    """
+    try:
+        from brokers.kis import get_stock_broker
+        bal = get_stock_broker().balance()
+        return jsonify({"ok": True, **bal})
+    except Exception as exc:  # noqa: BLE001 - 키 미설정·네트워크 오류에도 화면은 뜬다
+        return jsonify({"ok": False, "error": str(exc), "holdings": []}), 502
+
+
 _stock_ai_cache: tuple[float, dict] | None = None
 STOCK_AI_CACHE_SECONDS = 10
 
