@@ -978,6 +978,34 @@
     });
   }
 
+  // 야후 검색은 한글 종목명을 못 찾는다("삼성전자" → 0건). 국내 종목은
+  // 네이버 자동완성으로 한글 이름·초성 검색을 지원한다(번호 없이 이름만으로 검색).
+  function koreanSearch(q) {
+    if (!/[가-힣]/.test(q)) return Promise.resolve([]);  // 한글이 들어간 질의만 네이버로
+    var url = "https://m.stock.naver.com/front-api/search/autoComplete?query=" +
+      encodeURIComponent(q) + "&target=stock,index,marketindicator";
+    return fetchProxied(url, function (j) {
+      return j && j.result && Array.isArray(j.result.items);
+    }).then(function (json) {
+      return json.result.items.filter(function (it) {
+        return it.code && /^\d{6}$/.test(it.code) && it.nationCode === "KOR" &&
+          (it.category === "stock" || it.category === "index");
+      }).map(function (it) {
+        // 코스닥은 .KQ, 코스피는 .KS로 미리 해석 힌트를 심어 차트 로딩을 빠르게 한다.
+        if (!RESOLVED[it.code]) {
+          RESOLVED[it.code] = it.code + (it.typeCode === "KOSDAQ" ? ".KQ" : ".KS");
+          LS.set("resolved", RESOLVED);
+        }
+        return {
+          symbol: it.code,
+          name: it.name,
+          exch: it.typeName || "KRX",
+          type: it.category === "index" ? "지수" : "주식"
+        };
+      }).slice(0, 8);
+    }).catch(function () { return []; });
+  }
+
   function setupSearch(wrap) {
     var input = wrap.querySelector("#sa-search");
     var panel = wrap.querySelector("#sa-search-results");
@@ -1014,10 +1042,15 @@
           panel.innerHTML = '<div class="sa-empty-note">검색 중…</div>';
           panel.hidden = false;
         }
-        // 2) 야후 전종목 검색 결과가 도착하면 병합해 다시 그린다
-        remoteSearch(q).then(function (remote) {
+        // 2) 원격 검색: 네이버(국내 한글명) + 야후(글로벌)를 병렬로 병합해 다시 그린다.
+        //    한글 종목명은 네이버에서만 나오므로 국내 결과를 앞에 배치한다.
+        Promise.all([
+          koreanSearch(q).catch(function () { return []; }),
+          remoteSearch(q).catch(function () { return []; })
+        ]).then(function (res) {
           if (q !== lastQuery) return;
-          var items = dedupeResults(local.concat(remote));
+          var items = dedupeResults(res[0].concat(local).concat(res[1])).slice(0, 10);
+          if (!items.length) { renderResults([], q); return; }
           items.forEach(function (it) { rememberName(it.symbol, it.name); });
           renderResults(items, q);
         }).catch(function () {
