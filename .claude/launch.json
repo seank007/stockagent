@@ -1,0 +1,21 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "multiuser-demo",
+      "runtimeExecutable": "/Users/seankim/.venvs/stockagent/bin/python",
+      "runtimeArgs": [
+        "scripts/multiuser_demo.py"
+      ],
+      "port": 8010
+    },
+    {
+      "name": "dashboard-preview",
+      "runtimeExecutable": "/Users/seankim/.venvs/stockagent/bin/python",
+      "runtimeArgs": [
+        "scripts/dashboard_preview.py"
+      ],
+      "port": 8011
+    }
+  ]
+}

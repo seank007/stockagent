@@ -239,17 +239,17 @@ body.krx-colors .down { color:#4a94f7 !important; }
 .news-search { min-width:220px; font-family:'JetBrains Mono',monospace; background:#0a0e14; color:#e6ebf2;
                border:1px solid #1c2430; border-radius:3px; padding:5px 8px; font-size:11px; outline:none; }
 .news-search:focus { border-color:#1fd6a8; }
-.news-item { display:grid; grid-template-columns:88px 1fr 94px; gap:13px; padding:14px 15px;
+.news-item { display:grid; grid-template-columns:96px 1fr 100px; gap:15px; padding:18px 15px;
              border-bottom:1px solid #11161f; align-items:start; }
 .news-item:last-child { border-bottom:none; }
 .news-source-chip { display:inline-block; color:#e0b341; background:rgba(224,179,65,.08);
-                    border:1px solid #3a311f; border-radius:3px; padding:2px 6px; font-size:11px; font-weight:700; }
+                    border:1px solid #3a311f; border-radius:3px; padding:3px 7px; font-size:12px; font-weight:700; }
 .news-source-chip.live { color:#1fd6a8; background:rgba(31,214,168,.08); border-color:#1c3a32; margin-top:6px; }
-.news-title { color:#e6ebf2; text-decoration:none; font-size:13px; line-height:1.45; font-weight:800; }
+.news-title { color:#e6ebf2; text-decoration:none; font-size:16px; line-height:1.5; font-weight:800; }
 .news-title:hover { color:#1fd6a8; }
-.news-publisher { color:#5a6577; font-size:11px; margin-bottom:5px; }
-.news-summary { color:#8a95a8; line-height:1.45; font-size:11px; margin-top:6px; }
-.news-time { color:#5a6577; font-size:11px; text-align:right; white-space:nowrap; }
+.news-publisher { color:#8a95a8; font-size:12.5px; margin-bottom:6px; }
+.news-summary { color:#a4adbb; line-height:1.65; font-size:13.5px; margin-top:8px; }
+.news-time { color:#5a6577; font-size:12px; text-align:right; white-space:nowrap; line-height:1.5; }
 .news-source-row { display:grid; grid-template-columns:1fr 54px 38px; gap:8px; align-items:center;
                    padding:11px 15px; border-bottom:1px solid #11161f; font-size:11px; }
 .news-source-row:last-child { border-bottom:none; }
@@ -1149,6 +1149,17 @@ body.chart-tall #stockSvg { height:560px !important; }
     btn.title = "환경설정";
     btn.innerHTML = '<span class="gear">⚙</span><span>설정</span>';
     document.querySelector(".hd-row").appendChild(btn);
+
+    // 멀티유저 포털(로그인·내 계정)로 가는 버튼. 서버 실행 시 /app 에서 열린다.
+    if (!document.getElementById("account-btn")) {
+      var acc = document.createElement("a");
+      acc.id = "account-btn";
+      acc.className = "hd-settings-btn";
+      acc.href = "/app";
+      acc.title = "로그인 · 내 계정";
+      acc.innerHTML = '<span>👤</span><span>로그인</span>';
+      document.querySelector(".hd-row").insertBefore(acc, btn);
+    }
 
     var modal = document.createElement("div");
     modal.className = "modal";

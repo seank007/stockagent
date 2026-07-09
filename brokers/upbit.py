@@ -13,12 +13,17 @@ import config
 
 
 class UpbitBroker:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        access_key: str | None = None,
+        secret_key: str | None = None,
+    ) -> None:
+        # 멀티유저: 인자로 키를 주면 그 사용자 키로, 아니면 기존처럼 config(단일 봇) 키로.
+        access_key = access_key if access_key is not None else config.UPBIT_ACCESS_KEY
+        secret_key = secret_key if secret_key is not None else config.UPBIT_SECRET_KEY
         # 모의매매면 키 없이도 시세 조회는 가능하므로 클라이언트는 키가 있을 때만 생성
-        if config.UPBIT_ACCESS_KEY and config.UPBIT_SECRET_KEY:
-            self.client: Optional[pyupbit.Upbit] = pyupbit.Upbit(
-                config.UPBIT_ACCESS_KEY, config.UPBIT_SECRET_KEY
-            )
+        if access_key and secret_key:
+            self.client: Optional[pyupbit.Upbit] = pyupbit.Upbit(access_key, secret_key)
         else:
             self.client = None
 

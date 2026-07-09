@@ -12,3 +12,9 @@ stockagent.db-wal
 stock_trading.db
 stock_trading.db-shm
 stock_trading.db-wal
+# 멀티유저: DB와 암호화 마스터 키는 절대 커밋 금지
+multiuser.db
+multiuser.db-shm
+multiuser.db-wal
+multiuser_master.key
+*.key
