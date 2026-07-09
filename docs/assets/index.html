@@ -590,6 +590,45 @@ body.chart-tall #stockSvg { height:560px !important; }
 .sa-toast.show { opacity:1; transform:none; }
 .sa-toast.warn { border-left-color:#e0b341; }
 .sa-toast.alert { border-left-color:#ff5d6c; }
+/* 헤더 도구: 시계·아이콘 버튼·알림 센터 */
+#hd-tools { display:inline-flex; align-items:center; gap:6px; }
+.hd-clock { font-size:11px; padding:4px 9px; border-radius:4px; border:1px solid #1c2430; white-space:nowrap; }
+.hd-clock.open { color:#1fd6a8; border-color:#1c3a32; background:rgba(31,214,168,.08); }
+.hd-clock.closed { color:#8a95a8; }
+.hd-icon-btn { position:relative; font-size:14px; line-height:1; border:1px solid #1c2430; background:#0a0e14;
+  color:#c6cfdd; padding:6px 8px; border-radius:5px; cursor:pointer; }
+.hd-icon-btn:hover { border-color:#3a4658; background:#131a24; }
+.hd-badge { position:absolute; top:-6px; right:-6px; min-width:16px; height:16px; padding:0 4px; border-radius:9px;
+  background:#ff5d6c; color:#fff; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+.hd-bell-wrap { position:relative; display:inline-flex; }
+.hd-noti-panel { position:absolute; top:calc(100% + 8px); right:0; width:320px; max-height:400px; overflow-y:auto;
+  background:#141a23; border:1px solid #2a3546; border-radius:8px; box-shadow:0 16px 40px rgba(0,0,0,.5); z-index:10001; }
+.hd-noti-head { display:flex; justify-content:space-between; align-items:center; padding:11px 14px;
+  border-bottom:1px solid #1f2937; font-weight:700; font-size:13px; color:#e6ebf2; }
+.hd-noti-clear { font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#8a95a8; background:none;
+  border:1px solid #1c2430; border-radius:4px; padding:3px 7px; cursor:pointer; }
+.hd-noti-clear:hover { color:#e6ebf2; }
+.hd-noti-item { padding:10px 14px; border-bottom:1px solid #141a23; border-left:3px solid #1c2430; }
+.hd-noti-item.alert { border-left-color:#ff5d6c; } .hd-noti-item.warn { border-left-color:#e0b341; }
+.hd-noti-title { font-size:12.5px; font-weight:700; color:#e6ebf2; }
+.hd-noti-body { font-size:11.5px; color:#8a95a8; margin-top:2px; }
+.hd-noti-time { font-size:10px; color:#5a6577; margin-top:3px; }
+.hd-noti-empty { padding:22px 14px; text-align:center; color:#5a6577; font-size:12px; }
+/* 계산기 */
+.calc-body { padding:16px 20px; }
+.calc-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.calc-row label { font-size:12.5px; color:#c6cfdd; }
+.calc-row input { font-family:'JetBrains Mono',monospace; font-size:13px; background:#0d1219; border:1px solid #1c2430;
+  color:#e6ebf2; border-radius:5px; padding:8px 10px; width:190px; text-align:right; }
+.calc-row input:focus { border-color:#1fd6a8; outline:none; }
+.calc-out { margin-top:14px; border-top:1px solid #1f2937; padding-top:12px; }
+.calc-line { display:flex; justify-content:space-between; font-size:12.5px; color:#8a95a8; padding:4px 0; }
+.calc-line b { color:#e6ebf2; }
+.calc-line.big { font-size:15px; margin-top:6px; padding-top:8px; border-top:1px dashed #1c2430; }
+.calc-line.big.up b { color:#1fd6a8; } .calc-line.big.down b { color:#ff5d6c; }
+body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-line.big.down b { color:#4a94f7; }
+.calc-hint { color:#5a6577; font-size:12px; }
+.calc-note { margin-top:12px; font-size:10.5px; color:#5a6577; line-height:1.6; }
 </style>
 </head><body>
 
@@ -1042,7 +1081,13 @@ body.chart-tall #stockSvg { height:560px !important; }
   function applyContrast(x) { if (document.body) document.body.classList.toggle("high-contrast", !!x); }
   function applyColor(v) { if (!document.body) return; if (v === "kr") document.body.classList.add("krx-colors"); else if (v === "global") document.body.classList.remove("krx-colors"); /* auto: 페이지 기본 유지 */ }
   function applyChartFrame(v) { if (v && v !== "auto" && typeof window.setStockFrame === "function" && window._stockFrame !== v) { try { window.setStockFrame(v); } catch (e) {} } }
-  function applyTheme(v) { var el = document.documentElement; el.classList.remove("theme-light", "theme-oled"); if (v === "light") el.classList.add("theme-light"); else if (v === "oled") el.classList.add("theme-oled"); }
+  function systemLight() { return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches; }
+  function applyTheme(v) {
+    var el = document.documentElement; el.classList.remove("theme-light", "theme-oled");
+    if (v === "auto") { if (systemLight()) el.classList.add("theme-light"); }
+    else if (v === "light") el.classList.add("theme-light");
+    else if (v === "oled") el.classList.add("theme-oled");
+  }
   function applyFont(v) { if (document.body) document.body.classList.toggle("font-sans", v === "sans"); }
   function applyDensity(v) { if (document.body) document.body.classList.toggle("compact", v === "compact"); }
   function applyChartHeight(v) { if (document.body) document.body.classList.toggle("chart-tall", v === "tall"); }
@@ -1061,6 +1106,7 @@ body.chart-tall #stockSvg { height:560px !important; }
     chartHeight: { key: "sa.pref.chartHeight",  type: "str",  def: "normal", apply: applyChartHeight },
     tape:        { key: "sa.pref.tape",         type: "bool", def: true,     apply: applyTape },
     tapeSpeed:   { key: "sa.pref.tapeSpeed",    type: "str",  def: "normal", apply: applyTapeSpeed },
+    refresh:     { key: "sa.pref.refresh",      type: "str",  def: "60",     apply: function (v) { try { if (window.saApplyRefresh) window.saApplyRefresh(v); } catch (e) {} } },
     sound:       { key: "sa.pref.sound",        type: "bool", def: true,     apply: function () {} }
   };
   function readPref(p) { return p.type === "num" ? gnum(p.key, p.def) : p.type === "bool" ? gbool(p.key, p.def) : gstr(p.key, p.def); }
@@ -1070,11 +1116,13 @@ body.chart-tall #stockSvg { height:560px !important; }
   // body 준비 전에도 배율·테마는 즉시 반영(깜빡임 최소화)
   applyZoom(gnum(P.zoom.key, P.zoom.def));
   applyTheme(gstr(P.theme.key, P.theme.def));
+  // 시스템 테마(자동)일 때 OS 다크/라이트 전환에 반응
+  if (window.matchMedia) { try { window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", function () { if (gstr(P.theme.key, P.theme.def) === "auto") applyTheme("auto"); }); } catch (e) {} }
 
   // ---- 카테고리 구성 ----
   var CATS = [
     { id: "display", label: "테마·표시", items: [
-      { pref: "theme", name: "테마", desc: "전체 색 테마", ctrl: "seg", options: [["dark", "다크"], ["light", "라이트"], ["oled", "OLED 블랙"]] },
+      { pref: "theme", name: "테마", desc: "전체 색 테마", ctrl: "seg", options: [["dark", "다크"], ["light", "라이트"], ["oled", "OLED"], ["auto", "시스템"]] },
       { pref: "zoom", name: "화면 배율", desc: "글자·표 크기 (70~150%)", ctrl: "range", min: 0.7, max: 1.5, step: 0.05, fmt: function (v) { return Math.round(v * 100) + "%"; } },
       { pref: "font", name: "글꼴", desc: "모노스페이스 / 고딕(가독성)", ctrl: "seg", options: [["mono", "모노"], ["sans", "고딕"]] },
       { pref: "density", name: "정보 밀도", desc: "여백 크기", ctrl: "seg", options: [["normal", "보통"], ["compact", "컴팩트"]] },
@@ -1088,7 +1136,8 @@ body.chart-tall #stockSvg { height:560px !important; }
     ]},
     { id: "ticker", label: "시세·데이터", items: [
       { pref: "tape", name: "하단 시세 티커", desc: "헤더 아래 흐르는 시세 표시", ctrl: "toggle" },
-      { pref: "tapeSpeed", name: "티커 속도", desc: "흐르는 속도", ctrl: "seg", options: [["slow", "느림"], ["normal", "보통"], ["fast", "빠름"]] }
+      { pref: "tapeSpeed", name: "티커 속도", desc: "흐르는 속도", ctrl: "seg", options: [["slow", "느림"], ["normal", "보통"], ["fast", "빠름"]] },
+      { pref: "refresh", name: "자동 새로고침", desc: "주식 시세 갱신 주기", ctrl: "seg", options: [["10", "10초"], ["30", "30초"], ["60", "1분"], ["off", "수동"]] }
     ]},
     { id: "alert", label: "알림", items: [
       { pref: "sound", name: "알림 소리", desc: "가격 알림·이벤트 시 소리", ctrl: "toggle" },
@@ -1285,6 +1334,13 @@ body.chart-tall #stockSvg { height:560px !important; }
     window.saToast((title ? title + " · " : "") + (body || ""), kind || "info");
     beep();
     try { if (window.Notification && Notification.permission === "granted") new Notification(title || "stockagent", { body: body || "" }); } catch (e) {}
+    try {
+      var h = JSON.parse(localStorage.getItem("sa.noti") || "[]");
+      h.unshift({ t: Date.now(), title: title || "", body: body || "", kind: kind || "info" });
+      localStorage.setItem("sa.noti", JSON.stringify(h.slice(0, 60)));
+      localStorage.setItem("sa.notiUnread", String((parseInt(localStorage.getItem("sa.notiUnread") || "0", 10) || 0) + 1));
+      window.dispatchEvent(new CustomEvent("sa-noti"));
+    } catch (e) {}
   };
 })();
 
@@ -1306,6 +1362,137 @@ body.chart-tall #stockSvg { height:560px !important; }
     else if (k === "s" || k === "S") { var b = document.getElementById("settings-btn"); if (b) { b.click(); e.preventDefault(); } }
     else if (k === "?") { if (window.saToast) window.saToast("단축키 — 1~4: 탭 이동 · / : 검색 · s : 설정 · ? : 도움말", "info"); }
   });
+})();
+
+// ===== 헤더 도구: 시장 시계 · 알림 센터(🔔) · 계산기(🧮) =====
+(function () {
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+
+  // ---- 시장 시계 (KRX 09:00~15:30, 평일) ----
+  function nextKrxOpen(now) {
+    var d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
+    if (now >= d) d.setDate(d.getDate() + 1);
+    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+    return d;
+  }
+  function krxState(now) {
+    var day = now.getDay(), mins = now.getHours() * 60 + now.getMinutes();
+    var isWk = day >= 1 && day <= 5;
+    if (isWk && mins >= 540 && mins < 930) return { s: "장중", open: true };
+    return { s: (isWk && mins < 540) ? "장전" : "장마감", open: false };
+  }
+  function tickClock() {
+    var el = document.getElementById("hd-clock");
+    if (!el) return;
+    var now = new Date(), st = krxState(now);
+    var t = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
+    var extra = "";
+    if (!st.open) {
+      var diff = Math.max(0, Math.floor((nextKrxOpen(now) - now) / 1000));
+      var hh = Math.floor(diff / 3600), mm = Math.floor((diff % 3600) / 60), ss = diff % 60;
+      extra = " · 개장 " + (hh ? hh + "시간 " : "") + pad(mm) + ":" + pad(ss);
+    }
+    el.className = "hd-clock " + (st.open ? "open" : "closed");
+    el.textContent = "KRX " + st.s + " " + t + extra;
+  }
+
+  // ---- 알림 센터 ----
+  function notiHistory() { try { return JSON.parse(localStorage.getItem("sa.noti") || "[]"); } catch (e) { return []; } }
+  function unread() { return parseInt(localStorage.getItem("sa.notiUnread") || "0", 10) || 0; }
+  function relTime(t) {
+    var s = Math.floor((Date.now() - t) / 1000);
+    if (s < 60) return "방금"; if (s < 3600) return Math.floor(s / 60) + "분 전";
+    if (s < 86400) return Math.floor(s / 3600) + "시간 전"; return Math.floor(s / 86400) + "일 전";
+  }
+  function renderBell() {
+    var b = document.getElementById("hd-bell-badge");
+    if (b) { var u = unread(); b.textContent = u > 99 ? "99+" : String(u); b.style.display = u > 0 ? "" : "none"; }
+    var list = document.getElementById("hd-noti-list");
+    if (list) {
+      var h = notiHistory();
+      list.innerHTML = h.length ? h.map(function (n) {
+        return '<div class="hd-noti-item ' + esc(n.kind || "") + '"><div class="hd-noti-title">' + esc(n.title || "알림") +
+          '</div><div class="hd-noti-body">' + esc(n.body || "") + '</div><div class="hd-noti-time">' + relTime(n.t) + "</div></div>";
+      }).join("") : '<div class="hd-noti-empty">알림이 없습니다.</div>';
+    }
+  }
+
+  // ---- 계산기 (국내주식 손익) ----
+  function calcModal() {
+    var m = document.getElementById("calc-modal");
+    if (m) return m;
+    m = document.createElement("div");
+    m.className = "modal"; m.id = "calc-modal"; m.style.display = "none";
+    m.innerHTML =
+      '<div class="modal-content" style="max-width:420px">' +
+      '<div class="modal-header">손익 계산기<button class="modal-close" id="calc-close">×</button></div>' +
+      '<div class="calc-body">' +
+      '<div class="calc-row"><label>매수가</label><input type="number" id="calc-buy" placeholder="원"></div>' +
+      '<div class="calc-row"><label>매도가</label><input type="number" id="calc-sell" placeholder="원"></div>' +
+      '<div class="calc-row"><label>수량</label><input type="number" id="calc-qty" placeholder="주"></div>' +
+      '<div class="calc-out" id="calc-out"></div>' +
+      '<div class="calc-note">수수료 0.015%(양방향) · 거래세 0.18%(매도) 반영 · 국내주식 기준</div>' +
+      "</div></div>";
+    document.body.appendChild(m);
+    function compute() {
+      var buy = parseFloat(document.getElementById("calc-buy").value) || 0;
+      var sell = parseFloat(document.getElementById("calc-sell").value) || 0;
+      var qty = parseFloat(document.getElementById("calc-qty").value) || 0;
+      var out = document.getElementById("calc-out");
+      if (buy <= 0 || qty <= 0) { out.innerHTML = '<div class="calc-hint">매수가와 수량을 입력하세요.</div>'; return; }
+      var buyAmt = buy * qty, sellAmt = sell * qty;
+      var fee = (buyAmt + sellAmt) * 0.00015, tax = sellAmt * 0.0018;
+      var pnl = sellAmt - buyAmt - fee - tax;
+      var pct = buyAmt > 0 ? (pnl / buyAmt) * 100 : 0;
+      var cls = pnl >= 0 ? "up" : "down";
+      var fmt = function (n) { return Math.round(n).toLocaleString("ko-KR"); };
+      out.innerHTML =
+        '<div class="calc-line"><span>매수금액</span><b>' + fmt(buyAmt) + " 원</b></div>" +
+        '<div class="calc-line"><span>매도금액</span><b>' + fmt(sellAmt) + " 원</b></div>" +
+        '<div class="calc-line"><span>수수료+세금</span><b>' + fmt(fee + tax) + " 원</b></div>" +
+        '<div class="calc-line big ' + cls + '"><span>순손익</span><b>' + (pnl >= 0 ? "+" : "") + fmt(pnl) + " 원 (" + (pct >= 0 ? "+" : "") + pct.toFixed(2) + "%)</b></div>";
+    }
+    m.addEventListener("input", compute);
+    m.querySelector("#calc-close").addEventListener("click", function () { m.style.display = "none"; });
+    m.addEventListener("click", function (e) { if (e.target === m) m.style.display = "none"; });
+    compute();
+    return m;
+  }
+
+  function build() {
+    var row = document.querySelector(".hd-row");
+    if (!row || document.getElementById("hd-tools")) return;
+    var wrap = document.createElement("span");
+    wrap.id = "hd-tools";
+    wrap.innerHTML =
+      '<span class="hd-clock closed" id="hd-clock" title="한국거래소 장 상태">KRX —</span>' +
+      '<button class="hd-icon-btn" id="hd-calc" title="손익 계산기">🧮</button>' +
+      '<span class="hd-bell-wrap"><button class="hd-icon-btn" id="hd-bell" title="알림">🔔<span class="hd-badge" id="hd-bell-badge" style="display:none">0</span></button>' +
+      '<div class="hd-noti-panel" id="hd-noti-panel" hidden><div class="hd-noti-head">알림<button class="hd-noti-clear" id="hd-noti-clear">모두 지우기</button></div><div id="hd-noti-list"></div></div></span>';
+    // 설정 버튼 앞에 삽입(설정 버튼이 아직 없으면 맨 끝)
+    var settings = document.getElementById("settings-btn");
+    if (settings) row.insertBefore(wrap, settings); else row.appendChild(wrap);
+
+    document.getElementById("hd-calc").addEventListener("click", function () { calcModal().style.display = "flex"; });
+    var panel = document.getElementById("hd-noti-panel");
+    document.getElementById("hd-bell").addEventListener("click", function (e) {
+      e.stopPropagation();
+      var willOpen = panel.hidden;
+      panel.hidden = !willOpen;
+      if (willOpen) { localStorage.setItem("sa.notiUnread", "0"); renderBell(); }
+    });
+    document.getElementById("hd-noti-clear").addEventListener("click", function () {
+      localStorage.setItem("sa.noti", "[]"); localStorage.setItem("sa.notiUnread", "0"); renderBell();
+    });
+    document.addEventListener("click", function (e) { if (panel && !panel.parentNode.contains(e.target)) panel.hidden = true; });
+    window.addEventListener("sa-noti", renderBell);
+    renderBell();
+    tickClock(); setInterval(tickClock, 1000);
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build);
+  else build();
 })();
 
 const KRW = (n, signed=false) => {

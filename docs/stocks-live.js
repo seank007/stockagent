@@ -842,6 +842,17 @@
   function pfCodes() { return Object.keys(PF); }
   function savePF() { LS.set("portfolio", PF); }
 
+  function downloadCSV(filename, rows) {
+    var csv = rows.map(function (r) {
+      return r.map(function (c) { var s = String(c == null ? "" : c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(",");
+    }).join("\n");
+    var blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 100);
+  }
+
   function pfNumber(n, digits) {
     if (n == null || isNaN(n)) return "—";
     return Number(n).toLocaleString("ko-KR", { maximumFractionDigits: digits == null ? 0 : digits });
@@ -882,6 +893,7 @@
       '  <div class="section-title" style="margin:0">내 주식 포트폴리오</div>' +
       '  <div class="inline-tools">' +
       '    <button class="mini-btn" id="pf-connect" title="로컬 봇의 KIS/페이퍼 계좌에서 보유 종목 불러오기">KIS 계좌 연결</button>' +
+      '    <button class="mini-btn" id="pf-csv" title="CSV로 내보내기">CSV</button>' +
       '    <button class="mini-btn on" id="pf-add-toggle">+ 종목 추가</button>' +
       "  </div>" +
       "</div>" +
@@ -948,6 +960,16 @@
     });
 
     wrap.querySelector("#pf-connect").addEventListener("click", connectAccount);
+    wrap.querySelector("#pf-csv").addEventListener("click", function () {
+      var rows = [["종목코드", "종목명", "수량", "평균단가", "현재가", "평가금액", "평가손익", "수익률(%)"]];
+      pfCodes().forEach(function (code) {
+        var pos = PF[code], e = boardCache[code], cur = e ? e.price : "", name = nameOf(code);
+        var evalAmt = cur !== "" ? cur * pos.qty : "", cost = pos.avg > 0 ? pos.avg * pos.qty : "";
+        var pnl = (evalAmt !== "" && cost !== "") ? evalAmt - cost : "", pct = (pnl !== "" && cost > 0) ? (pnl / cost * 100).toFixed(2) : "";
+        rows.push([code, name, pos.qty, pos.avg, cur, evalAmt, pnl, pct]);
+      });
+      downloadCSV("portfolio_" + new Date().toISOString().slice(0, 10) + ".csv", rows);
+    });
     wrap.__openForm = openForm;
   }
 
@@ -1071,7 +1093,7 @@
     wrap.innerHTML =
       '<div class="section-line" style="flex-wrap:wrap;gap:10px">' +
       '  <div class="section-title" style="margin:0">가격 알림</div>' +
-      '  <div class="inline-tools"><span style="font-size:11px;color:#5a6577">목표가 도달 시 알림·소리</span></div>' +
+      '  <div class="inline-tools"><button class="mini-btn" id="al-csv" title="CSV로 내보내기">CSV</button><span style="font-size:11px;color:#5a6577">목표가 도달 시 알림·소리</span></div>' +
       "</div>" +
       '<div id="al-form">' +
       '  <input id="al-code" placeholder="종목코드 (예: 005930)" autocomplete="off">' +
@@ -1099,6 +1121,13 @@
       wrap.querySelector("#al-code").value = ""; wrap.querySelector("#al-price").value = "";
       renderAlerts();
       refreshBoard(true);
+    });
+    wrap.querySelector("#al-csv").addEventListener("click", function () {
+      var rows = [["종목코드", "종목명", "조건", "목표가", "상태"]];
+      ALERTS.forEach(function (a) {
+        rows.push([a.code, a.name || nameOf(a.code), a.op === "ge" ? "이상" : "이하", a.price, !a.on ? "꺼짐" : (a.hit ? "도달" : "대기")]);
+      });
+      downloadCSV("alerts_" + new Date().toISOString().slice(0, 10) + ".csv", rows);
     });
     wrap.querySelector("#al-perm").addEventListener("click", function () {
       if (window.Notification && Notification.requestPermission) Notification.requestPermission().then(function (p) {
@@ -1512,7 +1541,14 @@
     liveTape().then(function () { window.loadTickerTape(); }).catch(function () {});
   }
   refreshBoard(true);
-  setInterval(function () { refreshBoard(false); }, BOARD_REFRESH_MS);
+  // 자동 새로고침 주기: 설정(sa.pref.refresh)에 따라 인터벌을 조절한다("off"면 수동만).
+  var boardTimer = null;
+  window.saApplyRefresh = function (v) {
+    if (boardTimer) { clearInterval(boardTimer); boardTimer = null; }
+    var sec = v === "10" ? 10 : v === "30" ? 30 : v === "off" ? 0 : 60;
+    if (sec > 0) boardTimer = setInterval(function () { refreshBoard(false); }, sec * 1000);
+  };
+  window.saApplyRefresh(localStorage.getItem("sa.pref.refresh") || "60");
   document.addEventListener("visibilitychange", function () {
     if (!document.hidden) refreshBoard(false);
   });
