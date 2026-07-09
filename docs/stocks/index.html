@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="ko"><head>
+<html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>stockagent · 주식</title>
+<title>stockagent · Stocks</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -44,40 +44,65 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 @keyframes lp { 0%,100%{opacity:1} 50%{opacity:.25} }
 @keyframes tape { from{transform:translateX(0)} to{transform:translateX(-50%)} }
 
-.hd { position:sticky; top:0; z-index:20; background:#0d1219; border-bottom:1px solid #1c2430; }
-.hd-row { max-width:1340px; margin:0 auto; display:flex; align-items:center; gap:12px; padding:13px 22px; }
-.brand { font-weight:800; font-size:16px; letter-spacing:.5px; }
+.hd { position:sticky; top:0; z-index:20; background:linear-gradient(180deg,rgba(13,18,25,.96),rgba(7,10,14,.9));
+      border-bottom:1px solid rgba(60,76,102,.42); box-shadow:0 18px 42px rgba(0,0,0,.28);
+      backdrop-filter:blur(18px); }
+.hd-row { max-width:1500px; min-height:70px; margin:0 auto; display:flex; align-items:center; gap:10px; padding:12px 22px; }
+.brand { display:inline-flex; align-items:center; gap:8px; font-weight:900; font-size:18px; letter-spacing:.2px;
+         padding:8px 10px; color:#f4f8ff; text-decoration:none; white-space:nowrap; }
+.brand:before { content:"SA"; display:inline-grid; place-items:center; width:28px; height:28px; border-radius:8px;
+                color:#07110f; background:linear-gradient(135deg,#1fd6a8,#76f7d6); font-size:10px;
+                letter-spacing:.08em; box-shadow:0 0 24px rgba(31,214,168,.26); }
 .brand .cursor { color:#1fd6a8; }
 .brand.dry .cursor { color:#e0b341; }
 .pill-live { display:inline-flex; align-items:center; gap:6px; font-size:11px;
-             color:#ff5d6c; background:rgba(58,31,35,.4); border:1px solid #3a1f23;
-             padding:3px 9px; border-radius:3px; font-weight:600; }
+             color:#ff7a86; background:rgba(255,93,108,.08); border:1px solid rgba(255,93,108,.28);
+             padding:7px 11px; border-radius:999px; font-weight:800; white-space:nowrap; }
 .pill-live .dot { width:6px; height:6px; border-radius:50%; background:#ff5d6c; animation:lp 1.4s infinite; }
 .pill-dry { display:inline-flex; align-items:center; gap:6px; font-size:11px;
-            color:#e0b341; background:rgba(58,46,15,.4); border:1px solid #3a311f;
-            padding:3px 9px; border-radius:3px; font-weight:600; }
+            color:#e7bf4d; background:rgba(224,179,65,.1); border:1px solid rgba(224,179,65,.28);
+            padding:7px 11px; border-radius:999px; font-weight:800; white-space:nowrap; }
 .pill-dry .dot { width:6px; height:6px; border-radius:50%; background:#e0b341; animation:lp 1.4s infinite; }
-.pill-ai { font-size:11px; color:#8a95a8; border:1px solid #1c2430; padding:3px 9px; border-radius:3px; }
-.pill-bot { font-size:11px; color:#8a95a8; border:1px solid #1c2430; padding:3px 9px; border-radius:3px; }
-.pill-bot.on { color:#1fd6a8; border-color:#1c3a32; background:rgba(31,214,168,.08); }
-.pill-bot.pause { color:#e0b341; border-color:#3a311f; background:rgba(224,179,65,.08); }
+.pill-ai { font-size:11px; color:#b3bfd0; border:1px solid rgba(78,95,125,.5); padding:7px 11px;
+           border-radius:999px; background:rgba(10,14,20,.62); white-space:nowrap; }
+.pill-bot { font-size:11px; color:#8a95a8; border:1px solid rgba(78,95,125,.5); padding:7px 11px;
+            border-radius:999px; background:rgba(10,14,20,.62); white-space:nowrap; }
+.pill-bot.on { color:#1fd6a8; border-color:rgba(31,214,168,.36); background:rgba(31,214,168,.1); }
+.pill-bot.pause { color:#e0b341; border-color:rgba(224,179,65,.36); background:rgba(224,179,65,.1); }
 .mini-btn, .terminal-select { font-family:'JetBrains Mono',monospace; font-size:11px; border-radius:3px;
             border:1px solid #1c2430; background:#0a0e14; color:#8a95a8; padding:4px 8px; }
-.mini-btn { cursor:pointer; text-decoration:none; }
-.mini-btn:hover { color:#e6ebf2; border-color:#3a4658; }
-.mini-btn.danger { color:#e0b341; border-color:#3a311f; background:rgba(224,179,65,.08); }
+.mini-btn { cursor:pointer; text-decoration:none; transition:color .15s ease,border-color .15s ease,background .15s ease,transform .15s ease; }
+.mini-btn:hover { color:#e6ebf2; border-color:#3a4658; transform:translateY(-1px); }
+.mini-btn.danger { color:#e0b341; border-color:rgba(224,179,65,.38); background:rgba(224,179,65,.09); }
 .mini-btn.on { color:#e6ebf2; background:#1c2430; font-weight:600; }
 .terminal-select { outline:none; }
 .terminal-select:focus { border-color:#1fd6a8; }
 .head-tools, .section-line, .inline-tools, .chart-controls { display:flex; align-items:center; gap:6px; }
+.head-tools { padding:4px; border:1px solid rgba(78,95,125,.42); border-radius:9px; background:rgba(10,14,20,.5); }
+.head-tools .mini-btn { border-radius:6px; padding:7px 10px; text-transform:uppercase; letter-spacing:.06em; font-weight:800; }
 .section-line { justify-content:space-between; margin:0 0 12px; }
 .section-line .section-title { margin:0; }
 .inline-tools { flex-wrap:wrap; }
-.tabs { display:flex; gap:4px; background:#0a0e14; border:1px solid #1c2430; border-radius:5px; padding:3px; }
-.tab { font-family:'JetBrains Mono',monospace; font-size:12px; padding:6px 14px;
-       border-radius:4px; border:none; cursor:pointer; background:transparent; color:#8a95a8; text-decoration:none; }
-.tab.on { background:#1c2430; color:#e6ebf2; font-weight:600; }
-.upd { font-size:11px; color:#5a6577; margin-left:6px; }
+.tabs { display:flex; gap:5px; background:rgba(10,14,20,.58); border:1px solid rgba(78,95,125,.42);
+        border-radius:9px; padding:4px; box-shadow:inset 0 1px 0 rgba(255,255,255,.03); }
+.tab { font-family:'JetBrains Mono',monospace; font-size:11px; padding:8px 12px; white-space:nowrap;
+       border-radius:7px; border:none; cursor:pointer; background:transparent; color:#8a95a8; text-decoration:none;
+       text-transform:uppercase; letter-spacing:.07em; transition:background .15s ease,color .15s ease,transform .15s ease; }
+.tab:hover { color:#e6ebf2; background:rgba(255,255,255,.04); }
+.tab.on { background:linear-gradient(135deg,rgba(31,214,168,.2),rgba(74,148,247,.16)); color:#f4f8ff; font-weight:900;
+          box-shadow:0 0 0 1px rgba(31,214,168,.22) inset,0 10px 24px rgba(31,214,168,.08); }
+.upd { font-size:11px; color:#69758a; margin-left:6px; white-space:nowrap; }
+
+@media (min-width: 1700px) {
+  .tabs { position:fixed; top:88px; left:max(18px,calc((100vw - 1340px)/2 - 174px)); z-index:18;
+          width:154px; flex-direction:column; gap:7px; padding:9px; border-radius:10px;
+          background:rgba(9,13,19,.78); backdrop-filter:blur(16px);
+          box-shadow:0 18px 42px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.04); }
+  .tabs:before { content:"NAV"; color:#4f5b70; font-size:10px; letter-spacing:.18em; padding:3px 4px 2px; }
+  .tab { display:flex; align-items:center; justify-content:space-between; padding:10px 11px; }
+  .tab:after { content:""; width:6px; height:6px; border-radius:50%; background:#334055; }
+  .tab.on:after { background:#1fd6a8; box-shadow:0 0 12px rgba(31,214,168,.65); }
+}
 
 .tape-wrap { overflow:hidden; border-top:1px solid #141a23; background:#0a0e14; }
 .tape-row { display:flex; width:max-content; animation:tape 60s linear infinite; }
@@ -509,9 +534,10 @@ body.krx-colors .down { color:#4a94f7 !important; }
 /* Settings (세팅) */
 .hd-settings-btn { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; line-height:1;
   display:inline-flex; align-items:center; gap:6px;
-  border:1px solid #2a3546; background:#131a24; color:#c6cfdd; padding:7px 13px;
-  border-radius:5px; cursor:pointer; margin-left:8px; }
-.hd-settings-btn:hover { color:#fff; border-color:#3a4658; background:#1c2430; }
+  border:1px solid rgba(78,95,125,.42); background:rgba(10,14,20,.58); color:#c6cfdd; padding:8px 13px;
+  border-radius:9px; cursor:pointer; margin-left:6px; text-decoration:none; text-transform:uppercase; letter-spacing:.06em;
+  transition:color .15s ease,border-color .15s ease,background .15s ease,transform .15s ease; }
+.hd-settings-btn:hover { color:#fff; border-color:#3a4658; background:#1c2430; transform:translateY(-1px); }
 .hd-settings-btn .gear { font-size:14px; }
 /* HTS식 설정 레이아웃: 좌측 카테고리 + 우측 패널 */
 .settings-layout { display:flex; min-height:340px; }
@@ -720,7 +746,7 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
     const sstate = snap.state || {};
     const liveMode = scfg.allow_live_trading && !scfg.dry_run;
     return {
-      mode: liveMode ? "⚠️ 실거래" : "DRY_RUN(모의)",
+      mode: liveMode ? "LIVE" : "DRY_RUN(PAPER)",
       provider: scfg.provider || "mock",
       model: scfg.external_trader ? "hermes agent" : (scfg.model || "github-pages-static"),
       loop_running: true,
@@ -728,7 +754,7 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
       started_at: "GitHub Pages",
       interval: 600,
       cycle_count: (sstate.history || []).length,
-      last_update: sstate.last_update || new Date().toLocaleTimeString("ko-KR", {hour:"2-digit", minute:"2-digit"}),
+      last_update: sstate.last_update || new Date().toLocaleTimeString("en-GB", {hour:"2-digit", minute:"2-digit", hour12:false}),
       today_pnl: 0,
       total_pnl: 0,
       error: null,
@@ -885,19 +911,19 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
 <div class="hd">
   <div class="hd-row">
     <span class="brand" id="brand">stockagent<span class="cursor">_</span></span>
-    <span id="mode-pill" class="pill-live"><span class="dot"></span><span>LIVE · 실거래</span></span>
+    <span id="mode-pill" class="pill-live"><span class="dot"></span><span>LIVE · REAL</span></span>
     <span class="pill-ai" id="ai-pill">AI - · -</span>
-    <span class="pill-bot" id="bot-pill">BOT 대기</span>
+    <span class="pill-bot" id="bot-pill">BOT IDLE</span>
     <div class="head-tools">
-      <button class="mini-btn danger" id="pause-bot" onclick="setBotPaused(true)">일시정지</button>
-      <button class="mini-btn" id="resume-bot" onclick="setBotPaused(false)">재개</button>
+      <button class="mini-btn danger" id="pause-bot" onclick="setBotPaused(true)">Pause</button>
+      <button class="mini-btn" id="resume-bot" onclick="setBotPaused(false)">Resume</button>
     </div>
     <span style="flex:1"></span>
     <div class="tabs">
-      <a href="/stockagent/stocks/" class="tab on">주식</a>
-<a href="/stockagent/coin/" class="tab">코인</a>
-<a href="/stockagent/assets/" class="tab">내자산</a>
-<a href="/stockagent/analyze/" class="tab">AI 분석</a>
+      <a href="/stockagent/stocks/" class="tab on">Stocks</a>
+<a href="/stockagent/coin/" class="tab">Crypto</a>
+<a href="/stockagent/assets/" class="tab">Portfolio</a>
+<a href="/stockagent/analyze/" class="tab">AI Lab</a>
     </div>
     <span class="upd" id="upd">UPD —</span>
   </div>
@@ -1031,8 +1057,8 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
 <script>
 document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 빨강 / 하락 파랑
 
-// 세팅(설정): HTS식 환경설정. 헤더의 "⚙ 설정" 버튼에서 카테고리별로 조절하며,
-// 모든 값은 이 브라우저의 localStorage에 저장돼 새로고침·페이지 이동 후에도 유지된다.
+// Settings: HTS-style preferences controlled from the header settings button.
+// Values are stored in this browser's localStorage across refreshes and page changes.
 (function () {
   function gnum(k, def) { const v = parseFloat(localStorage.getItem(k)); return isFinite(v) ? v : def; }
   function gbool(k, def) { const v = localStorage.getItem(k); return v == null ? def : (v === "1" || v === "true"); }
@@ -1084,31 +1110,31 @@ document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 �
   // 시스템 테마(자동)일 때 OS 다크/라이트 전환에 반응
   if (window.matchMedia) { try { window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", function () { if (gstr(P.theme.key, P.theme.def) === "auto") applyTheme("auto"); }); } catch (e) {} }
 
-  // ---- 카테고리 구성 ----
+  // ---- Settings categories ----
   var CATS = [
-    { id: "display", label: "테마·표시", items: [
-      { pref: "theme", name: "테마", desc: "전체 색 테마", ctrl: "seg", options: [["dark", "다크"], ["light", "라이트"], ["oled", "OLED"], ["auto", "시스템"]] },
-      { pref: "zoom", name: "화면 배율", desc: "글자·표 크기 (70~150%)", ctrl: "range", min: 0.7, max: 1.5, step: 0.05, fmt: function (v) { return Math.round(v * 100) + "%"; } },
-      { pref: "font", name: "글꼴", desc: "모노스페이스 / 고딕(가독성)", ctrl: "seg", options: [["mono", "모노"], ["sans", "고딕"]] },
-      { pref: "density", name: "정보 밀도", desc: "여백 크기", ctrl: "seg", options: [["normal", "보통"], ["compact", "컴팩트"]] },
-      { pref: "contrast", name: "고대비 모드", desc: "흐린 회색 글자를 더 밝게", ctrl: "toggle" },
-      { pref: "motion", name: "모션 줄이기", desc: "깜빡임·애니메이션 최소화", ctrl: "toggle" }
+    { id: "display", label: "Theme", items: [
+      { pref: "theme", name: "Theme", desc: "Global color theme", ctrl: "seg", options: [["dark", "Dark"], ["light", "Light"], ["oled", "OLED"], ["auto", "System"]] },
+      { pref: "zoom", name: "Interface scale", desc: "Text and table size (70-150%)", ctrl: "range", min: 0.7, max: 1.5, step: 0.05, fmt: function (v) { return Math.round(v * 100) + "%"; } },
+      { pref: "font", name: "Font", desc: "Monospace or readable sans", ctrl: "seg", options: [["mono", "Mono"], ["sans", "Sans"]] },
+      { pref: "density", name: "Density", desc: "Spacing size", ctrl: "seg", options: [["normal", "Normal"], ["compact", "Compact"]] },
+      { pref: "contrast", name: "High contrast", desc: "Brighten muted text", ctrl: "toggle" },
+      { pref: "motion", name: "Reduce motion", desc: "Minimize flashing and animation", ctrl: "toggle" }
     ]},
-    { id: "color", label: "색상·차트", items: [
-      { pref: "color", name: "상승/하락 색상", desc: "한국식 빨강↑ · 글로벌식 초록↑", ctrl: "seg", options: [["auto", "자동"], ["kr", "한국식"], ["global", "글로벌식"]] },
-      { pref: "chartFrame", name: "기본 봉 주기", desc: "주식 차트 기본 주기", ctrl: "seg", options: [["auto", "기본"], ["day", "일봉"], ["week", "주봉"], ["month", "월봉"]] },
-      { pref: "chartHeight", name: "차트 높이", desc: "주식 차트 크기", ctrl: "seg", options: [["normal", "보통"], ["tall", "크게"]] }
+    { id: "color", label: "Charts", items: [
+      { pref: "color", name: "Gain/loss colors", desc: "Korean red-up or global green-up", ctrl: "seg", options: [["auto", "Auto"], ["kr", "Korean"], ["global", "Global"]] },
+      { pref: "chartFrame", name: "Default candle frame", desc: "Default stock chart interval", ctrl: "seg", options: [["auto", "Default"], ["day", "Day"], ["week", "Week"], ["month", "Month"]] },
+      { pref: "chartHeight", name: "Chart height", desc: "Stock chart size", ctrl: "seg", options: [["normal", "Normal"], ["tall", "Tall"]] }
     ]},
-    { id: "ticker", label: "시세·데이터", items: [
-      { pref: "tape", name: "하단 시세 티커", desc: "헤더 아래 흐르는 시세 표시", ctrl: "toggle" },
-      { pref: "tapeSpeed", name: "티커 속도", desc: "흐르는 속도", ctrl: "seg", options: [["slow", "느림"], ["normal", "보통"], ["fast", "빠름"]] },
-      { pref: "refresh", name: "자동 새로고침", desc: "주식 시세 갱신 주기", ctrl: "seg", options: [["10", "10초"], ["30", "30초"], ["60", "1분"], ["off", "수동"]] }
+    { id: "ticker", label: "Market Data", items: [
+      { pref: "tape", name: "Market ticker", desc: "Show the scrolling quote tape below the header", ctrl: "toggle" },
+      { pref: "tapeSpeed", name: "Ticker speed", desc: "Scrolling speed", ctrl: "seg", options: [["slow", "Slow"], ["normal", "Normal"], ["fast", "Fast"]] },
+      { pref: "refresh", name: "Auto refresh", desc: "Stock quote refresh cadence", ctrl: "seg", options: [["10", "10 sec"], ["30", "30 sec"], ["60", "1 min"], ["off", "Manual"]] }
     ]},
-    { id: "alert", label: "알림", items: [
-      { pref: "sound", name: "알림 소리", desc: "가격 알림·이벤트 시 소리", ctrl: "toggle" },
-      { pref: "__notify", name: "브라우저 알림", desc: "목표가 도달을 데스크톱 알림으로", ctrl: "btn", btn: "권한 요청" }
+    { id: "alert", label: "Alerts", items: [
+      { pref: "sound", name: "Alert sound", desc: "Play sound for price alerts and events", ctrl: "toggle" },
+      { pref: "__notify", name: "Browser notifications", desc: "Desktop alert when a target price is reached", ctrl: "btn", btn: "Request access" }
     ]},
-    { id: "info", label: "정보", note: true }
+    { id: "info", label: "Info", note: true }
   ];
 
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -1129,8 +1155,8 @@ document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 �
       }).join("") + "</div>";
     }
     if (item.ctrl === "btn") {
-      var t = item.btn || "실행";
-      if (item.pref === "__notify" && window.Notification && Notification.permission === "granted") t = "허용됨 ✓";
+      var t = item.btn || "Run";
+      if (item.pref === "__notify" && window.Notification && Notification.permission === "granted") t = "Allowed";
       return '<button class="mini-btn" data-btn="' + item.pref + '">' + esc(t) + "</button>";
     }
     return "";
@@ -1139,11 +1165,11 @@ document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 �
   function panelHtml(cat) {
     if (cat.note) {
       return '<div class="settings-note">' +
-        '<b>설정 저장</b> — 모든 설정은 이 브라우저에만 저장됩니다(기기·브라우저별).<br>' +
-        '<b>알림·인증</b> — 텔레그램 알림과 대시보드 인증(WEB_AUTH_TOKEN)은 서버 <span class="kbd">.env</span>에서 설정합니다.<br>' +
-        '<b>단축키</b> — <span class="kbd">1~4</span> 탭 이동 · <span class="kbd">/</span> 검색 · <span class="kbd">s</span> 설정 · <span class="kbd">?</span> 도움말 · <span class="kbd">ESC</span> 닫기.<br>' +
-        '<b>가격 알림</b> — 주식 페이지 <b>가격 알림</b> 섹션에서 목표가를 등록하면 도달 시 알림이 옵니다.<br>' +
-        '<b>실시간 반영</b> — 값을 바꾸면 즉시 화면에 적용됩니다.' +
+        '<b>Saved settings</b>: preferences are stored only in this browser.<br>' +
+        '<b>Alerts and auth</b>: Telegram alerts and WEB_AUTH_TOKEN are configured on the server in <span class="kbd">.env</span>.<br>' +
+        '<b>Shortcuts</b>: <span class="kbd">1-4</span> tabs, <span class="kbd">/</span> search, <span class="kbd">s</span> settings, <span class="kbd">?</span> help, <span class="kbd">ESC</span> close.<br>' +
+        '<b>Price alerts</b>: add targets in the stock page alert panel to receive notifications.<br>' +
+        '<b>Live preview</b>: changes apply immediately.' +
         '</div>';
     }
     return '<div class="settings-body">' + cat.items.map(function (item) {
@@ -1160,18 +1186,20 @@ document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 �
     var btn = document.createElement("button");
     btn.id = "settings-btn";
     btn.className = "hd-settings-btn";
-    btn.title = "환경설정";
-    btn.innerHTML = '<span class="gear">⚙</span><span>설정</span>';
+    btn.title = "Settings";
+    btn.setAttribute("aria-label", "Settings");
+    btn.innerHTML = '<span class="gear">⚙</span><span>Settings</span>';
     document.querySelector(".hd-row").appendChild(btn);
 
-    // 멀티유저 포털(로그인·내 계정)로 가는 버튼. 서버 실행 시 /app 에서 열린다.
+    // Link to the multi-user portal. The server app serves it at /app.
     if (!document.getElementById("account-btn")) {
       var acc = document.createElement("a");
       acc.id = "account-btn";
       acc.className = "hd-settings-btn";
       acc.href = "/app";
-      acc.title = "로그인 · 내 계정";
-      acc.innerHTML = '<span>👤</span><span>로그인</span>';
+      acc.title = "Login and account";
+      acc.setAttribute("aria-label", "Login and account");
+      acc.innerHTML = '<span>👤</span><span>Login</span>';
       document.querySelector(".hd-row").insertBefore(acc, btn);
     }
 
@@ -1181,8 +1209,8 @@ document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 �
     modal.style.display = "none";
     modal.innerHTML =
       '<div class="modal-content" style="max-width:640px;width:94%">' +
-      '  <div class="modal-header">환경설정' +
-      '    <button class="modal-close" id="settings-close" aria-label="닫기">×</button>' +
+      '  <div class="modal-header">Settings' +
+      '    <button class="modal-close" id="settings-close" aria-label="Close">×</button>' +
       '  </div>' +
       '  <div class="modal-body" style="padding:0">' +
       '    <div class="settings-layout">' +
@@ -1193,8 +1221,8 @@ document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 �
       '    </div>' +
       '  </div>' +
       '  <div class="settings-footer">' +
-      '    <div class="foot-left"><button class="mini-btn" id="settings-reset">전체 기본값</button></div>' +
-      '    <button class="mini-btn on" id="settings-done">완료</button>' +
+      '    <div class="foot-left"><button class="mini-btn" id="settings-reset">Reset all</button></div>' +
+      '    <button class="mini-btn on" id="settings-done">Done</button>' +
       '  </div>' +
       '</div>';
     document.body.appendChild(modal);
@@ -1227,8 +1255,8 @@ document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 �
       if (bt) {
         if (bt.getAttribute("data-btn") === "__notify") {
           if (window.Notification && Notification.requestPermission) {
-            Notification.requestPermission().then(function (p) { bt.textContent = p === "granted" ? "허용됨 ✓" : (p === "denied" ? "차단됨" : "권한 요청"); });
-          } else { bt.textContent = "미지원"; }
+            Notification.requestPermission().then(function (p) { bt.textContent = p === "granted" ? "Allowed" : (p === "denied" ? "Blocked" : "Request access"); });
+          } else { bt.textContent = "Unsupported"; }
         }
         return;
       }
@@ -1325,7 +1353,7 @@ document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 �
     if (k >= "1" && k <= "4" && ts[+k - 1]) { var href = ts[+k - 1].getAttribute("href"); if (href) location.href = href; }
     else if (k === "/") { if (focusSearch()) e.preventDefault(); }
     else if (k === "s" || k === "S") { var b = document.getElementById("settings-btn"); if (b) { b.click(); e.preventDefault(); } }
-    else if (k === "?") { if (window.saToast) window.saToast("단축키 — 1~4: 탭 이동 · / : 검색 · s : 설정 · ? : 도움말", "info"); }
+    else if (k === "?") { if (window.saToast) window.saToast("Shortcuts: 1-4 tabs · / search · s settings · ? help", "info"); }
   });
 })();
 
@@ -1334,7 +1362,7 @@ document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 �
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function pad(n) { return (n < 10 ? "0" : "") + n; }
 
-  // ---- 시장 시계 (KRX 09:00~15:30, 평일) ----
+  // ---- Market clock (KRX 09:00-15:30 weekdays) ----
   function nextKrxOpen(now) {
     var d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
     if (now >= d) d.setDate(d.getDate() + 1);
@@ -1344,8 +1372,8 @@ document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 �
   function krxState(now) {
     var day = now.getDay(), mins = now.getHours() * 60 + now.getMinutes();
     var isWk = day >= 1 && day <= 5;
-    if (isWk && mins >= 540 && mins < 930) return { s: "장중", open: true };
-    return { s: (isWk && mins < 540) ? "장전" : "장마감", open: false };
+    if (isWk && mins >= 540 && mins < 930) return { s: "OPEN", open: true };
+    return { s: (isWk && mins < 540) ? "PRE" : "CLOSED", open: false };
   }
   function tickClock() {
     var el = document.getElementById("hd-clock");
@@ -1356,19 +1384,19 @@ document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 �
     if (!st.open) {
       var diff = Math.max(0, Math.floor((nextKrxOpen(now) - now) / 1000));
       var hh = Math.floor(diff / 3600), mm = Math.floor((diff % 3600) / 60), ss = diff % 60;
-      extra = " · 개장 " + (hh ? hh + "시간 " : "") + pad(mm) + ":" + pad(ss);
+      extra = " · opens in " + (hh ? hh + "h " : "") + pad(mm) + ":" + pad(ss);
     }
     el.className = "hd-clock " + (st.open ? "open" : "closed");
     el.textContent = "KRX " + st.s + " " + t + extra;
   }
 
-  // ---- 알림 센터 ----
+  // ---- Notification center ----
   function notiHistory() { try { return JSON.parse(localStorage.getItem("sa.noti") || "[]"); } catch (e) { return []; } }
   function unread() { return parseInt(localStorage.getItem("sa.notiUnread") || "0", 10) || 0; }
   function relTime(t) {
     var s = Math.floor((Date.now() - t) / 1000);
-    if (s < 60) return "방금"; if (s < 3600) return Math.floor(s / 60) + "분 전";
-    if (s < 86400) return Math.floor(s / 3600) + "시간 전"; return Math.floor(s / 86400) + "일 전";
+    if (s < 60) return "just now"; if (s < 3600) return Math.floor(s / 60) + "m ago";
+    if (s < 86400) return Math.floor(s / 3600) + "h ago"; return Math.floor(s / 86400) + "d ago";
   }
   function renderBell() {
     var b = document.getElementById("hd-bell-badge");
@@ -1377,13 +1405,13 @@ document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 �
     if (list) {
       var h = notiHistory();
       list.innerHTML = h.length ? h.map(function (n) {
-        return '<div class="hd-noti-item ' + esc(n.kind || "") + '"><div class="hd-noti-title">' + esc(n.title || "알림") +
+        return '<div class="hd-noti-item ' + esc(n.kind || "") + '"><div class="hd-noti-title">' + esc(n.title || "Alert") +
           '</div><div class="hd-noti-body">' + esc(n.body || "") + '</div><div class="hd-noti-time">' + relTime(n.t) + "</div></div>";
-      }).join("") : '<div class="hd-noti-empty">알림이 없습니다.</div>';
+      }).join("") : '<div class="hd-noti-empty">No alerts yet.</div>';
     }
   }
 
-  // ---- 계산기 (국내주식 손익) ----
+  // ---- Calculator ----
   function calcModal() {
     var m = document.getElementById("calc-modal");
     if (m) return m;
@@ -1391,13 +1419,13 @@ document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 �
     m.className = "modal"; m.id = "calc-modal"; m.style.display = "none";
     m.innerHTML =
       '<div class="modal-content" style="max-width:420px">' +
-      '<div class="modal-header">손익 계산기<button class="modal-close" id="calc-close">×</button></div>' +
+      '<div class="modal-header">P&L Calculator<button class="modal-close" id="calc-close">×</button></div>' +
       '<div class="calc-body">' +
-      '<div class="calc-row"><label>매수가</label><input type="number" id="calc-buy" placeholder="원"></div>' +
-      '<div class="calc-row"><label>매도가</label><input type="number" id="calc-sell" placeholder="원"></div>' +
-      '<div class="calc-row"><label>수량</label><input type="number" id="calc-qty" placeholder="주"></div>' +
+      '<div class="calc-row"><label>Buy price</label><input type="number" id="calc-buy" placeholder="KRW"></div>' +
+      '<div class="calc-row"><label>Sell price</label><input type="number" id="calc-sell" placeholder="KRW"></div>' +
+      '<div class="calc-row"><label>Quantity</label><input type="number" id="calc-qty" placeholder="shares"></div>' +
       '<div class="calc-out" id="calc-out"></div>' +
-      '<div class="calc-note">수수료 0.015%(양방향) · 거래세 0.18%(매도) 반영 · 국내주식 기준</div>' +
+      '<div class="calc-note">Includes 0.015% fees both ways and 0.18% sell tax for Korean equities.</div>' +
       "</div></div>";
     document.body.appendChild(m);
     function compute() {
@@ -1405,7 +1433,7 @@ document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 �
       var sell = parseFloat(document.getElementById("calc-sell").value) || 0;
       var qty = parseFloat(document.getElementById("calc-qty").value) || 0;
       var out = document.getElementById("calc-out");
-      if (buy <= 0 || qty <= 0) { out.innerHTML = '<div class="calc-hint">매수가와 수량을 입력하세요.</div>'; return; }
+      if (buy <= 0 || qty <= 0) { out.innerHTML = '<div class="calc-hint">Enter a buy price and quantity.</div>'; return; }
       var buyAmt = buy * qty, sellAmt = sell * qty;
       var fee = (buyAmt + sellAmt) * 0.00015, tax = sellAmt * 0.0018;
       var pnl = sellAmt - buyAmt - fee - tax;
@@ -1413,10 +1441,10 @@ document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 �
       var cls = pnl >= 0 ? "up" : "down";
       var fmt = function (n) { return Math.round(n).toLocaleString("ko-KR"); };
       out.innerHTML =
-        '<div class="calc-line"><span>매수금액</span><b>' + fmt(buyAmt) + " 원</b></div>" +
-        '<div class="calc-line"><span>매도금액</span><b>' + fmt(sellAmt) + " 원</b></div>" +
-        '<div class="calc-line"><span>수수료+세금</span><b>' + fmt(fee + tax) + " 원</b></div>" +
-        '<div class="calc-line big ' + cls + '"><span>순손익</span><b>' + (pnl >= 0 ? "+" : "") + fmt(pnl) + " 원 (" + (pct >= 0 ? "+" : "") + pct.toFixed(2) + "%)</b></div>";
+        '<div class="calc-line"><span>Buy amount</span><b>' + fmt(buyAmt) + " KRW</b></div>" +
+        '<div class="calc-line"><span>Sell amount</span><b>' + fmt(sellAmt) + " KRW</b></div>" +
+        '<div class="calc-line"><span>Fees + tax</span><b>' + fmt(fee + tax) + " KRW</b></div>" +
+        '<div class="calc-line big ' + cls + '"><span>Net P&L</span><b>' + (pnl >= 0 ? "+" : "") + fmt(pnl) + " KRW (" + (pct >= 0 ? "+" : "") + pct.toFixed(2) + "%)</b></div>";
     }
     m.addEventListener("input", compute);
     m.querySelector("#calc-close").addEventListener("click", function () { m.style.display = "none"; });
@@ -1431,11 +1459,11 @@ document.body.classList.add("krx-colors");  // 국내 증시 관례색: 상승 �
     var wrap = document.createElement("span");
     wrap.id = "hd-tools";
     wrap.innerHTML =
-      '<span class="hd-clock closed" id="hd-clock" title="한국거래소 장 상태">KRX —</span>' +
-      '<button class="hd-icon-btn" id="hd-calc" title="손익 계산기">🧮</button>' +
-      '<span class="hd-bell-wrap"><button class="hd-icon-btn" id="hd-bell" title="알림">🔔<span class="hd-badge" id="hd-bell-badge" style="display:none">0</span></button>' +
-      '<div class="hd-noti-panel" id="hd-noti-panel" hidden><div class="hd-noti-head">알림<button class="hd-noti-clear" id="hd-noti-clear">모두 지우기</button></div><div id="hd-noti-list"></div></div></span>';
-    // 설정 버튼 앞에 삽입(설정 버튼이 아직 없으면 맨 끝)
+      '<span class="hd-clock closed" id="hd-clock" title="KRX market status">KRX —</span>' +
+      '<button class="hd-icon-btn" id="hd-calc" title="P&L calculator">🧮</button>' +
+      '<span class="hd-bell-wrap"><button class="hd-icon-btn" id="hd-bell" title="Alerts">🔔<span class="hd-badge" id="hd-bell-badge" style="display:none">0</span></button>' +
+      '<div class="hd-noti-panel" id="hd-noti-panel" hidden><div class="hd-noti-head">Alerts<button class="hd-noti-clear" id="hd-noti-clear">Clear all</button></div><div id="hd-noti-list"></div></div></span>';
+    // Insert before settings when possible.
     var settings = document.getElementById("settings-btn");
     if (settings) row.insertBefore(wrap, settings); else row.appendChild(wrap);
 
@@ -1563,7 +1591,7 @@ function applyTerminalHeader(s) {
   const pill = document.getElementById("mode-pill");
   if (pill) {
     pill.className = isDry ? "pill-dry" : "pill-live";
-    pill.innerHTML = '<span class="dot"></span><span>' + (isDry ? "DRY · 모의" : "LIVE · 실거래") + '</span>';
+    pill.innerHTML = '<span class="dot"></span><span>' + (isDry ? "DRY · PAPER" : "LIVE · REAL") + '</span>';
   }
 
   const ai = document.getElementById("ai-pill");
@@ -1574,7 +1602,7 @@ function applyTerminalHeader(s) {
     const running = !!s.loop_running;
     const paused = !!s.bot_paused;
     bot.className = "pill-bot " + (paused ? "pause" : running ? "on" : "");
-    bot.textContent = paused ? "BOT 일시정지" : running ? "BOT 운용중" : "BOT 대기";
+    bot.textContent = paused ? "BOT PAUSED" : running ? "BOT RUNNING" : "BOT IDLE";
   }
 
   const pauseBtn = document.getElementById("pause-bot");
@@ -1587,8 +1615,8 @@ function applyTerminalHeader(s) {
 
   const foot = document.getElementById("foot");
   if (foot) {
-    foot.textContent = "시작 " + s.started_at + " · 주기 " + s.interval + "s · " +
-      (isDry ? "DRY_RUN=True(모의)" : "DRY_RUN=False(실거래)");
+    foot.textContent = "Started " + s.started_at + " · Interval " + s.interval + "s · " +
+      (isDry ? "DRY_RUN=True (paper)" : "DRY_RUN=False (real)");
   }
 }
 
@@ -1678,7 +1706,7 @@ async function setBotPaused(paused) {
   const action = paused ? "pause" : "resume";
   if (!paused) {
     const mode = document.getElementById("mode-pill")?.textContent || "";
-    if (mode.includes("LIVE") && !confirm("실거래 봇을 재개할까요?")) return;
+    if (mode.includes("LIVE") && !confirm("Resume the live trading bot?")) return;
   }
   try {
     const r = await fetch("/api/control", {

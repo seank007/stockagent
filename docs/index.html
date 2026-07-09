@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="ko"><head>
+<html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>stockagent · 코인</title>
+<title>stockagent · Crypto</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -44,40 +44,65 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 @keyframes lp { 0%,100%{opacity:1} 50%{opacity:.25} }
 @keyframes tape { from{transform:translateX(0)} to{transform:translateX(-50%)} }
 
-.hd { position:sticky; top:0; z-index:20; background:#0d1219; border-bottom:1px solid #1c2430; }
-.hd-row { max-width:1340px; margin:0 auto; display:flex; align-items:center; gap:12px; padding:13px 22px; }
-.brand { font-weight:800; font-size:16px; letter-spacing:.5px; }
+.hd { position:sticky; top:0; z-index:20; background:linear-gradient(180deg,rgba(13,18,25,.96),rgba(7,10,14,.9));
+      border-bottom:1px solid rgba(60,76,102,.42); box-shadow:0 18px 42px rgba(0,0,0,.28);
+      backdrop-filter:blur(18px); }
+.hd-row { max-width:1500px; min-height:70px; margin:0 auto; display:flex; align-items:center; gap:10px; padding:12px 22px; }
+.brand { display:inline-flex; align-items:center; gap:8px; font-weight:900; font-size:18px; letter-spacing:.2px;
+         padding:8px 10px; color:#f4f8ff; text-decoration:none; white-space:nowrap; }
+.brand:before { content:"SA"; display:inline-grid; place-items:center; width:28px; height:28px; border-radius:8px;
+                color:#07110f; background:linear-gradient(135deg,#1fd6a8,#76f7d6); font-size:10px;
+                letter-spacing:.08em; box-shadow:0 0 24px rgba(31,214,168,.26); }
 .brand .cursor { color:#1fd6a8; }
 .brand.dry .cursor { color:#e0b341; }
 .pill-live { display:inline-flex; align-items:center; gap:6px; font-size:11px;
-             color:#ff5d6c; background:rgba(58,31,35,.4); border:1px solid #3a1f23;
-             padding:3px 9px; border-radius:3px; font-weight:600; }
+             color:#ff7a86; background:rgba(255,93,108,.08); border:1px solid rgba(255,93,108,.28);
+             padding:7px 11px; border-radius:999px; font-weight:800; white-space:nowrap; }
 .pill-live .dot { width:6px; height:6px; border-radius:50%; background:#ff5d6c; animation:lp 1.4s infinite; }
 .pill-dry { display:inline-flex; align-items:center; gap:6px; font-size:11px;
-            color:#e0b341; background:rgba(58,46,15,.4); border:1px solid #3a311f;
-            padding:3px 9px; border-radius:3px; font-weight:600; }
+            color:#e7bf4d; background:rgba(224,179,65,.1); border:1px solid rgba(224,179,65,.28);
+            padding:7px 11px; border-radius:999px; font-weight:800; white-space:nowrap; }
 .pill-dry .dot { width:6px; height:6px; border-radius:50%; background:#e0b341; animation:lp 1.4s infinite; }
-.pill-ai { font-size:11px; color:#8a95a8; border:1px solid #1c2430; padding:3px 9px; border-radius:3px; }
-.pill-bot { font-size:11px; color:#8a95a8; border:1px solid #1c2430; padding:3px 9px; border-radius:3px; }
-.pill-bot.on { color:#1fd6a8; border-color:#1c3a32; background:rgba(31,214,168,.08); }
-.pill-bot.pause { color:#e0b341; border-color:#3a311f; background:rgba(224,179,65,.08); }
+.pill-ai { font-size:11px; color:#b3bfd0; border:1px solid rgba(78,95,125,.5); padding:7px 11px;
+           border-radius:999px; background:rgba(10,14,20,.62); white-space:nowrap; }
+.pill-bot { font-size:11px; color:#8a95a8; border:1px solid rgba(78,95,125,.5); padding:7px 11px;
+            border-radius:999px; background:rgba(10,14,20,.62); white-space:nowrap; }
+.pill-bot.on { color:#1fd6a8; border-color:rgba(31,214,168,.36); background:rgba(31,214,168,.1); }
+.pill-bot.pause { color:#e0b341; border-color:rgba(224,179,65,.36); background:rgba(224,179,65,.1); }
 .mini-btn, .terminal-select { font-family:'JetBrains Mono',monospace; font-size:11px; border-radius:3px;
             border:1px solid #1c2430; background:#0a0e14; color:#8a95a8; padding:4px 8px; }
-.mini-btn { cursor:pointer; text-decoration:none; }
-.mini-btn:hover { color:#e6ebf2; border-color:#3a4658; }
-.mini-btn.danger { color:#e0b341; border-color:#3a311f; background:rgba(224,179,65,.08); }
+.mini-btn { cursor:pointer; text-decoration:none; transition:color .15s ease,border-color .15s ease,background .15s ease,transform .15s ease; }
+.mini-btn:hover { color:#e6ebf2; border-color:#3a4658; transform:translateY(-1px); }
+.mini-btn.danger { color:#e0b341; border-color:rgba(224,179,65,.38); background:rgba(224,179,65,.09); }
 .mini-btn.on { color:#e6ebf2; background:#1c2430; font-weight:600; }
 .terminal-select { outline:none; }
 .terminal-select:focus { border-color:#1fd6a8; }
 .head-tools, .section-line, .inline-tools, .chart-controls { display:flex; align-items:center; gap:6px; }
+.head-tools { padding:4px; border:1px solid rgba(78,95,125,.42); border-radius:9px; background:rgba(10,14,20,.5); }
+.head-tools .mini-btn { border-radius:6px; padding:7px 10px; text-transform:uppercase; letter-spacing:.06em; font-weight:800; }
 .section-line { justify-content:space-between; margin:0 0 12px; }
 .section-line .section-title { margin:0; }
 .inline-tools { flex-wrap:wrap; }
-.tabs { display:flex; gap:4px; background:#0a0e14; border:1px solid #1c2430; border-radius:5px; padding:3px; }
-.tab { font-family:'JetBrains Mono',monospace; font-size:12px; padding:6px 14px;
-       border-radius:4px; border:none; cursor:pointer; background:transparent; color:#8a95a8; text-decoration:none; }
-.tab.on { background:#1c2430; color:#e6ebf2; font-weight:600; }
-.upd { font-size:11px; color:#5a6577; margin-left:6px; }
+.tabs { display:flex; gap:5px; background:rgba(10,14,20,.58); border:1px solid rgba(78,95,125,.42);
+        border-radius:9px; padding:4px; box-shadow:inset 0 1px 0 rgba(255,255,255,.03); }
+.tab { font-family:'JetBrains Mono',monospace; font-size:11px; padding:8px 12px; white-space:nowrap;
+       border-radius:7px; border:none; cursor:pointer; background:transparent; color:#8a95a8; text-decoration:none;
+       text-transform:uppercase; letter-spacing:.07em; transition:background .15s ease,color .15s ease,transform .15s ease; }
+.tab:hover { color:#e6ebf2; background:rgba(255,255,255,.04); }
+.tab.on { background:linear-gradient(135deg,rgba(31,214,168,.2),rgba(74,148,247,.16)); color:#f4f8ff; font-weight:900;
+          box-shadow:0 0 0 1px rgba(31,214,168,.22) inset,0 10px 24px rgba(31,214,168,.08); }
+.upd { font-size:11px; color:#69758a; margin-left:6px; white-space:nowrap; }
+
+@media (min-width: 1700px) {
+  .tabs { position:fixed; top:88px; left:max(18px,calc((100vw - 1340px)/2 - 174px)); z-index:18;
+          width:154px; flex-direction:column; gap:7px; padding:9px; border-radius:10px;
+          background:rgba(9,13,19,.78); backdrop-filter:blur(16px);
+          box-shadow:0 18px 42px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.04); }
+  .tabs:before { content:"NAV"; color:#4f5b70; font-size:10px; letter-spacing:.18em; padding:3px 4px 2px; }
+  .tab { display:flex; align-items:center; justify-content:space-between; padding:10px 11px; }
+  .tab:after { content:""; width:6px; height:6px; border-radius:50%; background:#334055; }
+  .tab.on:after { background:#1fd6a8; box-shadow:0 0 12px rgba(31,214,168,.65); }
+}
 
 .tape-wrap { overflow:hidden; border-top:1px solid #141a23; background:#0a0e14; }
 .tape-row { display:flex; width:max-content; animation:tape 60s linear infinite; }
@@ -509,9 +534,10 @@ body.krx-colors .down { color:#4a94f7 !important; }
 /* Settings (세팅) */
 .hd-settings-btn { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; line-height:1;
   display:inline-flex; align-items:center; gap:6px;
-  border:1px solid #2a3546; background:#131a24; color:#c6cfdd; padding:7px 13px;
-  border-radius:5px; cursor:pointer; margin-left:8px; }
-.hd-settings-btn:hover { color:#fff; border-color:#3a4658; background:#1c2430; }
+  border:1px solid rgba(78,95,125,.42); background:rgba(10,14,20,.58); color:#c6cfdd; padding:8px 13px;
+  border-radius:9px; cursor:pointer; margin-left:6px; text-decoration:none; text-transform:uppercase; letter-spacing:.06em;
+  transition:color .15s ease,border-color .15s ease,background .15s ease,transform .15s ease; }
+.hd-settings-btn:hover { color:#fff; border-color:#3a4658; background:#1c2430; transform:translateY(-1px); }
 .hd-settings-btn .gear { font-size:14px; }
 /* HTS식 설정 레이아웃: 좌측 카테고리 + 우측 패널 */
 .settings-layout { display:flex; min-height:340px; }
@@ -720,7 +746,7 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
     const sstate = snap.state || {};
     const liveMode = scfg.allow_live_trading && !scfg.dry_run;
     return {
-      mode: liveMode ? "⚠️ 실거래" : "DRY_RUN(모의)",
+      mode: liveMode ? "LIVE" : "DRY_RUN(PAPER)",
       provider: scfg.provider || "mock",
       model: scfg.external_trader ? "hermes agent" : (scfg.model || "github-pages-static"),
       loop_running: true,
@@ -728,7 +754,7 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
       started_at: "GitHub Pages",
       interval: 600,
       cycle_count: (sstate.history || []).length,
-      last_update: sstate.last_update || new Date().toLocaleTimeString("ko-KR", {hour:"2-digit", minute:"2-digit"}),
+      last_update: sstate.last_update || new Date().toLocaleTimeString("en-GB", {hour:"2-digit", minute:"2-digit", hour12:false}),
       today_pnl: 0,
       total_pnl: 0,
       error: null,
@@ -885,19 +911,19 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
 <div class="hd">
   <div class="hd-row">
     <span class="brand" id="brand">stockagent<span class="cursor">_</span></span>
-    <span id="mode-pill" class="pill-live"><span class="dot"></span><span>LIVE · 실거래</span></span>
+    <span id="mode-pill" class="pill-live"><span class="dot"></span><span>LIVE · REAL</span></span>
     <span class="pill-ai" id="ai-pill">AI - · -</span>
-    <span class="pill-bot" id="bot-pill">BOT 대기</span>
+    <span class="pill-bot" id="bot-pill">BOT IDLE</span>
     <div class="head-tools">
-      <button class="mini-btn danger" id="pause-bot" onclick="setBotPaused(true)">일시정지</button>
-      <button class="mini-btn" id="resume-bot" onclick="setBotPaused(false)">재개</button>
+      <button class="mini-btn danger" id="pause-bot" onclick="setBotPaused(true)">Pause</button>
+      <button class="mini-btn" id="resume-bot" onclick="setBotPaused(false)">Resume</button>
     </div>
     <span style="flex:1"></span>
     <div class="tabs">
-      <a href="/stockagent/stocks/" class="tab">주식</a>
-<a href="/stockagent/coin/" class="tab on">코인</a>
-<a href="/stockagent/assets/" class="tab">내자산</a>
-<a href="/stockagent/analyze/" class="tab">AI 분석</a>
+      <a href="/stockagent/stocks/" class="tab">Stocks</a>
+<a href="/stockagent/coin/" class="tab on">Crypto</a>
+<a href="/stockagent/assets/" class="tab">Portfolio</a>
+<a href="/stockagent/analyze/" class="tab">AI Lab</a>
     </div>
     <span class="upd" id="upd">UPD —</span>
   </div>
@@ -1251,8 +1277,8 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
 <script>window.__aiTradeSnapshot = {"generated_at": "2026-07-08 11:49", "state": {"last_update": "07-07 22:06", "loop_running": true, "history": [{"time": "07-07 22:06", "ticker": "KRW-ID", "price": 58.2, "rsi": 40.63, "trend": "down", "change_pct": 3.19, "action": "HOLD", "confidence": 0.78, "reasoning": "trim_pct 50, exit 74.29 > long 57.61; 50% 매도 약 1617원 < 최소주문 5000원", "order": "none | hermes agent 판단"}, {"time": "07-07 22:06", "ticker": "KRW-BERA", "price": 314.0, "rsi": 29.17, "trend": "down", "change_pct": 0.0, "action": "HOLD", "confidence": 0.82, "reasoning": "trim_pct 75, exit 70.74 > long 52.45, risk_flags=falling_knife; 75% 매도 약 2445원 < 최소주문 5000원", "order": "none | hermes agent 판단"}, {"time": "07-07 22:06", "ticker": "KRW-KITE", "price": 178.0, "rsi": 33.33, "trend": "down", "change_pct": -4.81, "action": "HOLD", "confidence": 0.8, "reasoning": "trim_pct 50, exit 68.08 > long 54.51; 50% 매도 약 4376원 < 최소주문 5000원", "order": "none | hermes agent 판단"}, {"time": "07-07 22:06", "ticker": "KRW-XTZ", "price": 366.0, "rsi": 23.53, "trend": "down", "change_pct": -3.68, "action": "HOLD", "confidence": 0.84, "reasoning": "trim_pct 75, exit 59.14 > long 41.04, risk_flags=weak_liquidity+falling_knife; 75% 매도 약 4096원 < 최소주문 5000원", "order": "none | hermes agent 판단"}, {"time": "07-07 22:06", "ticker": "KRW-UP2", "price": 99.9, "rsi": 66.46, "trend": "up", "change_pct": 8.94, "action": "HOLD", "confidence": 0.86, "reasoning": "priority 32.81, breakout, long 77.82 > exit 45.55이나 eligible_buy=false/max_buy_krw 0, risk_flags=overheated; 신규매수 금지", "order": "none | hermes agent 판단"}, {"time": "07-07 22:06", "ticker": "KRW-BLUR", "price": 36.3, "rsi": 60.0, "trend": "up", "change_pct": 59.91, "action": "HOLD", "confidence": 0.88, "reasoning": "priority 33.16, breakout, long 75.16 > exit 35.98이나 eligible_buy=false/max_buy_krw 0, risk_flags=overheated+high_volatility; 신규매수 금지", "order": "none | hermes agent 판단"}, {"time": "07-07 22:06", "ticker": "KRW-FLUID", "price": 1552.0, "rsi": 65.71, "trend": "up", "change_pct": 6.16, "action": "HOLD", "confidence": 0.82, "reasoning": "priority 37.25, trend, long 75.74 > exit 38.49, eligible_buy=false/max_buy_krw 0, trim 0, risk_flags=none; 보유", "order": "none | hermes agent 판단"}, {"time": "07-07 22:06", "ticker": "KRW-RE", "price": 1064.0, "rsi": 64.18, "trend": "up", "change_pct": 10.03, "action": "HOLD", "confidence": 0.86, "reasoning": "priority 55.10, trend, long 84.97 > exit 39.32, eligible_buy=false/max_buy_krw 0, trim 0, risk_flags=none, news_focus=true; 보유", "order": "none | hermes agent 판단"}, {"time": "07-07 19:54", "ticker": "KRW-FLUID", "price": 1556.0, "rsi": 65.22, "trend": "up", "change_pct": 7.02, "action": "HOLD", "confidence": 0.74, "reasoning": "priority 25.92, trend, long 71.44 > exit 45.52, eligible_buy=false/max_buy_krw 0, trim 0, risk_flags=none; 보유", "order": "none | hermes agent 판단"}, {"time": "07-07 19:54", "ticker": "KRW-CHIP", "price": 55.6, "rsi": 74.83, "trend": "up", "change_pct": 19.31, "action": "HOLD", "confidence": 0.8, "reasoning": "priority 37.11, breakout, long 79.54 > exit 43.23이나 eligible_buy=false/max_buy_krw 0, risk_flags=overheated; 신규매수 금지", "order": "none | hermes agent 판단"}, {"time": "07-07 19:54", "ticker": "KRW-RE", "price": 1078.0, "rsi": 76.7, "trend": "up", "change_pct": 7.48, "action": "HOLD", "confidence": 0.78, "reasoning": "priority 37.65, breakout, long 84.81 > exit 48.23이나 eligible_buy=false/max_buy_krw 0, risk_flags=overheated, trim 0; 보유", "order": "none | hermes agent 판단"}, {"time": "07-07 19:53", "ticker": "KRW-ID", "price": 57.2, "rsi": 37.11, "trend": "down", "change_pct": 4.19, "action": "SELL", "confidence": 0.86, "reasoning": "trim_pct 75, exit 75.02 > long 55.80, risk_flags=overweight; 약 9533원 75% 매도 실행", "order": "none | hermes agent 판단"}, {"time": "07-07 19:53", "ticker": "KRW-BERA", "price": 313.0, "rsi": 20.83, "trend": "down", "change_pct": -0.95, "action": "SELL", "confidence": 0.88, "reasoning": "trim_pct 75, exit 71.34 > long 53.29, risk_flags=falling_knife+overweight; 약 9780원 75% 매도 실행", "order": "none | hermes agent 판단"}, {"time": "07-07 19:52", "ticker": "KRW-AQT", "price": 296.0, "rsi": 15.15, "trend": "down", "change_pct": -6.03, "action": "SELL", "confidence": 0.9, "reasoning": "trim_pct 100, exit 74.12 > long 43.95, risk_flags=falling_knife+overweight; 약 11538원 전량 매도 실행", "order": "none | hermes agent 판단"}, {"time": "07-07 17:18", "ticker": "KRW-ID", "price": 57.7, "rsi": 46.6, "trend": "down", "change_pct": 3.78, "action": "HOLD", "confidence": 0.76, "reasoning": "trim_pct 35, exit 70.31 > long 61.73, risk_flags=overweight; 35% 매도 약 4480원 < 최소주문 5000원", "order": "none | hermes agent 판단"}, {"time": "07-07 17:18", "ticker": "KRW-BARD", "price": 196.0, "rsi": 23.08, "trend": "down", "change_pct": -2.0, "action": "HOLD", "confidence": 0.77, "reasoning": "trim_pct 50, exit 64.55 > long 51.14, risk_flags=falling_knife; 50% 매도 약 2781원 < 최소주문 5000원", "order": "none | hermes agent 판단"}, {"time": "07-07 17:18", "ticker": "KRW-AI", "price": 39.7, "rsi": 21.43, "trend": "down", "change_pct": -4.8, "action": "HOLD", "confidence": 0.78, "reasoning": "trim_pct 75, exit 71.63 > long 52.07, risk_flags=falling_knife; 75% 매도 약 1704원 < 최소주문 5000원", "order": "none | hermes agent 판단"}, {"time": "07-07 17:17", "ticker": "KRW-RE", "price": 985.0, "rsi": 54.4, "trend": "up", "change_pct": -1.7, "action": "HOLD", "confidence": 0.7, "reasoning": "priority 39.97, trend/up, long 79.84 > exit 48.41이나 eligible_buy=false/max_buy_krw 0, trim 0; 보유 유지", "order": "none | hermes agent 판단"}, {"time": "07-07 17:17", "ticker": "KRW-CHIP", "price": 54.2, "rsi": 79.0, "trend": "up", "change_pct": 17.32, "action": "HOLD", "confidence": 0.74, "reasoning": "priority 38.33, breakout, long 81.48 > exit 42.26이나 eligible_buy=false/max_buy_krw 0, risk_flags=overheated; 신규매수 금지", "order": "none | hermes agent 판단"}, {"time": "07-07 17:17", "ticker": "KRW-XTZ", "price": 365.0, "rsi": 21.74, "trend": "down", "change_pct": 0.83, "action": "SELL", "confidence": 0.82, "reasoning": "trim_pct 50, exit 62.00 > long 44.49, risk_flags=falling_knife+overweight; 50% 약 5461원 매도 실행", "order": "none | hermes agent 판단"}]}, "config": {"provider": "claude", "model": "claude-opus-4-8", "tickers": ["KRW-BTC", "KRW-SOL"], "dry_run": false, "allow_live_trading": true, "free_trade_mode": true, "external_trader": true, "risk": {"max_order_krw": 10000, "min_order_krw": 5000, "max_daily_loss_krw": 30000, "min_confidence": 0.5, "cycle_seconds": 600}}, "trades": [{"id": 106, "ts": "2026-07-07T19:53:31", "ticker": "KRW-ID", "side": "sell", "price": 57.3, "volume": 166.369647075, "krw_amount": 9532.980777397499, "fee": 4.76649038869875, "realized_pnl": -192.0688620794516, "dry_run": 0, "raw_result": "{\"uuid\": \"794e654e-2ba2-41e4-994e-4935e949fb90\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-ID\", \"created_at\": \"2026-07-07T19:53:32+09:00\", \"volume\": \"166.36964707\", \"remaining_volume\": \"166.36964707\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"166.36964707\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 105, "ts": "2026-07-07T19:52:41", "ticker": "KRW-BERA", "side": "sell", "price": 314.0, "volume": 31.146809452499998, "krw_amount": 9780.098168085, "fee": 4.8900490840425, "realized_pnl": -406.98633874510585, "dry_run": 0, "raw_result": "{\"uuid\": \"9569aa71-0c45-4dfa-932f-b05d16de4154\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-BERA\", \"created_at\": \"2026-07-07T19:52:43+09:00\", \"volume\": \"31.14680945\", \"remaining_volume\": \"31.14680945\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"31.14680945\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 104, "ts": "2026-07-07T19:52:04", "ticker": "KRW-AQT", "side": "sell", "price": 295.0, "volume": 39.11058393, "krw_amount": 11537.622259349999, "fee": 5.768811129674999, "realized_pnl": -1268.1465491057727, "dry_run": 0, "raw_result": "{\"uuid\": \"2c39f876-e7b5-4420-b7e3-b12d7e43df84\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-AQT\", \"created_at\": \"2026-07-07T19:52:06+09:00\", \"volume\": \"39.11058393\", \"remaining_volume\": \"39.11058393\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"39.11058393\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 103, "ts": "2026-07-07T17:16:35", "ticker": "KRW-XTZ", "side": "sell", "price": 366.0, "volume": 14.92050438, "krw_amount": 5460.90460308, "fee": 2.73045230154, "realized_pnl": -249.22367272764706, "dry_run": 0, "raw_result": "{\"uuid\": \"2e2327c9-5ce0-45c4-a278-1f530a5c0c6e\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-XTZ\", \"created_at\": \"2026-07-07T17:16:35+09:00\", \"volume\": \"14.92050438\", \"remaining_volume\": \"14.92050438\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"14.92050438\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 102, "ts": "2026-07-07T11:36:26", "ticker": "KRW-TRAC", "side": "buy", "price": 443.0, "volume": 11.738148984198645, "krw_amount": 5200.0, "fee": 2.6, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"48285403-98a6-492a-bb09-e82f39fcbc36\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"5200\", \"state\": \"wait\", \"market\": \"KRW-TRAC\", \"created_at\": \"2026-07-07T11:36:26+09:00\", \"reserved_fee\": \"2.6\", \"remaining_fee\": \"2.6\", \"paid_fee\": \"0\", \"locked\": \"5202.6\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 101, "ts": "2026-07-07T01:10:02", "ticker": "KRW-AQT", "side": "buy", "price": 319.0, "volume": 15.987460815047022, "krw_amount": 5100.0, "fee": 2.5500000000000003, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"150449a2-bb62-4d34-8573-440345576222\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"5100\", \"state\": \"wait\", \"market\": \"KRW-AQT\", \"created_at\": \"2026-07-07T01:10:02+09:00\", \"reserved_fee\": \"2.55\", \"remaining_fee\": \"2.55\", \"paid_fee\": \"0\", \"locked\": \"5102.55\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 100, "ts": "2026-07-07T01:09:52", "ticker": "KRW-ID", "side": "buy", "price": 59.9, "volume": 115.19198664440735, "krw_amount": 6900.0, "fee": 3.45, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"6350bf8d-4e60-440a-8e6a-c24d90cd90be\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"6900\", \"state\": \"wait\", \"market\": \"KRW-ID\", \"created_at\": \"2026-07-07T01:09:52+09:00\", \"reserved_fee\": \"3.45\", \"remaining_fee\": \"3.45\", \"paid_fee\": \"0\", \"locked\": \"6903.45\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 99, "ts": "2026-07-07T01:07:57", "ticker": "KRW-BERA", "side": "buy", "price": 332.0, "volume": 18.072289156626507, "krw_amount": 6000.0, "fee": 3.0, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"ab0aa1a0-e63a-4cea-840c-a512179e0cfe\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"6000\", \"state\": \"wait\", \"market\": \"KRW-BERA\", \"created_at\": \"2026-07-07T01:07:57+09:00\", \"reserved_fee\": \"3\", \"remaining_fee\": \"3\", \"paid_fee\": \"0\", \"locked\": \"6003\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 98, "ts": "2026-07-06T17:24:02", "ticker": "KRW-AQT", "side": "buy", "price": 333.0, "volume": 23.123123123123122, "krw_amount": 7700.0, "fee": 3.85, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"4bf920af-4f43-4c4d-9165-230b37caef49\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"7700\", \"state\": \"wait\", \"market\": \"KRW-AQT\", \"created_at\": \"2026-07-06T17:24:02+09:00\", \"reserved_fee\": \"3.85\", \"remaining_fee\": \"3.85\", \"paid_fee\": \"0\", \"locked\": \"7703.85\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 97, "ts": "2026-07-06T17:23:45", "ticker": "KRW-ID", "side": "sell", "price": 61.9, "volume": 107.017543855, "krw_amount": 6624.3859646245, "fee": 3.3121929823122502, "realized_pnl": 530.3678022751558, "dry_run": 0, "raw_result": "{\"uuid\": \"04781775-d774-413c-afa7-055436e9fb49\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-ID\", \"created_at\": \"2026-07-06T17:23:45+09:00\", \"volume\": \"107.01754385\", \"remaining_volume\": \"107.01754385\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"107.01754385\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 96, "ts": "2026-07-06T16:00:25", "ticker": "KRW-BERA", "side": "buy", "price": 323.0, "volume": 23.529411764705884, "krw_amount": 7600.0, "fee": 3.8000000000000003, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"31ccd789-e531-4175-aa20-4294740b8116\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"7600\", \"state\": \"wait\", \"market\": \"KRW-BERA\", \"created_at\": \"2026-07-06T16:00:27+09:00\", \"reserved_fee\": \"3.8\", \"remaining_fee\": \"3.8\", \"paid_fee\": \"0\", \"locked\": \"7603.8\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 95, "ts": "2026-07-06T15:59:43", "ticker": "KRW-ARX", "side": "sell", "price": 326.0, "volume": 23.52941176, "krw_amount": 7670.58823376, "fee": 3.83529411688, "realized_pnl": -286.23128135070147, "dry_run": 0, "raw_result": "{\"uuid\": \"9d7c5775-7fd9-4ce8-8a9c-b574ec1808dc\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-ARX\", \"created_at\": \"2026-07-06T15:59:45+09:00\", \"volume\": \"23.52941176\", \"remaining_volume\": \"23.52941176\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"23.52941176\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 94, "ts": "2026-07-06T13:47:14", "ticker": "KRW-FLUID", "side": "buy", "price": 1545.0, "volume": 4.142394822006472, "krw_amount": 6400.0, "fee": 3.2, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"3d2bb356-1a57-46af-9c57-f2385fc61c99\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"6400\", \"state\": \"wait\", \"market\": \"KRW-FLUID\", \"created_at\": \"2026-07-06T13:47:14+09:00\", \"reserved_fee\": \"3.2\", \"remaining_fee\": \"3.2\", \"paid_fee\": \"0\", \"locked\": \"6403.2\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 93, "ts": "2026-07-06T13:47:13", "ticker": "KRW-AI", "side": "sell", "price": 41.6, "volume": 171.23287671000003, "krw_amount": 7123.287671136001, "fee": 3.5616438355680007, "realized_pnl": -393.13389644505605, "dry_run": 0, "raw_result": "{\"uuid\": \"3af17ae3-a4e7-46d7-b776-cc68eb182597\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-AI\", \"created_at\": \"2026-07-06T13:47:13+09:00\", \"volume\": \"171.23287671\", \"remaining_volume\": \"171.23287671\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"171.23287671\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 92, "ts": "2026-07-06T09:36:26", "ticker": "KRW-RE", "side": "buy", "price": 1009.0, "volume": 9.81169474727453, "krw_amount": 9900.0, "fee": 4.95, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"b1ed20b9-eb18-44e3-be27-696b714cdf65\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"9900\", \"state\": \"wait\", \"market\": \"KRW-RE\", \"created_at\": \"2026-07-06T09:36:26+09:00\", \"reserved_fee\": \"4.95\", \"remaining_fee\": \"4.95\", \"paid_fee\": \"0\", \"locked\": \"9904.95\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 91, "ts": "2026-07-06T09:33:13", "ticker": "KRW-BARD", "side": "buy", "price": 209.0, "volume": 28.229665071770334, "krw_amount": 5900.0, "fee": 2.95, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"87053cb8-4bc0-4db3-b436-9da60e97eeb8\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"5900\", \"state\": \"wait\", \"market\": \"KRW-BARD\", \"created_at\": \"2026-07-06T09:33:13+09:00\", \"reserved_fee\": \"2.95\", \"remaining_fee\": \"2.95\", \"paid_fee\": \"0\", \"locked\": \"5902.95\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 90, "ts": "2026-07-06T09:33:13", "ticker": "KRW-BIRB", "side": "sell", "price": 115.0, "volume": 54.24742902, "krw_amount": 6238.4543373, "fee": 3.1192271686499997, "realized_pnl": -138.23322250342702, "dry_run": 0, "raw_result": "{\"uuid\": \"8ee3b34e-ca78-4d85-809d-e48e9c196918\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-BIRB\", \"created_at\": \"2026-07-06T09:33:13+09:00\", \"volume\": \"54.24742902\", \"remaining_volume\": \"54.24742902\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"54.24742902\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 89, "ts": "2026-07-06T09:33:12", "ticker": "KRW-ARX", "side": "sell", "price": 367.0, "volume": 23.52941176, "krw_amount": 8635.29411592, "fee": 4.31764705796, "realized_pnl": 677.9922478682184, "dry_run": 0, "raw_result": "{\"uuid\": \"41fd6a3b-2626-46bd-8f27-369161c60777\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-ARX\", \"created_at\": \"2026-07-06T09:33:12+09:00\", \"volume\": \"23.52941176\", \"remaining_volume\": \"23.52941176\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"23.52941176\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 88, "ts": "2026-07-06T09:26:37", "ticker": "KRW-IP", "side": "buy", "price": 465.0, "volume": 16.989247311827956, "krw_amount": 7900.0, "fee": 3.95, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"d0ca3c8f-8017-4cca-94c2-b8ebe148da92\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"7900\", \"state\": \"wait\", \"market\": \"KRW-IP\", \"created_at\": \"2026-07-06T09:26:37+09:00\", \"reserved_fee\": \"3.95\", \"remaining_fee\": \"3.95\", \"paid_fee\": \"0\", \"locked\": \"7903.95\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 87, "ts": "2026-07-06T09:26:32", "ticker": "KRW-BIRB", "side": "sell", "price": 115.0, "volume": 54.24742902, "krw_amount": 6238.4543373, "fee": 3.1192271686499997, "realized_pnl": -138.23322250342702, "dry_run": 0, "raw_result": "{\"uuid\": \"dc166de7-16eb-4003-aa94-5a4d6bda2974\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-BIRB\", \"created_at\": \"2026-07-06T09:26:32+09:00\", \"volume\": \"54.24742902\", \"remaining_volume\": \"54.24742902\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"54.24742902\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 86, "ts": "2026-07-06T06:58:12", "ticker": "KRW-XTZ", "side": "buy", "price": 384.0, "volume": 15.104166666666666, "krw_amount": 5800.0, "fee": 2.9, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"6c13da78-65ca-4c83-b01d-054fdf306657\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"5800\", \"state\": \"wait\", \"market\": \"KRW-XTZ\", \"created_at\": \"2026-07-06T06:58:12+09:00\", \"reserved_fee\": \"2.9\", \"remaining_fee\": \"2.9\", \"paid_fee\": \"0\", \"locked\": \"5802.9\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 85, "ts": "2026-07-05T22:34:57", "ticker": "KRW-BIRB", "side": "sell", "price": 118.0, "volume": 58.4203081735, "krw_amount": 6893.596364473, "fee": 3.4467981822365, "realized_pnl": 26.306746751659183, "dry_run": 0, "raw_result": "{\"uuid\": \"7031a16c-7a84-476f-aab2-012b289f0036\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-BIRB\", \"created_at\": \"2026-07-05T22:34:57+09:00\", \"volume\": \"58.42030817\", \"remaining_volume\": \"58.42030817\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"58.42030817\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 84, "ts": "2026-07-05T22:26:44", "ticker": "KRW-FLUID", "side": "buy", "price": 1507.0, "volume": 3.9150630391506303, "krw_amount": 5900.0, "fee": 2.95, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"4d035b0a-7ab8-42f0-9485-d1623f8a7776\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"5900\", \"state\": \"wait\", \"market\": \"KRW-FLUID\", \"created_at\": \"2026-07-05T22:26:45+09:00\", \"reserved_fee\": \"2.95\", \"remaining_fee\": \"2.95\", \"paid_fee\": \"0\", \"locked\": \"5902.95\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 83, "ts": "2026-07-05T22:26:26", "ticker": "KRW-ID", "side": "buy", "price": 56.9, "volume": 214.41124780316346, "krw_amount": 12200.0, "fee": 6.1000000000000005, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"478fa515-1511-4f0f-b360-90858cf85fa7\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"12200\", \"state\": \"wait\", \"market\": \"KRW-ID\", \"created_at\": \"2026-07-05T22:26:26+09:00\", \"reserved_fee\": \"6.1\", \"remaining_fee\": \"6.1\", \"paid_fee\": \"0\", \"locked\": \"12206.1\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 82, "ts": "2026-07-05T22:25:57", "ticker": "KRW-BIRB", "side": "sell", "price": 119.0, "volume": 89.8773971865, "krw_amount": 10695.4102651935, "fee": 5.347705132596751, "realized_pnl": 130.30437656580636, "dry_run": 0, "raw_result": "{\"uuid\": \"28a9295e-9cb1-414f-85a7-9f23a2eacb36\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-BIRB\", \"created_at\": \"2026-07-05T22:25:57+09:00\", \"volume\": \"89.87739718\", \"remaining_volume\": \"89.87739718\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"89.87739718\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 81, "ts": "2026-07-05T22:19:59", "ticker": "KRW-BIRB", "side": "sell", "price": 119.0, "volume": 138.27291874550002, "krw_amount": 16454.477330714504, "fee": 8.227238665357252, "realized_pnl": 200.46827163540848, "dry_run": 0, "raw_result": "{\"uuid\": \"cbb895d2-6180-4fa2-bcb9-b999cbe119f4\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-BIRB\", \"created_at\": \"2026-07-05T22:19:59+09:00\", \"volume\": \"138.27291874\", \"remaining_volume\": \"138.27291874\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"138.27291874\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 80, "ts": "2026-07-05T22:13:16", "ticker": "KRW-KITE", "side": "buy", "price": 181.0, "volume": 49.171270718232044, "krw_amount": 8900.0, "fee": 4.45, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"cf3bf578-9dde-40d7-ab87-2f3e32759f51\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"8900\", \"state\": \"wait\", \"market\": \"KRW-KITE\", \"created_at\": \"2026-07-05T22:13:16+09:00\", \"reserved_fee\": \"4.45\", \"remaining_fee\": \"4.45\", \"paid_fee\": \"0\", \"locked\": \"8904.45\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 79, "ts": "2026-07-05T22:12:37", "ticker": "KRW-XTZ", "side": "buy", "price": 381.0, "volume": 14.698162729658792, "krw_amount": 5600.0, "fee": 2.8000000000000003, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"8fcc802b-1858-4e0f-a7c1-4968b1fb5701\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"5600\", \"state\": \"wait\", \"market\": \"KRW-XTZ\", \"created_at\": \"2026-07-05T22:12:37+09:00\", \"reserved_fee\": \"2.8\", \"remaining_fee\": \"2.8\", \"paid_fee\": \"0\", \"locked\": \"5602.8\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 78, "ts": "2026-07-05T22:12:15", "ticker": "KRW-ARX", "side": "buy", "price": 338.0, "volume": 47.337278106508876, "krw_amount": 16000.0, "fee": 8.0, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"01712201-b379-465c-8b9f-d60003bd0f89\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"16000\", \"state\": \"wait\", \"market\": \"KRW-ARX\", \"created_at\": \"2026-07-05T22:12:15+09:00\", \"reserved_fee\": \"8\", \"remaining_fee\": \"8\", \"paid_fee\": \"0\", \"locked\": \"16008\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 77, "ts": "2026-07-05T22:11:47", "ticker": "KRW-BIRB", "side": "sell", "price": 119.0, "volume": 212.72756729699998, "krw_amount": 25314.580508343, "fee": 12.6572902541715, "realized_pnl": 308.4127255874714, "dry_run": 0, "raw_result": "{\"uuid\": \"8ca4321b-b000-4fa4-aa90-93330ce385cc\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-BIRB\", \"created_at\": \"2026-07-05T22:11:47+09:00\", \"volume\": \"212.72756729\", \"remaining_volume\": \"212.72756729\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"212.72756729\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 76, "ts": "2026-07-05T22:07:06", "ticker": "KRW-AI", "side": "buy", "price": 43.8, "volume": 228.31050228310502, "krw_amount": 10000.0, "fee": 5.0, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"5835420e-e8c0-438b-8065-de925f98d096\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"10000\", \"state\": \"wait\", \"market\": \"KRW-AI\", \"created_at\": \"2026-07-05T22:07:06+09:00\", \"reserved_fee\": \"5\", \"remaining_fee\": \"5\", \"paid_fee\": \"0\", \"locked\": \"10005\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 75, "ts": "2026-07-05T22:04:30", "ticker": "KRW-BIRB", "side": "sell", "price": 119.0, "volume": 327.2731804545, "krw_amount": 38945.5084740855, "fee": 19.47275423704275, "realized_pnl": 474.4811162849046, "dry_run": 0, "raw_result": "{\"uuid\": \"b3f8f667-22f2-4208-b6fe-212319a28daa\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-BIRB\", \"created_at\": \"2026-07-05T22:04:30+09:00\", \"volume\": \"327.27318045\", \"remaining_volume\": \"327.27318045\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"327.27318045\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 74, "ts": "2026-07-05T21:07:42", "ticker": "KRW-BIRB", "side": "buy", "price": 117.0, "volume": 476.9230769230769, "krw_amount": 55800.0, "fee": 27.900000000000002, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"ce4aee39-8508-4776-8eab-2d9e5f3280c0\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"55800\", \"state\": \"wait\", \"market\": \"KRW-BIRB\", \"created_at\": \"2026-07-05T21:07:42+09:00\", \"reserved_fee\": \"27.9\", \"remaining_fee\": \"27.9\", \"paid_fee\": \"0\", \"locked\": \"55827.9\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 73, "ts": "2026-07-05T21:06:26", "ticker": "KRW-ID", "side": "sell", "price": 56.9, "volume": 973.7140334800001, "krw_amount": 55404.328505012, "fee": 27.702164252506, "realized_pnl": -604.7213000214703, "dry_run": 0, "raw_result": "{\"uuid\": \"610af2a5-2e76-4c1b-964b-faf2af217361\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-ID\", \"created_at\": \"2026-07-05T21:06:26+09:00\", \"volume\": \"973.71403348\", \"remaining_volume\": \"973.71403348\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"973.71403348\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 72, "ts": "2026-07-05T21:02:04", "ticker": "KRW-BIRB", "side": "buy", "price": 118.0, "volume": 466.10169491525426, "krw_amount": 55000.0, "fee": 27.5, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"2d526a41-944a-4959-aab7-88d9d79b8a6a\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"55000\", \"state\": \"wait\", \"market\": \"KRW-BIRB\", \"created_at\": \"2026-07-05T21:02:04+09:00\", \"reserved_fee\": \"27.5\", \"remaining_fee\": \"27.5\", \"paid_fee\": \"0\", \"locked\": \"55027.5\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 71, "ts": "2026-07-05T20:59:29", "ticker": "KRW-ID", "side": "sell", "price": 57.1, "volume": 973.7140334800001, "krw_amount": 55599.07131170801, "fee": 27.799535655854005, "realized_pnl": -410.0758647288154, "dry_run": 0, "raw_result": "{\"uuid\": \"49fd5754-42ed-45d2-b225-67b90ef4b947\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-ID\", \"created_at\": \"2026-07-05T20:59:29+09:00\", \"volume\": \"973.71403348\", \"remaining_volume\": \"973.71403348\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"973.71403348\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 70, "ts": "2026-07-05T20:55:57", "ticker": "KRW-ID", "side": "buy", "price": 57.7, "volume": 811.0918544194107, "krw_amount": 46800.0, "fee": 23.400000000000002, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"ac3f8a38-3ca9-4112-abe0-0bd8e5aeb1df\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"46800\", \"state\": \"wait\", \"market\": \"KRW-ID\", \"created_at\": \"2026-07-05T20:55:57+09:00\", \"reserved_fee\": \"23.4\", \"remaining_fee\": \"23.4\", \"paid_fee\": \"0\", \"locked\": \"46823.4\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 69, "ts": "2026-07-05T20:54:59", "ticker": "KRW-AI", "side": "sell", "price": 44.1, "volume": 1060.43037342, "krw_amount": 46764.979467822006, "fee": 23.382489733911004, "realized_pnl": -1837.0958621054215, "dry_run": 0, "raw_result": "{\"uuid\": \"bc3d7c52-4a3d-4860-bc71-7e26ba3ec2b8\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-AI\", \"created_at\": \"2026-07-05T20:54:59+09:00\", \"volume\": \"1060.43037342\", \"remaining_volume\": \"1060.43037342\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"1060.43037342\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 68, "ts": "2026-07-05T20:48:41", "ticker": "KRW-ID", "side": "buy", "price": 58.2, "volume": 532.6460481099656, "krw_amount": 31000.0, "fee": 15.5, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"aba01f9f-8229-47f5-9199-65918337c821\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"31000\", \"state\": \"wait\", \"market\": \"KRW-ID\", \"created_at\": \"2026-07-05T20:48:41+09:00\", \"reserved_fee\": \"15.5\", \"remaining_fee\": \"15.5\", \"paid_fee\": \"0\", \"locked\": \"31015.5\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 67, "ts": "2026-07-05T20:47:45", "ticker": "KRW-AI", "side": "sell", "price": 44.1, "volume": 706.9535822759999, "krw_amount": 31176.652978371596, "fee": 15.588326489185798, "realized_pnl": -1224.730574730018, "dry_run": 0, "raw_result": "{\"uuid\": \"f83866f9-e172-4cec-b5be-4714e260c370\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-AI\", \"created_at\": \"2026-07-05T20:47:45+09:00\", \"volume\": \"706.95358227\", \"remaining_volume\": \"706.95358227\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"706.95358227\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 66, "ts": "2026-07-05T20:42:50", "ticker": "KRW-ID", "side": "buy", "price": 56.6, "volume": 606.0070671378091, "krw_amount": 34300.0, "fee": 17.150000000000002, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"d584432d-3c2d-48c9-9645-59454be870a1\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"34300\", \"state\": \"wait\", \"market\": \"KRW-ID\", \"created_at\": \"2026-07-05T20:42:50+09:00\", \"reserved_fee\": \"17.15\", \"remaining_fee\": \"17.15\", \"paid_fee\": \"0\", \"locked\": \"34317.15\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 65, "ts": "2026-07-05T20:41:49", "ticker": "KRW-AI", "side": "sell", "price": 45.4, "volume": 757.4502667230001, "krw_amount": 34388.24210922421, "fee": 17.194121054612104, "realized_pnl": -328.0183259991212, "dry_run": 0, "raw_result": "{\"uuid\": \"dd0a3d20-b881-487a-983c-9e69c02992ef\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-AI\", \"created_at\": \"2026-07-05T20:41:48+09:00\", \"volume\": \"757.45026672\", \"remaining_volume\": \"757.45026672\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"757.45026672\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 64, "ts": "2026-07-05T20:30:26", "ticker": "KRW-AI", "side": "buy", "price": 45.8, "volume": 676.8558951965066, "krw_amount": 31000.0, "fee": 15.5, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"7c39b386-6480-4e41-8121-e30d6508128c\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"31000\", \"state\": \"wait\", \"market\": \"KRW-AI\", \"created_at\": \"2026-07-05T20:30:26+09:00\", \"reserved_fee\": \"15.5\", \"remaining_fee\": \"15.5\", \"paid_fee\": \"0\", \"locked\": \"31015.5\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 63, "ts": "2026-07-05T20:29:16", "ticker": "KRW-ID", "side": "sell", "price": 56.2, "volume": 419.27629343, "krw_amount": 23563.327690766, "fee": 11.781663845383001, "realized_pnl": 120.24779272250754, "dry_run": 0, "raw_result": "{\"uuid\": \"cb8f6dab-2315-4e26-a91f-79fe94aae6a2\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-ID\", \"created_at\": \"2026-07-05T20:29:16+09:00\", \"volume\": \"419.27629343\", \"remaining_volume\": \"419.27629343\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"419.27629343\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 62, "ts": "2026-07-05T20:24:09", "ticker": "KRW-AI", "side": "buy", "price": 45.3, "volume": 441.50110375275943, "krw_amount": 20000.0, "fee": 10.0, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"9336e1a9-288d-44ce-b5c5-192a31ea0efa\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"20000\", \"state\": \"wait\", \"market\": \"KRW-AI\", \"created_at\": \"2026-07-05T20:24:09+09:00\", \"reserved_fee\": \"10\", \"remaining_fee\": \"10\", \"paid_fee\": \"0\", \"locked\": \"20010\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 61, "ts": "2026-07-05T20:23:46", "ticker": "KRW-ID", "side": "sell", "price": 56.1, "volume": 419.27629343, "krw_amount": 23521.400061423003, "fee": 11.7607000307115, "realized_pnl": 78.34112719417845, "dry_run": 0, "raw_result": "{\"uuid\": \"11bb6964-c550-4726-ae9a-ebb2dde22f6f\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-ID\", \"created_at\": \"2026-07-05T20:23:46+09:00\", \"volume\": \"419.27629343\", \"remaining_volume\": \"419.27629343\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"419.27629343\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 60, "ts": "2026-07-05T20:19:07", "ticker": "KRW-AI", "side": "buy", "price": 44.9, "volume": 556.792873051225, "krw_amount": 25000.0, "fee": 12.5, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"fe3fce2e-5c3e-4422-9690-e51b9d81fc26\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"25000\", \"state\": \"wait\", \"market\": \"KRW-AI\", \"created_at\": \"2026-07-05T20:19:07+09:00\", \"reserved_fee\": \"12.5\", \"remaining_fee\": \"12.5\", \"paid_fee\": \"0\", \"locked\": \"25012.5\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 59, "ts": "2026-07-05T20:18:20", "ticker": "KRW-ID", "side": "sell", "price": 56.0, "volume": 359.37968007899997, "krw_amount": 20125.262084423997, "fee": 10.062631042211999, "realized_pnl": 31.22953857039284, "dry_run": 0, "raw_result": "{\"uuid\": \"897c7b1f-23de-4a2f-897d-5cc534a7dcba\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-ID\", \"created_at\": \"2026-07-05T20:18:20+09:00\", \"volume\": \"359.37968007\", \"remaining_volume\": \"359.37968007\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"359.37968007\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 58, "ts": "2026-07-05T20:14:07", "ticker": "KRW-ID", "side": "buy", "price": 56.0, "volume": 535.7142857142857, "krw_amount": 30000.0, "fee": 15.0, "realized_pnl": 0.0, "dry_run": 0, "raw_result": "{\"uuid\": \"c3f28bc7-c87b-49da-9449-1eb6a419cc67\", \"side\": \"bid\", \"ord_type\": \"price\", \"price\": \"30000\", \"state\": \"wait\", \"market\": \"KRW-ID\", \"created_at\": \"2026-07-05T20:14:07+09:00\", \"reserved_fee\": \"15\", \"remaining_fee\": \"15\", \"paid_fee\": \"0\", \"locked\": \"30015\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}, {"id": 57, "ts": "2026-07-05T20:13:24", "ticker": "KRW-AI", "side": "sell", "price": 45.4, "volume": 855.568794185, "krw_amount": 38842.823255999, "fee": 19.4214116279995, "realized_pnl": -1107.1589327987197, "dry_run": 0, "raw_result": "{\"uuid\": \"cd066286-8c16-458a-8452-e4c5144f7ff4\", \"side\": \"ask\", \"ord_type\": \"market\", \"state\": \"wait\", \"market\": \"KRW-AI\", \"created_at\": \"2026-07-05T20:13:25+09:00\", \"volume\": \"855.56879418\", \"remaining_volume\": \"855.56879418\", \"prevented_volume\": \"0\", \"reserved_fee\": \"0\", \"remaining_fee\": \"0\", \"paid_fee\": \"0\", \"locked\": \"855.56879418\", \"prevented_locked\": \"0\", \"executed_volume\": \"0\", \"trades_count\": 0}"}]};</script>
 <script>
 
-// 세팅(설정): HTS식 환경설정. 헤더의 "⚙ 설정" 버튼에서 카테고리별로 조절하며,
-// 모든 값은 이 브라우저의 localStorage에 저장돼 새로고침·페이지 이동 후에도 유지된다.
+// Settings: HTS-style preferences controlled from the header settings button.
+// Values are stored in this browser's localStorage across refreshes and page changes.
 (function () {
   function gnum(k, def) { const v = parseFloat(localStorage.getItem(k)); return isFinite(v) ? v : def; }
   function gbool(k, def) { const v = localStorage.getItem(k); return v == null ? def : (v === "1" || v === "true"); }
@@ -1304,31 +1330,31 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
   // 시스템 테마(자동)일 때 OS 다크/라이트 전환에 반응
   if (window.matchMedia) { try { window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", function () { if (gstr(P.theme.key, P.theme.def) === "auto") applyTheme("auto"); }); } catch (e) {} }
 
-  // ---- 카테고리 구성 ----
+  // ---- Settings categories ----
   var CATS = [
-    { id: "display", label: "테마·표시", items: [
-      { pref: "theme", name: "테마", desc: "전체 색 테마", ctrl: "seg", options: [["dark", "다크"], ["light", "라이트"], ["oled", "OLED"], ["auto", "시스템"]] },
-      { pref: "zoom", name: "화면 배율", desc: "글자·표 크기 (70~150%)", ctrl: "range", min: 0.7, max: 1.5, step: 0.05, fmt: function (v) { return Math.round(v * 100) + "%"; } },
-      { pref: "font", name: "글꼴", desc: "모노스페이스 / 고딕(가독성)", ctrl: "seg", options: [["mono", "모노"], ["sans", "고딕"]] },
-      { pref: "density", name: "정보 밀도", desc: "여백 크기", ctrl: "seg", options: [["normal", "보통"], ["compact", "컴팩트"]] },
-      { pref: "contrast", name: "고대비 모드", desc: "흐린 회색 글자를 더 밝게", ctrl: "toggle" },
-      { pref: "motion", name: "모션 줄이기", desc: "깜빡임·애니메이션 최소화", ctrl: "toggle" }
+    { id: "display", label: "Theme", items: [
+      { pref: "theme", name: "Theme", desc: "Global color theme", ctrl: "seg", options: [["dark", "Dark"], ["light", "Light"], ["oled", "OLED"], ["auto", "System"]] },
+      { pref: "zoom", name: "Interface scale", desc: "Text and table size (70-150%)", ctrl: "range", min: 0.7, max: 1.5, step: 0.05, fmt: function (v) { return Math.round(v * 100) + "%"; } },
+      { pref: "font", name: "Font", desc: "Monospace or readable sans", ctrl: "seg", options: [["mono", "Mono"], ["sans", "Sans"]] },
+      { pref: "density", name: "Density", desc: "Spacing size", ctrl: "seg", options: [["normal", "Normal"], ["compact", "Compact"]] },
+      { pref: "contrast", name: "High contrast", desc: "Brighten muted text", ctrl: "toggle" },
+      { pref: "motion", name: "Reduce motion", desc: "Minimize flashing and animation", ctrl: "toggle" }
     ]},
-    { id: "color", label: "색상·차트", items: [
-      { pref: "color", name: "상승/하락 색상", desc: "한국식 빨강↑ · 글로벌식 초록↑", ctrl: "seg", options: [["auto", "자동"], ["kr", "한국식"], ["global", "글로벌식"]] },
-      { pref: "chartFrame", name: "기본 봉 주기", desc: "주식 차트 기본 주기", ctrl: "seg", options: [["auto", "기본"], ["day", "일봉"], ["week", "주봉"], ["month", "월봉"]] },
-      { pref: "chartHeight", name: "차트 높이", desc: "주식 차트 크기", ctrl: "seg", options: [["normal", "보통"], ["tall", "크게"]] }
+    { id: "color", label: "Charts", items: [
+      { pref: "color", name: "Gain/loss colors", desc: "Korean red-up or global green-up", ctrl: "seg", options: [["auto", "Auto"], ["kr", "Korean"], ["global", "Global"]] },
+      { pref: "chartFrame", name: "Default candle frame", desc: "Default stock chart interval", ctrl: "seg", options: [["auto", "Default"], ["day", "Day"], ["week", "Week"], ["month", "Month"]] },
+      { pref: "chartHeight", name: "Chart height", desc: "Stock chart size", ctrl: "seg", options: [["normal", "Normal"], ["tall", "Tall"]] }
     ]},
-    { id: "ticker", label: "시세·데이터", items: [
-      { pref: "tape", name: "하단 시세 티커", desc: "헤더 아래 흐르는 시세 표시", ctrl: "toggle" },
-      { pref: "tapeSpeed", name: "티커 속도", desc: "흐르는 속도", ctrl: "seg", options: [["slow", "느림"], ["normal", "보통"], ["fast", "빠름"]] },
-      { pref: "refresh", name: "자동 새로고침", desc: "주식 시세 갱신 주기", ctrl: "seg", options: [["10", "10초"], ["30", "30초"], ["60", "1분"], ["off", "수동"]] }
+    { id: "ticker", label: "Market Data", items: [
+      { pref: "tape", name: "Market ticker", desc: "Show the scrolling quote tape below the header", ctrl: "toggle" },
+      { pref: "tapeSpeed", name: "Ticker speed", desc: "Scrolling speed", ctrl: "seg", options: [["slow", "Slow"], ["normal", "Normal"], ["fast", "Fast"]] },
+      { pref: "refresh", name: "Auto refresh", desc: "Stock quote refresh cadence", ctrl: "seg", options: [["10", "10 sec"], ["30", "30 sec"], ["60", "1 min"], ["off", "Manual"]] }
     ]},
-    { id: "alert", label: "알림", items: [
-      { pref: "sound", name: "알림 소리", desc: "가격 알림·이벤트 시 소리", ctrl: "toggle" },
-      { pref: "__notify", name: "브라우저 알림", desc: "목표가 도달을 데스크톱 알림으로", ctrl: "btn", btn: "권한 요청" }
+    { id: "alert", label: "Alerts", items: [
+      { pref: "sound", name: "Alert sound", desc: "Play sound for price alerts and events", ctrl: "toggle" },
+      { pref: "__notify", name: "Browser notifications", desc: "Desktop alert when a target price is reached", ctrl: "btn", btn: "Request access" }
     ]},
-    { id: "info", label: "정보", note: true }
+    { id: "info", label: "Info", note: true }
   ];
 
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -1349,8 +1375,8 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
       }).join("") + "</div>";
     }
     if (item.ctrl === "btn") {
-      var t = item.btn || "실행";
-      if (item.pref === "__notify" && window.Notification && Notification.permission === "granted") t = "허용됨 ✓";
+      var t = item.btn || "Run";
+      if (item.pref === "__notify" && window.Notification && Notification.permission === "granted") t = "Allowed";
       return '<button class="mini-btn" data-btn="' + item.pref + '">' + esc(t) + "</button>";
     }
     return "";
@@ -1359,11 +1385,11 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
   function panelHtml(cat) {
     if (cat.note) {
       return '<div class="settings-note">' +
-        '<b>설정 저장</b> — 모든 설정은 이 브라우저에만 저장됩니다(기기·브라우저별).<br>' +
-        '<b>알림·인증</b> — 텔레그램 알림과 대시보드 인증(WEB_AUTH_TOKEN)은 서버 <span class="kbd">.env</span>에서 설정합니다.<br>' +
-        '<b>단축키</b> — <span class="kbd">1~4</span> 탭 이동 · <span class="kbd">/</span> 검색 · <span class="kbd">s</span> 설정 · <span class="kbd">?</span> 도움말 · <span class="kbd">ESC</span> 닫기.<br>' +
-        '<b>가격 알림</b> — 주식 페이지 <b>가격 알림</b> 섹션에서 목표가를 등록하면 도달 시 알림이 옵니다.<br>' +
-        '<b>실시간 반영</b> — 값을 바꾸면 즉시 화면에 적용됩니다.' +
+        '<b>Saved settings</b>: preferences are stored only in this browser.<br>' +
+        '<b>Alerts and auth</b>: Telegram alerts and WEB_AUTH_TOKEN are configured on the server in <span class="kbd">.env</span>.<br>' +
+        '<b>Shortcuts</b>: <span class="kbd">1-4</span> tabs, <span class="kbd">/</span> search, <span class="kbd">s</span> settings, <span class="kbd">?</span> help, <span class="kbd">ESC</span> close.<br>' +
+        '<b>Price alerts</b>: add targets in the stock page alert panel to receive notifications.<br>' +
+        '<b>Live preview</b>: changes apply immediately.' +
         '</div>';
     }
     return '<div class="settings-body">' + cat.items.map(function (item) {
@@ -1380,18 +1406,20 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
     var btn = document.createElement("button");
     btn.id = "settings-btn";
     btn.className = "hd-settings-btn";
-    btn.title = "환경설정";
-    btn.innerHTML = '<span class="gear">⚙</span><span>설정</span>';
+    btn.title = "Settings";
+    btn.setAttribute("aria-label", "Settings");
+    btn.innerHTML = '<span class="gear">⚙</span><span>Settings</span>';
     document.querySelector(".hd-row").appendChild(btn);
 
-    // 멀티유저 포털(로그인·내 계정)로 가는 버튼. 서버 실행 시 /app 에서 열린다.
+    // Link to the multi-user portal. The server app serves it at /app.
     if (!document.getElementById("account-btn")) {
       var acc = document.createElement("a");
       acc.id = "account-btn";
       acc.className = "hd-settings-btn";
       acc.href = "/app";
-      acc.title = "로그인 · 내 계정";
-      acc.innerHTML = '<span>👤</span><span>로그인</span>';
+      acc.title = "Login and account";
+      acc.setAttribute("aria-label", "Login and account");
+      acc.innerHTML = '<span>👤</span><span>Login</span>';
       document.querySelector(".hd-row").insertBefore(acc, btn);
     }
 
@@ -1401,8 +1429,8 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
     modal.style.display = "none";
     modal.innerHTML =
       '<div class="modal-content" style="max-width:640px;width:94%">' +
-      '  <div class="modal-header">환경설정' +
-      '    <button class="modal-close" id="settings-close" aria-label="닫기">×</button>' +
+      '  <div class="modal-header">Settings' +
+      '    <button class="modal-close" id="settings-close" aria-label="Close">×</button>' +
       '  </div>' +
       '  <div class="modal-body" style="padding:0">' +
       '    <div class="settings-layout">' +
@@ -1413,8 +1441,8 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
       '    </div>' +
       '  </div>' +
       '  <div class="settings-footer">' +
-      '    <div class="foot-left"><button class="mini-btn" id="settings-reset">전체 기본값</button></div>' +
-      '    <button class="mini-btn on" id="settings-done">완료</button>' +
+      '    <div class="foot-left"><button class="mini-btn" id="settings-reset">Reset all</button></div>' +
+      '    <button class="mini-btn on" id="settings-done">Done</button>' +
       '  </div>' +
       '</div>';
     document.body.appendChild(modal);
@@ -1447,8 +1475,8 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
       if (bt) {
         if (bt.getAttribute("data-btn") === "__notify") {
           if (window.Notification && Notification.requestPermission) {
-            Notification.requestPermission().then(function (p) { bt.textContent = p === "granted" ? "허용됨 ✓" : (p === "denied" ? "차단됨" : "권한 요청"); });
-          } else { bt.textContent = "미지원"; }
+            Notification.requestPermission().then(function (p) { bt.textContent = p === "granted" ? "Allowed" : (p === "denied" ? "Blocked" : "Request access"); });
+          } else { bt.textContent = "Unsupported"; }
         }
         return;
       }
@@ -1545,7 +1573,7 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
     if (k >= "1" && k <= "4" && ts[+k - 1]) { var href = ts[+k - 1].getAttribute("href"); if (href) location.href = href; }
     else if (k === "/") { if (focusSearch()) e.preventDefault(); }
     else if (k === "s" || k === "S") { var b = document.getElementById("settings-btn"); if (b) { b.click(); e.preventDefault(); } }
-    else if (k === "?") { if (window.saToast) window.saToast("단축키 — 1~4: 탭 이동 · / : 검색 · s : 설정 · ? : 도움말", "info"); }
+    else if (k === "?") { if (window.saToast) window.saToast("Shortcuts: 1-4 tabs · / search · s settings · ? help", "info"); }
   });
 })();
 
@@ -1554,7 +1582,7 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function pad(n) { return (n < 10 ? "0" : "") + n; }
 
-  // ---- 시장 시계 (KRX 09:00~15:30, 평일) ----
+  // ---- Market clock (KRX 09:00-15:30 weekdays) ----
   function nextKrxOpen(now) {
     var d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
     if (now >= d) d.setDate(d.getDate() + 1);
@@ -1564,8 +1592,8 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
   function krxState(now) {
     var day = now.getDay(), mins = now.getHours() * 60 + now.getMinutes();
     var isWk = day >= 1 && day <= 5;
-    if (isWk && mins >= 540 && mins < 930) return { s: "장중", open: true };
-    return { s: (isWk && mins < 540) ? "장전" : "장마감", open: false };
+    if (isWk && mins >= 540 && mins < 930) return { s: "OPEN", open: true };
+    return { s: (isWk && mins < 540) ? "PRE" : "CLOSED", open: false };
   }
   function tickClock() {
     var el = document.getElementById("hd-clock");
@@ -1576,19 +1604,19 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
     if (!st.open) {
       var diff = Math.max(0, Math.floor((nextKrxOpen(now) - now) / 1000));
       var hh = Math.floor(diff / 3600), mm = Math.floor((diff % 3600) / 60), ss = diff % 60;
-      extra = " · 개장 " + (hh ? hh + "시간 " : "") + pad(mm) + ":" + pad(ss);
+      extra = " · opens in " + (hh ? hh + "h " : "") + pad(mm) + ":" + pad(ss);
     }
     el.className = "hd-clock " + (st.open ? "open" : "closed");
     el.textContent = "KRX " + st.s + " " + t + extra;
   }
 
-  // ---- 알림 센터 ----
+  // ---- Notification center ----
   function notiHistory() { try { return JSON.parse(localStorage.getItem("sa.noti") || "[]"); } catch (e) { return []; } }
   function unread() { return parseInt(localStorage.getItem("sa.notiUnread") || "0", 10) || 0; }
   function relTime(t) {
     var s = Math.floor((Date.now() - t) / 1000);
-    if (s < 60) return "방금"; if (s < 3600) return Math.floor(s / 60) + "분 전";
-    if (s < 86400) return Math.floor(s / 3600) + "시간 전"; return Math.floor(s / 86400) + "일 전";
+    if (s < 60) return "just now"; if (s < 3600) return Math.floor(s / 60) + "m ago";
+    if (s < 86400) return Math.floor(s / 3600) + "h ago"; return Math.floor(s / 86400) + "d ago";
   }
   function renderBell() {
     var b = document.getElementById("hd-bell-badge");
@@ -1597,13 +1625,13 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
     if (list) {
       var h = notiHistory();
       list.innerHTML = h.length ? h.map(function (n) {
-        return '<div class="hd-noti-item ' + esc(n.kind || "") + '"><div class="hd-noti-title">' + esc(n.title || "알림") +
+        return '<div class="hd-noti-item ' + esc(n.kind || "") + '"><div class="hd-noti-title">' + esc(n.title || "Alert") +
           '</div><div class="hd-noti-body">' + esc(n.body || "") + '</div><div class="hd-noti-time">' + relTime(n.t) + "</div></div>";
-      }).join("") : '<div class="hd-noti-empty">알림이 없습니다.</div>';
+      }).join("") : '<div class="hd-noti-empty">No alerts yet.</div>';
     }
   }
 
-  // ---- 계산기 (국내주식 손익) ----
+  // ---- Calculator ----
   function calcModal() {
     var m = document.getElementById("calc-modal");
     if (m) return m;
@@ -1611,13 +1639,13 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
     m.className = "modal"; m.id = "calc-modal"; m.style.display = "none";
     m.innerHTML =
       '<div class="modal-content" style="max-width:420px">' +
-      '<div class="modal-header">손익 계산기<button class="modal-close" id="calc-close">×</button></div>' +
+      '<div class="modal-header">P&L Calculator<button class="modal-close" id="calc-close">×</button></div>' +
       '<div class="calc-body">' +
-      '<div class="calc-row"><label>매수가</label><input type="number" id="calc-buy" placeholder="원"></div>' +
-      '<div class="calc-row"><label>매도가</label><input type="number" id="calc-sell" placeholder="원"></div>' +
-      '<div class="calc-row"><label>수량</label><input type="number" id="calc-qty" placeholder="주"></div>' +
+      '<div class="calc-row"><label>Buy price</label><input type="number" id="calc-buy" placeholder="KRW"></div>' +
+      '<div class="calc-row"><label>Sell price</label><input type="number" id="calc-sell" placeholder="KRW"></div>' +
+      '<div class="calc-row"><label>Quantity</label><input type="number" id="calc-qty" placeholder="shares"></div>' +
       '<div class="calc-out" id="calc-out"></div>' +
-      '<div class="calc-note">수수료 0.015%(양방향) · 거래세 0.18%(매도) 반영 · 국내주식 기준</div>' +
+      '<div class="calc-note">Includes 0.015% fees both ways and 0.18% sell tax for Korean equities.</div>' +
       "</div></div>";
     document.body.appendChild(m);
     function compute() {
@@ -1625,7 +1653,7 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
       var sell = parseFloat(document.getElementById("calc-sell").value) || 0;
       var qty = parseFloat(document.getElementById("calc-qty").value) || 0;
       var out = document.getElementById("calc-out");
-      if (buy <= 0 || qty <= 0) { out.innerHTML = '<div class="calc-hint">매수가와 수량을 입력하세요.</div>'; return; }
+      if (buy <= 0 || qty <= 0) { out.innerHTML = '<div class="calc-hint">Enter a buy price and quantity.</div>'; return; }
       var buyAmt = buy * qty, sellAmt = sell * qty;
       var fee = (buyAmt + sellAmt) * 0.00015, tax = sellAmt * 0.0018;
       var pnl = sellAmt - buyAmt - fee - tax;
@@ -1633,10 +1661,10 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
       var cls = pnl >= 0 ? "up" : "down";
       var fmt = function (n) { return Math.round(n).toLocaleString("ko-KR"); };
       out.innerHTML =
-        '<div class="calc-line"><span>매수금액</span><b>' + fmt(buyAmt) + " 원</b></div>" +
-        '<div class="calc-line"><span>매도금액</span><b>' + fmt(sellAmt) + " 원</b></div>" +
-        '<div class="calc-line"><span>수수료+세금</span><b>' + fmt(fee + tax) + " 원</b></div>" +
-        '<div class="calc-line big ' + cls + '"><span>순손익</span><b>' + (pnl >= 0 ? "+" : "") + fmt(pnl) + " 원 (" + (pct >= 0 ? "+" : "") + pct.toFixed(2) + "%)</b></div>";
+        '<div class="calc-line"><span>Buy amount</span><b>' + fmt(buyAmt) + " KRW</b></div>" +
+        '<div class="calc-line"><span>Sell amount</span><b>' + fmt(sellAmt) + " KRW</b></div>" +
+        '<div class="calc-line"><span>Fees + tax</span><b>' + fmt(fee + tax) + " KRW</b></div>" +
+        '<div class="calc-line big ' + cls + '"><span>Net P&L</span><b>' + (pnl >= 0 ? "+" : "") + fmt(pnl) + " KRW (" + (pct >= 0 ? "+" : "") + pct.toFixed(2) + "%)</b></div>";
     }
     m.addEventListener("input", compute);
     m.querySelector("#calc-close").addEventListener("click", function () { m.style.display = "none"; });
@@ -1651,11 +1679,11 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
     var wrap = document.createElement("span");
     wrap.id = "hd-tools";
     wrap.innerHTML =
-      '<span class="hd-clock closed" id="hd-clock" title="한국거래소 장 상태">KRX —</span>' +
-      '<button class="hd-icon-btn" id="hd-calc" title="손익 계산기">🧮</button>' +
-      '<span class="hd-bell-wrap"><button class="hd-icon-btn" id="hd-bell" title="알림">🔔<span class="hd-badge" id="hd-bell-badge" style="display:none">0</span></button>' +
-      '<div class="hd-noti-panel" id="hd-noti-panel" hidden><div class="hd-noti-head">알림<button class="hd-noti-clear" id="hd-noti-clear">모두 지우기</button></div><div id="hd-noti-list"></div></div></span>';
-    // 설정 버튼 앞에 삽입(설정 버튼이 아직 없으면 맨 끝)
+      '<span class="hd-clock closed" id="hd-clock" title="KRX market status">KRX —</span>' +
+      '<button class="hd-icon-btn" id="hd-calc" title="P&L calculator">🧮</button>' +
+      '<span class="hd-bell-wrap"><button class="hd-icon-btn" id="hd-bell" title="Alerts">🔔<span class="hd-badge" id="hd-bell-badge" style="display:none">0</span></button>' +
+      '<div class="hd-noti-panel" id="hd-noti-panel" hidden><div class="hd-noti-head">Alerts<button class="hd-noti-clear" id="hd-noti-clear">Clear all</button></div><div id="hd-noti-list"></div></div></span>';
+    // Insert before settings when possible.
     var settings = document.getElementById("settings-btn");
     if (settings) row.insertBefore(wrap, settings); else row.appendChild(wrap);
 
@@ -1783,7 +1811,7 @@ function applyTerminalHeader(s) {
   const pill = document.getElementById("mode-pill");
   if (pill) {
     pill.className = isDry ? "pill-dry" : "pill-live";
-    pill.innerHTML = '<span class="dot"></span><span>' + (isDry ? "DRY · 모의" : "LIVE · 실거래") + '</span>';
+    pill.innerHTML = '<span class="dot"></span><span>' + (isDry ? "DRY · PAPER" : "LIVE · REAL") + '</span>';
   }
 
   const ai = document.getElementById("ai-pill");
@@ -1794,7 +1822,7 @@ function applyTerminalHeader(s) {
     const running = !!s.loop_running;
     const paused = !!s.bot_paused;
     bot.className = "pill-bot " + (paused ? "pause" : running ? "on" : "");
-    bot.textContent = paused ? "BOT 일시정지" : running ? "BOT 운용중" : "BOT 대기";
+    bot.textContent = paused ? "BOT PAUSED" : running ? "BOT RUNNING" : "BOT IDLE";
   }
 
   const pauseBtn = document.getElementById("pause-bot");
@@ -1807,8 +1835,8 @@ function applyTerminalHeader(s) {
 
   const foot = document.getElementById("foot");
   if (foot) {
-    foot.textContent = "시작 " + s.started_at + " · 주기 " + s.interval + "s · " +
-      (isDry ? "DRY_RUN=True(모의)" : "DRY_RUN=False(실거래)");
+    foot.textContent = "Started " + s.started_at + " · Interval " + s.interval + "s · " +
+      (isDry ? "DRY_RUN=True (paper)" : "DRY_RUN=False (real)");
   }
 }
 
@@ -1898,7 +1926,7 @@ async function setBotPaused(paused) {
   const action = paused ? "pause" : "resume";
   if (!paused) {
     const mode = document.getElementById("mode-pill")?.textContent || "";
-    if (mode.includes("LIVE") && !confirm("실거래 봇을 재개할까요?")) return;
+    if (mode.includes("LIVE") && !confirm("Resume the live trading bot?")) return;
   }
   try {
     const r = await fetch("/api/control", {
@@ -2502,11 +2530,11 @@ function updateCoinTradeMode() {
   const confirm = document.getElementById("coin-trade-confirm");
   if (!mode) return;
   const dry = cfg.dry_run !== false;
-  mode.textContent = dry ? "DRY RUN · 모의 주문" : "LIVE · 실거래 주문";
+  mode.textContent = dry ? "DRY RUN · PAPER ORDER" : "LIVE · REAL ORDER";
   mode.style.color = dry ? "#e0b341" : "#ff5d6c";
   if (confirm) {
     confirm.disabled = dry;
-    confirm.placeholder = dry ? "모의 주문" : "LIVE";
+    confirm.placeholder = dry ? "Paper order" : "LIVE";
     if (dry) confirm.value = "";
   }
 }
@@ -2523,8 +2551,8 @@ function updateCoinTradeFromPortfolio(pf) {
   const cash = Number(pf.summary?.cash_value || 0);
   if (balance) {
     balance.textContent = current
-      ? `원화 ${KRW(cash)}원 · 보유 ${NUM(current.balance)} ${current.currency}`
-      : `원화 ${KRW(cash)}원 · 선택 종목 미보유`;
+      ? `Cash ${KRW(cash)} KRW · Holding ${NUM(current.balance)} ${current.currency}`
+      : `Cash ${KRW(cash)} KRW · No holding for selected market`;
   }
   updateCoinTradeMode();
 }
@@ -2539,12 +2567,12 @@ function setCoinTradeStatus(message, tone="") {
 function setCoinTradePercent(percent) {
   const h = coinTradeHolding();
   if (!h) {
-    setCoinTradeStatus("선택한 종목의 보유 수량이 없습니다.", "warn");
+    setCoinTradeStatus("No holding balance for the selected market.", "warn");
     return;
   }
   const volume = Number(h.balance || 0) * Number(percent || 0) / 100;
   document.getElementById("coin-trade-volume").value = volume > 0 ? volume.toFixed(8).replace(/0+$/, "").replace(/\.$/, "") : "";
-  setCoinTradeStatus(`${h.currency} 보유 수량의 ${percent}% 매도 수량을 입력했습니다.`, "ok");
+  setCoinTradeStatus(`Filled sell quantity with ${percent}% of your ${h.currency} holding.`, "ok");
 }
 
 function coinTradePayload(side) {
@@ -2559,9 +2587,9 @@ function coinTradePayload(side) {
 }
 
 function describeManualOrder(ctx) {
-  const side = ctx.side === "buy" ? "매수" : "매도";
-  const mode = ctx.dry_run ? "모의" : "실거래";
-  return `${mode} ${side} · ${ctx.ticker} · 예상 ${KRW(ctx.krw_amount)}원 · 수량 ${NUM(ctx.volume)} · 현재가 ${KRW(ctx.price)}원 · 수수료 약 ${KRW(ctx.estimated_fee)}원`;
+  const side = ctx.side === "buy" ? "BUY" : "SELL";
+  const mode = ctx.dry_run ? "PAPER" : "LIVE";
+  return `${mode} ${side} · ${ctx.ticker} · Est. ${KRW(ctx.krw_amount)} KRW · Qty ${NUM(ctx.volume)} · Price ${KRW(ctx.price)} KRW · Fee approx. ${KRW(ctx.estimated_fee)} KRW`;
 }
 
 async function previewManualOrder(side) {
@@ -2572,7 +2600,7 @@ async function previewManualOrder(side) {
       body: JSON.stringify(coinTradePayload(side)),
     });
     const j = await r.json();
-    if (!r.ok) throw new Error(j.error || "주문 예상 실패");
+    if (!r.ok) throw new Error(j.error || "Order preview failed");
     setCoinTradeStatus(describeManualOrder(j.preview), "ok");
   } catch(e) {
     setCoinTradeStatus(e.message || String(e), "err");
@@ -2582,19 +2610,19 @@ async function previewManualOrder(side) {
 async function executeManualOrder(side) {
   const cfg = window._coinConfig || {};
   if (cfg.dry_run === false && (document.getElementById("coin-trade-confirm").value || "").trim().toUpperCase() !== "LIVE") {
-    setCoinTradeStatus("실거래 주문은 확인 입력란에 LIVE를 입력해야 합니다.", "warn");
+    setCoinTradeStatus("Type LIVE in the confirmation field before placing a real order.", "warn");
     return;
   }
   try {
-    setCoinTradeStatus("주문 처리 중입니다.", "warn");
+    setCoinTradeStatus("Processing order...", "warn");
     const r = await fetch("/api/manual_order", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify(coinTradePayload(side)),
     });
     const j = await r.json();
-    if (!r.ok) throw new Error(j.error || "주문 실패");
-    setCoinTradeStatus(describeManualOrder(j.order) + " · 처리 완료", j.order.dry_run ? "warn" : "ok");
+    if (!r.ok) throw new Error(j.error || "Order failed");
+    setCoinTradeStatus(describeManualOrder(j.order) + " · Complete", j.order.dry_run ? "warn" : "ok");
     if (j.portfolio) renderCoinPortfolio(j.portfolio);
     else loadCoinPortfolio();
   } catch(e) {
@@ -2664,7 +2692,7 @@ function renderCoinNewsSources(payload) {
   const updated = document.getElementById("coin-news-updated");
   if (updated && payload?.fetched_at) {
     const d = new Date(payload.fetched_at);
-    updated.textContent = isNaN(d.getTime()) ? "—" : d.toLocaleTimeString("ko-KR", { hour:"2-digit", minute:"2-digit" });
+    updated.textContent = isNaN(d.getTime()) ? "—" : d.toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit", hour12:false });
   }
   const note = document.getElementById("coin-news-note");
   if (note) {
@@ -2833,7 +2861,7 @@ function renderCoinNewsMap(payload=window._coinNewsSummaryPayload) {
   const updated = document.getElementById("coin-news-map-updated");
   if (updated) {
     const d = new Date(payload?.generated_at || Date.now());
-    updated.textContent = isNaN(d.getTime()) ? "—" : d.toLocaleTimeString("ko-KR", { hour:"2-digit", minute:"2-digit" });
+    updated.textContent = isNaN(d.getTime()) ? "—" : d.toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit", hour12:false });
   }
   const provider = document.getElementById("coin-news-map-provider");
   if (provider) provider.textContent = summary.fallback ? "FALLBACK" : (payload?.provider || "AI");
@@ -2900,7 +2928,7 @@ function renderCoinNewsSummary(payload) {
   }
   if (updated && payload?.generated_at) {
     const d = new Date(payload.generated_at);
-    updated.textContent = isNaN(d.getTime()) ? "—" : d.toLocaleTimeString("ko-KR", { hour:"2-digit", minute:"2-digit" });
+    updated.textContent = isNaN(d.getTime()) ? "—" : d.toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit", hour12:false });
   }
   if (window._coinNewsMapOpen) renderCoinNewsMap(payload);
 }
@@ -3061,7 +3089,7 @@ async function loadCoinAiLive() {
       renderAiAccountMap(pf);
     }
     const upd = document.getElementById("coin-ai-live-upd");
-    if (upd) upd.textContent = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    if (upd) upd.textContent = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
     const note = document.getElementById("ai-map-note");
     if (note) note.textContent = pf && pf.account_error ? "계좌 조회 오류: " + pf.account_error : "";
   } catch (e) {

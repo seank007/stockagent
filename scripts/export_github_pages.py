@@ -209,7 +209,7 @@ STATIC_API = f"""
     const sstate = snap.state || {{}};
     const liveMode = scfg.allow_live_trading && !scfg.dry_run;
     return {{
-      mode: liveMode ? "⚠️ 실거래" : "DRY_RUN(모의)",
+      mode: liveMode ? "LIVE" : "DRY_RUN(PAPER)",
       provider: scfg.provider || "mock",
       model: scfg.external_trader ? "hermes agent" : (scfg.model || "github-pages-static"),
       loop_running: true,
@@ -217,7 +217,7 @@ STATIC_API = f"""
       started_at: "GitHub Pages",
       interval: 600,
       cycle_count: (sstate.history || []).length,
-      last_update: sstate.last_update || new Date().toLocaleTimeString("ko-KR", {{hour:"2-digit", minute:"2-digit"}}),
+      last_update: sstate.last_update || new Date().toLocaleTimeString("en-GB", {{hour:"2-digit", minute:"2-digit", hour12:false}}),
       today_pnl: 0,
       total_pnl: 0,
       error: null,
@@ -736,14 +736,14 @@ def main() -> None:
     write(
         DOCS / "404.html",
         """<!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="refresh" content="0; url=/stockagent/">
   <title>stockagent</title>
 </head>
-<body><a href="/stockagent/">stockagent로 이동</a></body>
+<body><a href="/stockagent/">Go to stockagent</a></body>
 </html>
 """,
     )

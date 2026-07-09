@@ -79,8 +79,8 @@
           if (typeof renderAiAccountMap === "function") renderAiAccountMap(p);
           var upd = document.getElementById("coin-ai-live-upd");
           if (upd) {
-            upd.textContent = new Date().toLocaleTimeString("ko-KR",
-              { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+            upd.textContent = new Date().toLocaleTimeString("en-GB",
+              { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
           }
           var note = document.getElementById("ai-map-note");
           if (note) {
