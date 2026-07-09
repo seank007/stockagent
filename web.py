@@ -2725,6 +2725,17 @@ COMMON_JS = """
     btn.innerHTML = '<span class="gear">⚙</span><span>설정</span>';
     document.querySelector(".hd-row").appendChild(btn);
 
+    // 멀티유저 포털(로그인·내 계정)로 가는 버튼. 서버 실행 시 /app 에서 열린다.
+    if (!document.getElementById("account-btn")) {
+      var acc = document.createElement("a");
+      acc.id = "account-btn";
+      acc.className = "hd-settings-btn";
+      acc.href = "/app";
+      acc.title = "로그인 · 내 계정";
+      acc.innerHTML = '<span>👤</span><span>로그인</span>';
+      document.querySelector(".hd-row").insertBefore(acc, btn);
+    }
+
     var modal = document.createElement("div");
     modal.className = "modal";
     modal.id = "settings-modal";
