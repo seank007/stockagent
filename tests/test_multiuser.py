@@ -195,3 +195,70 @@ def test_verify_upbit_key_invalid_key(mu, monkeypatch):
     )
     res = exchange.verify_upbit_key("ak", "sk")
     assert not res.valid and not res.acceptable
+
+
+# ------------------------------------------------ 내 계정 설정
+def test_change_password(mu):
+    accounts, _, _ = mu
+    u = accounts.register("cp@x.com", "password123")
+    token = accounts.create_session(u["id"])
+    with pytest.raises(accounts.AccountError):
+        accounts.change_password(u["id"], "wrong", "newpassword1")
+    accounts.change_password(u["id"], "password123", "newpassword1")
+    assert accounts.authenticate("cp@x.com", "newpassword1") is not None
+    assert accounts.authenticate("cp@x.com", "password123") is None
+    # 비번 변경 시 기존 세션은 폐기됨
+    assert accounts.user_for_session(token) is None
+
+
+def test_change_password_too_short(mu):
+    accounts, _, _ = mu
+    u = accounts.register("cp2@x.com", "password123")
+    with pytest.raises(accounts.AccountError):
+        accounts.change_password(u["id"], "password123", "short")
+
+
+def test_update_profile(mu):
+    accounts, _, _ = mu
+    u = accounts.register("pr@x.com", "password123")
+    out = accounts.update_profile(u["id"], "새이름")
+    assert out["display_name"] == "새이름"
+
+
+def test_delete_account(mu, monkeypatch):
+    accounts, _, exchange = mu
+    monkeypatch.setattr(accounts, "verify_upbit_key",
+                        lambda a, s: exchange.VerifyResult(True, False, "ok"))
+    u = accounts.register("del@x.com", "password123")
+    accounts.add_exchange_credential(u["id"], "ak", "sk")
+    with pytest.raises(accounts.AccountError):
+        accounts.delete_account(u["id"], "wrong")
+    accounts.delete_account(u["id"], "password123")
+    assert accounts.get_user(u["id"]) is None
+    # 키도 CASCADE로 사라짐
+    assert accounts.get_decrypted_credential(u["id"]) is None
+
+
+# ------------------------------------------------ 운영자(admin)
+def test_admin_email_grants_admin(mu):
+    accounts, _, _ = mu
+    accounts._ADMIN_EMAILS = {"boss@x.com"}
+    boss = accounts.register("boss@x.com", "password123")
+    normal = accounts.register("joe@x.com", "password123")
+    assert boss["is_admin"] is True
+    assert normal["is_admin"] is False
+
+
+def test_admin_list_and_actions(mu):
+    accounts, _, _ = mu
+    a = accounts.register("a@x.com", "password123")
+    b = accounts.register("b@x.com", "password123")
+    users = accounts.list_all_users()
+    assert {u["email"] for u in users} == {"a@x.com", "b@x.com"}
+    assert all("password" not in str(u) for u in users)  # 비번 노출 없음
+
+    accounts.set_user_active(b["id"], False)
+    assert accounts.authenticate("b@x.com", "password123") is None  # 비활성 로그인 불가
+
+    accounts.admin_delete_user(a["id"])
+    assert accounts.get_user(a["id"]) is None

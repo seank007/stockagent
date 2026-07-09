@@ -42,6 +42,19 @@ def login_required(view):
     return wrapped
 
 
+def admin_required(view):
+    @functools.wraps(view)
+    def wrapped(*args, **kwargs):
+        user = current_user()
+        if user is None:
+            return jsonify({"error": "로그인이 필요합니다."}), 401
+        if not user.get("is_admin"):
+            return jsonify({"error": "관리자 권한이 필요합니다."}), 403
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
 def _set_session_cookie(resp, token: str):
     resp.set_cookie(
         _COOKIE, token,
@@ -202,12 +215,82 @@ def trade_history():
     })
 
 
-# ------------------------------------------------ 사용자 화면
+# ------------------------------------------------ 내 계정 설정
+@bp.post("/auth/account/password")
+@login_required
+def change_password():
+    data = request.get_json(silent=True) or {}
+    try:
+        accounts.change_password(
+            current_user()["id"], data.get("current_password", ""), data.get("new_password", "")
+        )
+    except accounts.AccountError as e:
+        return jsonify({"error": str(e)}), 400
+    resp = make_response(jsonify({"ok": True, "relogin": True}))
+    resp.delete_cookie(_COOKIE, path="/")  # 비번 변경 → 재로그인
+    return resp
+
+
+@bp.post("/auth/account/profile")
+@login_required
+def update_profile():
+    data = request.get_json(silent=True) or {}
+    user = accounts.update_profile(current_user()["id"], data.get("display_name"))
+    return jsonify({"user": user})
+
+
+@bp.post("/auth/account/delete")
+@login_required
+def delete_account():
+    data = request.get_json(silent=True) or {}
+    try:
+        accounts.delete_account(current_user()["id"], data.get("password", ""))
+    except accounts.AccountError as e:
+        return jsonify({"error": str(e)}), 400
+    resp = make_response(jsonify({"ok": True}))
+    resp.delete_cookie(_COOKIE, path="/")
+    return resp
+
+
+# ------------------------------------------------ 운영자(admin)
+@bp.get("/auth/admin/users")
+@admin_required
+def admin_users():
+    return jsonify({"users": accounts.list_all_users()})
+
+
+@bp.post("/auth/admin/users/<int:uid>")
+@admin_required
+def admin_user_action(uid: int):
+    data = request.get_json(silent=True) or {}
+    action = data.get("action")
+    me = current_user()
+    if uid == me["id"] and action in ("deactivate", "delete"):
+        return jsonify({"error": "본인 계정은 여기서 비활성화/삭제할 수 없습니다."}), 400
+    if action == "activate":
+        accounts.set_user_active(uid, True)
+    elif action == "deactivate":
+        accounts.set_user_active(uid, False)
+    elif action == "delete":
+        accounts.admin_delete_user(uid)
+    else:
+        return jsonify({"error": "알 수 없는 동작"}), 400
+    return jsonify({"ok": True})
+
+
+# ------------------------------------------------ 사용자/관리자 화면
 @bp.get("/app")
 def app_page():
     from .frontend import PAGE_HTML
 
     return current_app.response_class(PAGE_HTML, mimetype="text/html")
+
+
+@bp.get("/admin")
+def admin_page():
+    from .frontend import ADMIN_HTML
+
+    return current_app.response_class(ADMIN_HTML, mimetype="text/html")
 
 
 def register(app) -> None:

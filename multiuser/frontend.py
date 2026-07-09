@@ -68,6 +68,7 @@ PAGE_HTML = r"""<!DOCTYPE html>
     <div class="brand"><b>stockagent</b><span>내 자산 · 자동매매</span></div>
     <div id="userbar" class="hidden row" style="gap:8px;">
       <span id="userEmail" class="muted"></span>
+      <a id="adminLink" class="hidden" href="/admin" style="font-size:12px;color:var(--brand);text-decoration:none;">관리자</a>
       <button class="ghost sm" onclick="logout()">로그아웃</button>
     </div>
   </div>
@@ -141,6 +142,25 @@ PAGE_HTML = r"""<!DOCTYPE html>
       </div>
     </div>
 
+    <!-- 내 계정 -->
+    <div class="card">
+      <h2>내 계정</h2>
+      <div class="muted" id="acctInfo" style="margin-top:6px;"></div>
+      <label>이름</label>
+      <div class="row" style="gap:8px;">
+        <input id="acName" placeholder="이름">
+        <button class="ghost sm" onclick="saveProfile()">저장</button>
+      </div>
+      <label style="margin-top:14px;">비밀번호 변경</label>
+      <input id="acCur" type="password" placeholder="현재 비밀번호" autocomplete="current-password">
+      <input id="acNew" type="password" placeholder="새 비밀번호(8자 이상)" autocomplete="new-password" style="margin-top:6px;">
+      <div class="err" id="acErr"></div>
+      <div class="row" style="margin-top:6px;">
+        <button class="ghost sm" onclick="changePassword()">비밀번호 변경</button>
+        <button class="ghost sm" style="color:var(--up);border-color:#f3c0c2;" onclick="deleteAccount()">회원 탈퇴</button>
+      </div>
+    </div>
+
     <div class="foot">
       투자 판단과 그 결과(손실 포함)에 대한 책임은 전적으로 본인에게 있습니다.<br>
       본 서비스는 사용자 본인 계정을 자동화하는 도구이며, 자동매매 기능은 베타입니다.
@@ -190,8 +210,30 @@ async function boot(){
   }
   $('userEmail').textContent = user.email;
   $('userbar').classList.remove('hidden');
+  $('adminLink').classList.toggle('hidden', !user.is_admin);
+  $('acctInfo').innerHTML = user.email + ' · 가입 ' + (user.created_at||'').slice(0,10) + (user.is_admin?' · <b>관리자</b>':'');
+  $('acName').value = user.display_name || '';
   $('authView').classList.add('hidden'); $('dashView').classList.remove('hidden');
   await refreshKeyStatus(); loadPortfolio(); loadSettings();
+}
+
+async function saveProfile(){
+  const r = await api('/auth/account/profile',{method:'POST',body:JSON.stringify({display_name:$('acName').value.trim()})});
+  if(r.ok) $('acctInfo').style.opacity=.5, setTimeout(()=>$('acctInfo').style.opacity=1,300);
+}
+async function changePassword(){
+  $('acErr').textContent='';
+  const r = await api('/auth/account/password',{method:'POST',
+    body:JSON.stringify({current_password:$('acCur').value,new_password:$('acNew').value})});
+  if(!r.ok){ $('acErr').textContent=(r.body&&r.body.error)||'변경 실패'; return; }
+  alert('비밀번호가 변경되었습니다. 다시 로그인해 주세요.'); boot();
+}
+async function deleteAccount(){
+  if(!confirm('정말 탈퇴하시겠어요? 계정·등록한 키·기록이 모두 삭제됩니다.')) return;
+  const pw = prompt('확인을 위해 비밀번호를 입력하세요.'); if(pw===null) return;
+  const r = await api('/auth/account/delete',{method:'POST',body:JSON.stringify({password:pw})});
+  if(!r.ok){ alert((r.body&&r.body.error)||'탈퇴 실패'); return; }
+  alert('탈퇴되었습니다.'); boot();
 }
 
 async function refreshKeyStatus(){
@@ -283,6 +325,101 @@ async function runOnce(){
 }
 
 boot();
+</script>
+</body>
+</html>
+"""
+
+
+ADMIN_HTML = r"""<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>stockagent · 회원 관리</title>
+<style>
+  :root { --bg:#eef1f5; --card:#fff; --line:#e5e7eb; --ink:#1f2430; --sub:#6b7280;
+          --brand:#2563eb; --up:#e5484d; --down:#1e7f4f; --soft:#f3f4f6; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:13px/1.55 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",Roboto,sans-serif; }
+  .wrap { max-width:960px; margin:0 auto; padding:18px 14px 60px; }
+  .top { display:flex; align-items:center; justify-content:space-between; }
+  b.brand { font-size:19px; }
+  a { color:var(--brand); text-decoration:none; font-size:12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-top:14px;
+          box-shadow:0 1px 2px rgba(16,24,40,.04); overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; }
+  th,td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { color:var(--sub); font-weight:600; font-size:11px; }
+  .muted { color:var(--sub); }
+  .pill { display:inline-block; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:700; }
+  .on { background:#e7f4ec; color:var(--down); } .off { background:#fdecec; color:var(--up); }
+  .yes { color:var(--down); font-weight:700; } .no { color:var(--sub); }
+  button { font-size:12px; padding:5px 9px; border-radius:7px; border:1px solid var(--line);
+           background:#fff; color:var(--ink); cursor:pointer; margin-right:4px; }
+  button.danger { color:var(--up); border-color:#f3c0c2; }
+  .err { color:var(--up); margin-top:10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <b class="brand">회원 관리 <span class="muted" style="font-size:12px;font-weight:400;">admin</span></b>
+    <a href="/app">← 내 대시보드</a>
+  </div>
+  <div class="card">
+    <div id="summary" class="muted">불러오는 중…</div>
+    <div id="err" class="err"></div>
+    <table id="tbl" class="hidden">
+      <thead><tr>
+        <th>ID</th><th>이메일</th><th>이름</th><th>가입일</th><th>최근로그인</th>
+        <th>키</th><th>자동매매</th><th>상태</th><th>관리</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+<script>
+const $ = (id)=>document.getElementById(id);
+async function api(p,o={}){ const r=await fetch(p,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...o});
+  let b=null; try{b=await r.json();}catch(e){} return {ok:r.ok,status:r.status,body:b}; }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+async function load(){
+  const r = await api('/auth/admin/users');
+  if(r.status===401){ location.href='/app'; return; }
+  if(r.status===403){ $('summary').textContent=''; $('err').textContent='관리자 권한이 필요합니다.'; return; }
+  if(!r.ok){ $('err').textContent=(r.body&&r.body.error)||'불러오기 실패'; return; }
+  const us = r.body.users||[];
+  $('summary').textContent = '총 ' + us.length + '명 · 키 등록 ' + us.filter(u=>u.has_key).length + '명 · 자동매매 ' + us.filter(u=>u.auto_enabled).length + '명';
+  $('tbl').classList.remove('hidden');
+  $('rows').innerHTML = us.map(u=>{
+    const act = u.is_active
+      ? '<button onclick="act('+u.id+',\'deactivate\')">비활성화</button>'
+      : '<button onclick="act('+u.id+',\'activate\')">활성화</button>';
+    return '<tr>'+
+      '<td>'+u.id+'</td>'+
+      '<td>'+esc(u.email)+(u.is_admin?' <span class="pill on">admin</span>':'')+'</td>'+
+      '<td>'+esc(u.display_name||'—')+'</td>'+
+      '<td class="muted">'+(u.created_at||'').slice(0,10)+'</td>'+
+      '<td class="muted">'+((u.last_login_at||'').slice(0,10)||'—')+'</td>'+
+      '<td>'+(u.has_key?'<span class="yes">있음</span>':'<span class="no">없음</span>')+'</td>'+
+      '<td>'+(u.auto_enabled?'<span class="yes">ON</span>':'<span class="no">off</span>')+'</td>'+
+      '<td>'+(u.is_active?'<span class="pill on">활성</span>':'<span class="pill off">비활성</span>')+'</td>'+
+      '<td>'+act+'<button class="danger" onclick="del('+u.id+',\''+esc(u.email)+'\')">삭제</button></td>'+
+      '</tr>';
+  }).join('');
+}
+async function act(id,action){
+  const r = await api('/auth/admin/users/'+id,{method:'POST',body:JSON.stringify({action})});
+  if(!r.ok){ alert((r.body&&r.body.error)||'실패'); return; } load();
+}
+async function del(id,email){
+  if(!confirm('회원 '+email+' 을(를) 삭제할까요? 계정·키·기록이 모두 삭제됩니다.')) return;
+  const r = await api('/auth/admin/users/'+id,{method:'POST',body:JSON.stringify({action:'delete'})});
+  if(!r.ok){ alert((r.body&&r.body.error)||'실패'); return; } load();
+}
+load();
 </script>
 </body>
 </html>

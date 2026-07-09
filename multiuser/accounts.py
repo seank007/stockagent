@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import os
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -19,6 +20,13 @@ SESSION_TTL_HOURS = 24 * 14  # 2주
 _HASH_METHOD = "pbkdf2:sha256"  # 이식성 우선(모든 OpenSSL 빌드에서 동작)
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _MIN_PASSWORD = 8
+
+# 운영자 계정: 환경변수 ADMIN_EMAILS(쉼표 구분)에 있는 이메일은 자동으로 admin 권한.
+_ADMIN_EMAILS = {e.strip().lower() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()}
+
+
+def _is_admin_email(email: str) -> bool:
+    return (email or "").lower() in _ADMIN_EMAILS
 
 
 class AccountError(Exception):
@@ -49,9 +57,9 @@ def register(email: str, password: str, display_name: str | None = None) -> dict
         if exists:
             raise AccountError("이미 가입된 이메일입니다.")
         cur = conn.execute(
-            """INSERT INTO users (email, password_hash, display_name, created_at)
-               VALUES (?, ?, ?, ?)""",
-            (email, pw_hash, (display_name or "").strip() or None, now),
+            """INSERT INTO users (email, password_hash, display_name, is_admin, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (email, pw_hash, (display_name or "").strip() or None, 1 if _is_admin_email(email) else 0, now),
         )
         user_id = cur.lastrowid
     return _public_user(_get_user_row(user_id))
@@ -68,9 +76,14 @@ def authenticate(email: str, password: str) -> dict | None:
         return None
     if not check_password_hash(row["password_hash"], password or ""):
         return None
+    # 로그인 시 admin 권한을 ADMIN_EMAILS와 동기화(운영 중 지정/해제 반영)
+    want_admin = 1 if _is_admin_email(email) else 0
     with db.lock():
-        conn.execute("UPDATE users SET last_login_at = ? WHERE id = ?", (_iso(_now()), row["id"]))
-    return _public_user(row)
+        conn.execute(
+            "UPDATE users SET last_login_at = ?, is_admin = ? WHERE id = ?",
+            (_iso(_now()), want_admin, row["id"]),
+        )
+    return _public_user(_get_user_row(row["id"]))
 
 
 def get_user(user_id: int) -> dict | None:
@@ -226,6 +239,79 @@ def delete_credential(user_id: int, exchange: str = "upbit", label: str = "defau
             (user_id, exchange, label),
         )
         return cur.rowcount > 0
+
+
+# ---------------------------------------------------------------- 내 계정 설정
+def change_password(user_id: int, current_password: str, new_password: str) -> None:
+    if len(new_password or "") < _MIN_PASSWORD:
+        raise AccountError(f"새 비밀번호는 최소 {_MIN_PASSWORD}자 이상이어야 합니다.")
+    row = _get_user_row(user_id)
+    if not row or not check_password_hash(row["password_hash"], current_password or ""):
+        raise AccountError("현재 비밀번호가 올바르지 않습니다.")
+    new_hash = generate_password_hash(new_password, method=_HASH_METHOD)
+    conn = db.connection()
+    with db.lock():
+        conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_hash, user_id))
+        # 보안: 비번 변경 시 다른 모든 세션 폐기(현재 세션도 → 재로그인 유도)
+        conn.execute("UPDATE sessions SET revoked = 1 WHERE user_id = ?", (user_id,))
+
+
+def update_profile(user_id: int, display_name: str | None) -> dict:
+    conn = db.connection()
+    with db.lock():
+        conn.execute(
+            "UPDATE users SET display_name = ? WHERE id = ?",
+            ((display_name or "").strip() or None, user_id),
+        )
+    return _public_user(_get_user_row(user_id))
+
+
+def delete_account(user_id: int, password: str) -> None:
+    """본인 탈퇴. 비밀번호 확인 후 계정+키+세션+설정 전부 삭제(FK CASCADE)."""
+    row = _get_user_row(user_id)
+    if not row or not check_password_hash(row["password_hash"], password or ""):
+        raise AccountError("비밀번호가 올바르지 않습니다.")
+    conn = db.connection()
+    with db.lock():
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
+
+# ---------------------------------------------------------------- 운영자(admin)
+def list_all_users() -> list[dict]:
+    """운영자용 전체 회원 목록. 비번/시크릿은 절대 포함하지 않는다."""
+    conn = db.connection()
+    with db.lock():
+        rows = conn.execute(
+            """SELECT u.id, u.email, u.display_name, u.is_admin, u.is_active,
+                      u.created_at, u.last_login_at,
+                      (SELECT COUNT(*) FROM exchange_credentials c WHERE c.user_id = u.id) AS key_count,
+                      COALESCE(s.auto_enabled, 0) AS auto_enabled
+               FROM users u LEFT JOIN user_settings s ON s.user_id = u.id
+               ORDER BY u.id"""
+        ).fetchall()
+    return [
+        {
+            "id": r["id"], "email": r["email"], "display_name": r["display_name"],
+            "is_admin": bool(r["is_admin"]), "is_active": bool(r["is_active"]),
+            "created_at": r["created_at"], "last_login_at": r["last_login_at"],
+            "has_key": bool(r["key_count"]), "auto_enabled": bool(r["auto_enabled"]),
+        }
+        for r in rows
+    ]
+
+
+def set_user_active(user_id: int, active: bool) -> None:
+    conn = db.connection()
+    with db.lock():
+        conn.execute("UPDATE users SET is_active = ? WHERE id = ?", (1 if active else 0, user_id))
+        if not active:
+            conn.execute("UPDATE sessions SET revoked = 1 WHERE user_id = ?", (user_id,))
+
+
+def admin_delete_user(user_id: int) -> None:
+    conn = db.connection()
+    with db.lock():
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
 
 
 # ---------------------------------------------------------------- helpers

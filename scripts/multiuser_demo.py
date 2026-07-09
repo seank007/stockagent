@@ -10,6 +10,8 @@ import sys
 os.environ.setdefault("MULTIUSER_DB_PATH", "/tmp/mu_demo.db")
 os.environ.setdefault("MULTIUSER_MASTER_KEY_FILE", "/tmp/mu_demo.key")
 os.environ.setdefault("SESSION_COOKIE_SECURE", "false")
+# 데모: 이 이메일로 가입하면 관리자(회원 관리 페이지 접근 가능)
+os.environ.setdefault("ADMIN_EMAILS", "sean@example.com")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
