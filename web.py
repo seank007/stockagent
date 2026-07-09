@@ -2565,6 +2565,14 @@ body.compact .section-line { margin-bottom:9px !important; margin-top:12px !impo
 body.compact .settings-row { padding:9px 20px; }
 /* 차트 높이: 크게 */
 body.chart-tall #stockSvg { height:560px !important; }
+/* 토스트 알림 */
+#sa-toast-host { position:fixed; right:18px; bottom:18px; z-index:11000; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
+.sa-toast { background:#141a23; border:1px solid #2a3546; border-left:3px solid #1fd6a8; color:#e6ebf2;
+  font-family:'JetBrains Mono',monospace; font-size:12.5px; line-height:1.5; padding:11px 15px; border-radius:6px;
+  box-shadow:0 8px 24px rgba(0,0,0,.45); max-width:340px; opacity:0; transform:translateY(10px); transition:.28s; }
+.sa-toast.show { opacity:1; transform:none; }
+.sa-toast.warn { border-left-color:#e0b341; }
+.sa-toast.alert { border-left-color:#ff5d6c; }
 """
 
 
@@ -2633,7 +2641,8 @@ COMMON_JS = """
     chartFrame:  { key: "sa.pref.chartFrame",   type: "str",  def: "auto",   apply: applyChartFrame },
     chartHeight: { key: "sa.pref.chartHeight",  type: "str",  def: "normal", apply: applyChartHeight },
     tape:        { key: "sa.pref.tape",         type: "bool", def: true,     apply: applyTape },
-    tapeSpeed:   { key: "sa.pref.tapeSpeed",    type: "str",  def: "normal", apply: applyTapeSpeed }
+    tapeSpeed:   { key: "sa.pref.tapeSpeed",    type: "str",  def: "normal", apply: applyTapeSpeed },
+    sound:       { key: "sa.pref.sound",        type: "bool", def: true,     apply: function () {} }
   };
   function readPref(p) { return p.type === "num" ? gnum(p.key, p.def) : p.type === "bool" ? gbool(p.key, p.def) : gstr(p.key, p.def); }
   function writePref(p, val) { localStorage.setItem(p.key, p.type === "bool" ? (val ? "1" : "0") : String(val)); }
@@ -2662,13 +2671,17 @@ COMMON_JS = """
       { pref: "tape", name: "하단 시세 티커", desc: "헤더 아래 흐르는 시세 표시", ctrl: "toggle" },
       { pref: "tapeSpeed", name: "티커 속도", desc: "흐르는 속도", ctrl: "seg", options: [["slow", "느림"], ["normal", "보통"], ["fast", "빠름"]] }
     ]},
+    { id: "alert", label: "알림", items: [
+      { pref: "sound", name: "알림 소리", desc: "가격 알림·이벤트 시 소리", ctrl: "toggle" },
+      { pref: "__notify", name: "브라우저 알림", desc: "목표가 도달을 데스크톱 알림으로", ctrl: "btn", btn: "권한 요청" }
+    ]},
     { id: "info", label: "정보", note: true }
   ];
 
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
   function ctrlHtml(item) {
-    var p = P[item.pref], val = readPref(p);
+    var p = P[item.pref], val = p ? readPref(p) : null;  // __notify 등 비-pref 컨트롤은 p가 없다
     if (item.ctrl === "range") {
       return '<div class="settings-ctrl">' +
         '<input type="range" class="settings-range" data-pref="' + item.pref + '" min="' + item.min + '" max="' + item.max + '" step="' + item.step + '" value="' + val + '">' +
@@ -2682,6 +2695,11 @@ COMMON_JS = """
         return '<button data-opt="' + o[0] + '"' + (String(val) === o[0] ? ' class="on"' : "") + '>' + esc(o[1]) + "</button>";
       }).join("") + "</div>";
     }
+    if (item.ctrl === "btn") {
+      var t = item.btn || "실행";
+      if (item.pref === "__notify" && window.Notification && Notification.permission === "granted") t = "허용됨 ✓";
+      return '<button class="mini-btn" data-btn="' + item.pref + '">' + esc(t) + "</button>";
+    }
     return "";
   }
 
@@ -2690,7 +2708,8 @@ COMMON_JS = """
       return '<div class="settings-note">' +
         '<b>설정 저장</b> — 모든 설정은 이 브라우저에만 저장됩니다(기기·브라우저별).<br>' +
         '<b>알림·인증</b> — 텔레그램 알림과 대시보드 인증(WEB_AUTH_TOKEN)은 서버 <span class="kbd">.env</span>에서 설정합니다.<br>' +
-        '<b>단축키</b> — <span class="kbd">ESC</span> 닫기 · 바깥 클릭 닫기.<br>' +
+        '<b>단축키</b> — <span class="kbd">1~4</span> 탭 이동 · <span class="kbd">/</span> 검색 · <span class="kbd">s</span> 설정 · <span class="kbd">?</span> 도움말 · <span class="kbd">ESC</span> 닫기.<br>' +
+        '<b>가격 알림</b> — 주식 페이지 <b>가격 알림</b> 섹션에서 목표가를 등록하면 도달 시 알림이 옵니다.<br>' +
         '<b>실시간 반영</b> — 값을 바꾸면 즉시 화면에 적용됩니다.' +
         '</div>';
     }
@@ -2760,6 +2779,15 @@ COMMON_JS = """
       if (cb) { var p = P[cb.getAttribute("data-pref")]; writePref(p, cb.checked); p.apply(cb.checked); }
     });
     panel.addEventListener("click", function (e) {
+      var bt = e.target.closest("[data-btn]");
+      if (bt) {
+        if (bt.getAttribute("data-btn") === "__notify") {
+          if (window.Notification && Notification.requestPermission) {
+            Notification.requestPermission().then(function (p) { bt.textContent = p === "granted" ? "허용됨 ✓" : (p === "denied" ? "차단됨" : "권한 요청"); });
+          } else { bt.textContent = "미지원"; }
+        }
+        return;
+      }
       var opt = e.target.closest(".settings-seg [data-opt]");
       if (!opt) return;
       var seg = opt.closest(".settings-seg"), p = P[seg.getAttribute("data-pref")], val = opt.getAttribute("data-opt");
@@ -2793,6 +2821,61 @@ COMMON_JS = """
   function init() { applyAll(); buildUI(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
+})();
+
+// ===== 전역 알림: 인페이지 토스트 + 브라우저 알림 + 소리 =====
+(function () {
+  function soundOn() { var v = localStorage.getItem("sa.pref.sound"); return v == null ? true : (v === "1" || v === "true"); }
+  var actx = null;
+  function beep() {
+    if (!soundOn()) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      var o = actx.createOscillator(), g = actx.createGain();
+      o.type = "sine"; o.frequency.value = 880; g.gain.value = 0.06;
+      o.connect(g); g.connect(actx.destination); o.start();
+      g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 0.35);
+      o.stop(actx.currentTime + 0.37);
+    } catch (e) {}
+  }
+  function host() {
+    var h = document.getElementById("sa-toast-host");
+    if (!h) { h = document.createElement("div"); h.id = "sa-toast-host"; (document.body || document.documentElement).appendChild(h); }
+    return h;
+  }
+  window.saToast = function (msg, kind) {
+    var t = document.createElement("div");
+    t.className = "sa-toast" + (kind ? " " + kind : "");
+    t.textContent = msg;
+    host().appendChild(t);
+    requestAnimationFrame(function () { t.classList.add("show"); });
+    setTimeout(function () { t.classList.remove("show"); setTimeout(function () { t.remove(); }, 300); }, 5200);
+  };
+  window.saNotify = function (title, body, kind) {
+    window.saToast((title ? title + " · " : "") + (body || ""), kind || "info");
+    beep();
+    try { if (window.Notification && Notification.permission === "granted") new Notification(title || "stockagent", { body: body || "" }); } catch (e) {}
+  };
+})();
+
+// ===== 키보드 단축키 (1~4 탭 · / 검색 · s 설정 · ? 도움말) =====
+(function () {
+  function focusSearch() {
+    var el = document.getElementById("sa-search") || document.getElementById("coin-market-search")
+      || document.querySelector(".news-search") || document.getElementById("ticker-input") || document.getElementById("stock-code");
+    if (el) { el.focus(); if (el.select) el.select(); return true; }
+    return false;
+  }
+  document.addEventListener("keydown", function (e) {
+    var tag = ((e.target && e.target.tagName) || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select" || (e.target && e.target.isContentEditable)) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var k = e.key, ts = Array.prototype.slice.call(document.querySelectorAll(".tabs .tab"));
+    if (k >= "1" && k <= "4" && ts[+k - 1]) { var href = ts[+k - 1].getAttribute("href"); if (href) location.href = href; }
+    else if (k === "/") { if (focusSearch()) e.preventDefault(); }
+    else if (k === "s" || k === "S") { var b = document.getElementById("settings-btn"); if (b) { b.click(); e.preventDefault(); } }
+    else if (k === "?") { if (window.saToast) window.saToast("단축키 — 1~4: 탭 이동 · / : 검색 · s : 설정 · ? : 도움말", "info"); }
+  });
 })();
 
 const KRW = (n, signed=false) => {

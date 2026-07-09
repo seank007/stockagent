@@ -495,12 +495,15 @@
     var codes = tab.codes().slice();
     tapeCodes().forEach(function (c) { if (codes.indexOf(c) === -1) codes.push(c); });
     pfCodes().forEach(function (c) { if (codes.indexOf(c) === -1) codes.push(c); });  // 내 포트폴리오 종목 시세도 함께
+    alertCodes().forEach(function (c) { if (codes.indexOf(c) === -1) codes.push(c); });  // 가격 알림 대상 시세도 함께
     return refreshCodes(codes)
       .then(function () {
         boardUpdatedAt = new Date();
         LS.set("board", boardCache);
         renderBoard();
         renderPortfolio();
+        checkAlerts();
+        renderAlerts();
         if (window.__syncSecNav) window.__syncSecNav();
         if (typeof window.loadTickerTape === "function" && !document.hidden) window.loadTickerTape();
         return true;
@@ -1032,6 +1035,122 @@
       '<div class="cell"><div class="label">수익률</div><div class="val ' + pcls + '">' + (totalPct != null ? psign + totalPct.toFixed(2) + "%" : "—") + "</div></div>";
   }
 
+  // ==== 가격 알림 =================================================================================
+  // 목표가를 등록하면 실시간 시세가 조건(이상/이하)에 도달할 때 브라우저 알림·토스트·소리로 알린다.
+  // sa.alerts = [{ code, name, op:"ge"|"le", price, on, hit }]  (localStorage)
+  var ALERTS = LS.get("alerts", []);
+  function saveAlerts() { LS.set("alerts", ALERTS); }
+  function alertCodes() { return ALERTS.filter(function (a) { return a.on; }).map(function (a) { return a.code; }); }
+
+  function injectAlertsSection(beforeEl) {
+    if (document.getElementById("stock-alerts")) return;
+    var st = document.createElement("style");
+    st.textContent =
+      "#stock-alerts{margin:6px 0 14px}" +
+      "#al-form{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0;padding:10px;" +
+      "background:#0a0e14;border:1px solid #1c2430;border-radius:6px}" +
+      "#al-form input{font-family:inherit;font-size:12px;background:#0d1219;border:1px solid #1c2430;" +
+      "color:#e6ebf2;border-radius:4px;padding:6px 8px;width:120px}" +
+      "#al-form .al-seg{display:inline-flex;gap:2px;background:#0d1219;border:1px solid #1c2430;border-radius:5px;padding:2px}" +
+      "#al-form .al-seg button{font-family:inherit;font-size:11.5px;padding:5px 10px;border:none;border-radius:4px;background:none;color:#8a95a8;cursor:pointer}" +
+      "#al-form .al-seg button.on{background:#1c2430;color:#e6ebf2;font-weight:700}" +
+      ".al-table{width:100%;border-collapse:collapse;font-size:12px}" +
+      ".al-table th,.al-table td{padding:7px 9px;border-bottom:1px solid #141a23;text-align:right;white-space:nowrap}" +
+      ".al-table th{color:#5a6577;font-weight:600;font-size:10.5px}" +
+      ".al-table th:first-child,.al-table td:first-child{text-align:left}" +
+      ".al-name{color:#e6ebf2;font-weight:700}.al-code{color:#5a6577;font-size:10px}" +
+      ".al-del{cursor:pointer;color:#5a6577;border:none;background:none;font-size:14px}.al-del:hover{color:#ff5d6c}" +
+      ".al-badge{font-size:10.5px;padding:2px 7px;border-radius:3px;border:1px solid #1c2430}" +
+      ".al-badge.wait{color:#8a95a8}.al-badge.hit{color:#1fd6a8;border-color:#1c3a32;background:rgba(31,214,168,.08)}" +
+      ".al-badge.off{color:#5a6577}" +
+      ".al-empty{color:#5a6577;font-size:12px;padding:14px 4px}";
+    document.head.appendChild(st);
+
+    var wrap = document.createElement("div");
+    wrap.id = "stock-alerts";
+    wrap.innerHTML =
+      '<div class="section-line" style="flex-wrap:wrap;gap:10px">' +
+      '  <div class="section-title" style="margin:0">가격 알림</div>' +
+      '  <div class="inline-tools"><span style="font-size:11px;color:#5a6577">목표가 도달 시 알림·소리</span></div>' +
+      "</div>" +
+      '<div id="al-form">' +
+      '  <input id="al-code" placeholder="종목코드 (예: 005930)" autocomplete="off">' +
+      '  <div class="al-seg" id="al-op"><button data-op="ge" class="on">이상 ≥</button><button data-op="le">이하 ≤</button></div>' +
+      '  <input id="al-price" type="number" min="0" step="1" placeholder="목표가">' +
+      '  <button class="mini-btn on" id="al-add">알림 추가</button>' +
+      '  <button class="mini-btn" id="al-perm">데스크톱 알림 켜기</button>' +
+      "</div>" +
+      '<div id="al-table"></div>';
+    if (beforeEl && beforeEl.parentNode) beforeEl.parentNode.insertBefore(wrap, beforeEl);
+    else document.body.appendChild(wrap);
+
+    var opSeg = wrap.querySelector("#al-op"), curOp = "ge";
+    opSeg.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-op]"); if (!b) return;
+      curOp = b.getAttribute("data-op");
+      opSeg.querySelectorAll("[data-op]").forEach(function (x) { x.classList.toggle("on", x === b); });
+    });
+    wrap.querySelector("#al-add").addEventListener("click", function () {
+      var code = cleanCode(wrap.querySelector("#al-code").value);
+      var price = parseFloat(wrap.querySelector("#al-price").value);
+      if (!code || !isFinite(price) || price <= 0) { if (window.saToast) window.saToast("종목코드와 목표가를 입력하세요.", "warn"); return; }
+      ALERTS.push({ code: code, name: nameOf(code), op: curOp, price: price, on: true, hit: false });
+      saveAlerts();
+      wrap.querySelector("#al-code").value = ""; wrap.querySelector("#al-price").value = "";
+      renderAlerts();
+      refreshBoard(true);
+    });
+    wrap.querySelector("#al-perm").addEventListener("click", function () {
+      if (window.Notification && Notification.requestPermission) Notification.requestPermission().then(function (p) {
+        if (window.saToast) window.saToast(p === "granted" ? "데스크톱 알림이 켜졌습니다." : "알림 권한이 거부되었습니다.", p === "granted" ? "info" : "warn");
+      });
+    });
+    wrap.querySelector("#al-table").addEventListener("click", function (e) {
+      var del = e.target.closest("[data-al-del]");
+      if (del) { ALERTS.splice(+del.getAttribute("data-al-del"), 1); saveAlerts(); renderAlerts(); return; }
+      var tog = e.target.closest("[data-al-tog]");
+      if (tog) { var i = +tog.getAttribute("data-al-tog"); ALERTS[i].on = !ALERTS[i].on; if (ALERTS[i].on) ALERTS[i].hit = false; saveAlerts(); renderAlerts(); refreshBoard(true); }
+    });
+  }
+
+  function renderAlerts() {
+    var table = document.getElementById("al-table");
+    if (!table) return;
+    if (!ALERTS.length) { table.innerHTML = '<div class="al-empty">등록된 알림이 없습니다. 종목코드와 목표가를 입력해 추가하세요.</div>'; return; }
+    table.innerHTML =
+      '<table class="al-table"><thead><tr><th>종목</th><th>조건</th><th>목표가</th><th>현재가</th><th>상태</th><th></th></tr></thead><tbody>' +
+      ALERTS.map(function (a, i) {
+        var e = boardCache[a.code];
+        var cur = e ? e.price : null;
+        var badge = !a.on ? '<span class="al-badge off">꺼짐</span>' : (a.hit ? '<span class="al-badge hit">도달</span>' : '<span class="al-badge wait">대기</span>');
+        return "<tr>" +
+          '<td><div class="al-name">' + esc(a.name || nameOf(a.code)) + '</div><div class="al-code">' + esc(a.code) + "</div></td>" +
+          "<td>" + (a.op === "ge" ? "이상 ≥" : "이하 ≤") + "</td>" +
+          "<td>" + pfNumber(a.price, 2) + "</td>" +
+          "<td>" + (cur != null ? pfNumber(cur, 2) : "…") + "</td>" +
+          '<td><button class="al-badge ' + (a.on ? "wait" : "off") + '" data-al-tog="' + i + '" style="cursor:pointer">' + (a.on ? "켜짐" : "꺼짐") + "</button> " + badge + "</td>" +
+          '<td><button class="al-del" data-al-del="' + i + '" title="삭제">×</button></td>' +
+          "</tr>";
+      }).join("") + "</tbody></table>";
+  }
+
+  function checkAlerts() {
+    var fired = false;
+    ALERTS.forEach(function (a) {
+      if (!a.on || a.hit) return;
+      var e = boardCache[a.code];
+      if (!e || e.price == null) return;
+      var hit = a.op === "ge" ? e.price >= a.price : e.price <= a.price;
+      if (hit) {
+        a.hit = true; fired = true;
+        var nm = a.name || nameOf(a.code);
+        if (window.saNotify) window.saNotify("🔔 가격 알림 · " + nm,
+          nm + " " + (a.op === "ge" ? "≥ " : "≤ ") + pfNumber(a.price) + "원 도달 (현재 " + pfNumber(e.price) + "원)", "alert");
+      }
+    });
+    if (fired) { saveAlerts(); renderAlerts(); }
+  }
+
   // ==== 섹션 바로가기 네비게이션 ====================================================================
   // 페이지가 길어 원하는 섹션을 찾기 어려우므로, 헤더에 붙는 버튼 바로 각 섹션으로 점프한다.
   // 스크롤 위치에 따라 현재 섹션 버튼을 강조(scroll-spy)한다.
@@ -1042,6 +1161,7 @@
       { id: "sec-quote", label: "종목조회" },
       { id: "sec-analysis", label: "기업분석" },
       { id: "stock-portfolio", label: "내 포트폴리오" },
+      { id: "stock-alerts", label: "가격 알림" },
       { id: "global-board", label: "글로벌마켓" },
       { id: "sec-ai", label: "AI매매" }
     ].filter(function (s) { return document.getElementById(s.id); });
@@ -1383,9 +1503,11 @@
 
   injectBoardSection();
   injectPortfolioSection(document.getElementById("global-board"));  // 내 포트폴리오를 글로벌 보드 위에
+  injectAlertsSection(document.getElementById("global-board"));      // 가격 알림 섹션(포트폴리오 아래)
   injectSectionNav();               // 섹션 바로가기 버튼(헤더 하단)
   renderBoard();                    // localStorage 캐시가 있으면 즉시 그려짐
   renderPortfolio();                // 캐시된 시세로 즉시 표시
+  renderAlerts();                   // 캐시된 시세로 알림 상태 즉시 표시
   if (Object.keys(boardCache).length && typeof window.loadTickerTape === "function") {
     liveTape().then(function () { window.loadTickerTape(); }).catch(function () {});
   }
