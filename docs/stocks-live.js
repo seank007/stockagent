@@ -20,6 +20,7 @@
   "use strict";
 
   var prevFetch = window.fetch.bind(window);
+  var nativeFetch = window.__stockagentNativeFetch || prevFetch;
 
   // ---- 공개 CORS 프록시 ------------------------------------------------------
   var PROXIES = [
@@ -33,9 +34,138 @@
   var TRY_TIMEOUT_MS = 7000;
   var HEDGE_DELAY_MS = 700;      // 앞 시도가 안 끝나면 0.7초 뒤 다음 프록시도 병렬 발사
   var TOTAL_DEADLINE_MS = 20000;
-  var QUOTE_TTL = 45000;
+  var QUOTE_TTL = 2000;
   var HIST_TTL = 5 * 60000;
-  var BOARD_REFRESH_MS = 60000;
+  var BOARD_REFRESH_MS = 10000;
+  var DIRECT_TIMEOUT_MS = 1800;
+  var DIRECT_PROBE_COOLDOWN_MS = 15000;
+  var directApiBase = null;
+  var nextDirectProbeAt = 0;
+
+  function uniquePush(rows, value) {
+    if (value == null) return;
+    value = String(value).trim().replace(/\/+$/, "");
+    if (!value && value !== "") return;
+    if (rows.indexOf(value) === -1) rows.push(value);
+  }
+
+  function configuredApiBase() {
+    try {
+      var params = new URLSearchParams(location.search || "");
+      var fromQuery = params.get("liveApi") || params.get("api");
+      if (fromQuery) {
+        localStorage.setItem("stockagentLiveApiBase", fromQuery);
+        return fromQuery;
+      }
+    } catch (e) {}
+    if (window.STOCKAGENT_LIVE_API_BASE) return window.STOCKAGENT_LIVE_API_BASE;
+    try { return localStorage.getItem("stockagentLiveApiBase"); } catch (e) { return null; }
+  }
+
+  function directApiBases() {
+    var bases = [];
+    uniquePush(bases, configuredApiBase());
+    if (!/\.github\.io$/.test(location.hostname) && /^https?:$/.test(location.protocol)) {
+      uniquePush(bases, location.origin);
+    }
+    uniquePush(bases, "http://127.0.0.1:8000");
+    uniquePush(bases, "http://localhost:8000");
+    return bases;
+  }
+
+  function directUrl(base, pathQuery) {
+    var sep = pathQuery.indexOf("?") === -1 ? "?" : "&";
+    if (!base) return pathQuery + sep + "_live=" + Date.now();
+    return base.replace(/\/+$/, "") + pathQuery + sep + "_live=" + Date.now();
+  }
+
+  function targetAddressSpace(url) {
+    try {
+      var host = new URL(url, location.href).hostname.toLowerCase();
+      if (host === "localhost" || host === "::1" || /^127\./.test(host)) return "loopback";
+      if (
+        host.endsWith(".local")
+        || /^10\./.test(host)
+        || /^192\.168\./.test(host)
+        || /^169\.254\./.test(host)
+        || /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+      ) return "local";
+    } catch (e) {}
+    return null;
+  }
+
+  function directFetchJson(url) {
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, DIRECT_TIMEOUT_MS) : null;
+    var init = { cache: "no-store", credentials: "omit", mode: "cors" };
+    var target = targetAddressSpace(url);
+    if (target) init.targetAddressSpace = target;
+    if (ctrl) init.signal = ctrl.signal;
+    return nativeFetch(url, init).then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    }).finally(function () {
+      if (timer) clearTimeout(timer);
+    });
+  }
+
+  function xhrJson(url) {
+    return new Promise(function (resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", url, true);
+      xhr.timeout = DIRECT_TIMEOUT_MS;
+      xhr.responseType = "json";
+      xhr.onload = function () {
+        if (xhr.status < 200 || xhr.status >= 300) {
+          reject(new Error("HTTP " + xhr.status));
+          return;
+        }
+        var data = xhr.response;
+        if (data == null && xhr.responseText) {
+          try { data = JSON.parse(xhr.responseText); } catch (e) {}
+        }
+        data == null ? reject(new Error("empty response")) : resolve(data);
+      };
+      xhr.onerror = function () { reject(new Error("network error")); };
+      xhr.ontimeout = function () { reject(new Error("timeout")); };
+      try { xhr.send(); } catch (e) { reject(e); }
+    });
+  }
+
+  function directRequestJson(url) {
+    return directFetchJson(url).catch(function () { return xhrJson(url); });
+  }
+
+  function readDirectApi(pathQuery, validate) {
+    var bases = directApiBase ? [directApiBase] : directApiBases();
+    if (!directApiBase && Date.now() < nextDirectProbeAt) {
+      return Promise.reject(new Error("direct API probe cooling down"));
+    }
+    var idx = 0;
+    function tryNext(lastErr) {
+      if (idx >= bases.length) {
+        directApiBase = null;
+        nextDirectProbeAt = Date.now() + DIRECT_PROBE_COOLDOWN_MS;
+        return Promise.reject(lastErr || new Error("direct API unavailable"));
+      }
+      var base = bases[idx++];
+      return directRequestJson(directUrl(base, pathQuery)).then(function (data) {
+        if (validate && !validate(data)) throw new Error("invalid direct payload");
+        directApiBase = base;
+        nextDirectProbeAt = 0;
+        return data;
+      }).catch(tryNext);
+    }
+    return tryNext();
+  }
+
+  function directResponse(pathQuery, validate) {
+    return readDirectApi(pathQuery, validate).then(jsonResponse);
+  }
+
+  function pathWithSearch(path, url) {
+    return path + (url.search || "");
+  }
 
   // ---- localStorage ----------------------------------------------------------
   var LS = {
@@ -690,14 +820,30 @@
       var url = new URL(raw, window.location.origin);
       var path = url.pathname.replace(/^\/stockagent/, "");
       var fallback = function () { return prevFetch(input, init); };
-      if (path === "/api/stocks/quote") return liveQuote(url.searchParams).catch(fallback);
+      if (path === "/api/stocks/quote") {
+        return directResponse(pathWithSearch(path, url), function (d) {
+          return d && d.code && d.price != null;
+        }).catch(function () { return liveQuote(url.searchParams).catch(fallback); });
+      }
+      if (path === "/api/stocks/ai") {
+        return directResponse(pathWithSearch(path, url), function (d) {
+          return d && Array.isArray(d.holdings);
+        }).catch(fallback);
+      }
+      if (path === "/api/stocks/watchlist") {
+        return directResponse(pathWithSearch(path, url), function (d) {
+          return d && Array.isArray(d.items);
+        }).catch(fallback);
+      }
       if (path === "/api/stocks/candles") return liveCandles(url.searchParams).catch(fallback);
       if (path === "/api/stocks/analysis") {
         var code = (url.searchParams.get("code") || "005930").replace(/\D/g, "").slice(0, 6);
         return liveAnalysis(code).catch(fallback);
       }
       if (path === "/api/ticker_quotes" && document.getElementById("stockSvg")) {
-        return liveTape().catch(fallback);
+        return directResponse(pathWithSearch(path, url), function (d) {
+          return d && Array.isArray(d.items);
+        }).catch(function () { return liveTape().catch(fallback); });
       }
     } catch (e) { /* URL 파싱 실패 등 → 원래 fetch로 */ }
     return prevFetch(input, init);
@@ -771,7 +917,12 @@
       stEl.className = "val " + (q.status === "장중" ? "up" : "");
     }
     var updEl = document.getElementById("stock-updated");
-    if (updEl) updEl.textContent = q.updated_at || "—";
+    if (updEl) {
+      var asOf = q.generated_at ? new Date(q.generated_at).toLocaleTimeString("en-GB", {
+        hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
+      }) : (q.updated_at || "—");
+      updEl.textContent = (q.source ? q.source + " · " : "") + asOf;
+    }
     var rowsEl = document.getElementById("stock-quote-rows");
     if (rowsEl) rowsEl.innerHTML = (q.rows || []).map(function (r) {
       return '<div class="quote-row"><span class="k">' + esc(r.label || "—") +

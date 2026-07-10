@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
 import time
 import urllib.parse
 import urllib.request
@@ -22,8 +23,14 @@ from pathlib import Path
 
 import stock_db
 
+try:
+    import certifi
+except Exception:  # noqa: BLE001
+    certifi = None
+
 KST = timezone(timedelta(hours=9))
 UA = {"User-Agent": "Mozilla/5.0 stockagent/1.0"}
+SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where()) if certifi else None
 
 REAL_BASE = "https://openapi.koreainvestment.com:9443"
 PAPER_BASE = "https://openapivts.koreainvestment.com:29443"
@@ -52,7 +59,10 @@ def _http_json(url: str, headers: dict | None = None, data: dict | None = None,
     req = urllib.request.Request(url, data=body, headers={**UA, **(headers or {})})
     if body is not None:
         req.add_header("Content-Type", "application/json; charset=utf-8")
-    with urllib.request.urlopen(req, timeout=timeout) as res:
+    kwargs = {"timeout": timeout}
+    if SSL_CONTEXT and urllib.parse.urlparse(url).scheme == "https":
+        kwargs["context"] = SSL_CONTEXT
+    with urllib.request.urlopen(req, **kwargs) as res:
         return json.loads(res.read().decode("utf-8"))
 
 
@@ -76,7 +86,10 @@ def naver_closes(code: str, count: int = 40) -> list[float]:
     url = (f"https://fchart.stock.naver.com/sise.nhn?symbol={code}"
            f"&timeframe=day&requestType=0&count={count}")
     req = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(req, timeout=10) as res:
+    kwargs = {"timeout": 10}
+    if SSL_CONTEXT:
+        kwargs["context"] = SSL_CONTEXT
+    with urllib.request.urlopen(req, **kwargs) as res:
         xml_text = res.read().decode("euc-kr", errors="ignore")
     closes = []
     for item in ET.fromstring(xml_text).findall(".//item"):

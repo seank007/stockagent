@@ -17,6 +17,7 @@ import io
 import json
 import os
 import re
+import ssl
 import time
 import threading
 import urllib.parse
@@ -27,6 +28,11 @@ import xml.etree.ElementTree as ET
 import pyupbit
 import yfinance as yf
 import pandas as pd
+
+try:
+    import certifi
+except Exception:  # noqa: BLE001
+    certifi = None
 from flask import Flask, Response, jsonify, request
 
 import config
@@ -112,6 +118,7 @@ COIN_NEWS_DEFAULT_LIMIT = 48
 COIN_NEWS_FEED_TIMEOUT_SECONDS = 6
 COIN_NEWS_FEED_WORKERS = 9
 HTTP_HEADERS = {"User-Agent": "Mozilla/5.0 stockagent/1.0"}
+SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where()) if certifi else None
 STOCK_PRESETS = [
     {"code": "005930", "name": "삼성전자"},
     {"code": "000660", "name": "SK하이닉스"},
@@ -535,7 +542,10 @@ def _coin_candles_payload(ticker: str, interval: str, count: int) -> dict:
 
 def _urlopen_text(url: str, encoding: str = "utf-8", timeout: int = 10) -> str:
     req = urllib.request.Request(url, headers=HTTP_HEADERS)
-    with urllib.request.urlopen(req, timeout=timeout) as response:
+    kwargs = {"timeout": timeout}
+    if SSL_CONTEXT and urllib.parse.urlparse(url).scheme == "https":
+        kwargs["context"] = SSL_CONTEXT
+    with urllib.request.urlopen(req, **kwargs) as response:
         return response.read().decode(encoding, errors="ignore")
 
 
@@ -729,16 +739,53 @@ def _stock_quote(code: str) -> dict:
         metrics.append({"label": "목표가", "value": consensus.get("priceTargetMean")})
         metrics.append({"label": "투자의견", "value": consensus.get("recommMean")})
 
+    source = "NAVER"
+    price = _number_from_text(basic.get("closePrice"))
+    change = _number_from_text(basic.get("compareToPreviousClosePrice"))
+    change_pct = _number_from_text(basic.get("fluctuationsRatio"))
+    price_text = basic.get("closePrice") or "—"
+    change_text = basic.get("compareToPreviousClosePrice") or "—"
+    name = basic.get("stockName") or integration.get("stockName") or code
+
+    try:
+        from brokers.kis import get_stock_broker
+        broker = get_stock_broker()
+        if not getattr(broker, "is_paper_broker", False):
+            kq = broker.quote(code)
+            k_price = float(kq.get("price") or 0)
+            if k_price > 0:
+                source = "KIS"
+                price = k_price
+                price_text = f"{k_price:,.0f}"
+                if kq.get("name"):
+                    name = kq["name"]
+                if kq.get("change_pct") is not None:
+                    change_pct = float(kq.get("change_pct") or 0)
+                    prev = k_price / (1 + change_pct / 100) if change_pct != -100 else None
+                    if prev:
+                        change = k_price - prev
+                        change_text = f"{change:+,.0f}"
+    except Exception:
+        pass
+
+    for row in rows:
+        if row.get("label") == "현재":
+            row["value"] = price_text
+    metrics.append({"label": "소스", "value": source})
+
     return {
         "code": code,
-        "name": basic.get("stockName") or integration.get("stockName") or code,
-        "price": _number_from_text(basic.get("closePrice")),
-        "price_text": basic.get("closePrice") or "—",
-        "change": _number_from_text(basic.get("compareToPreviousClosePrice")),
-        "change_text": basic.get("compareToPreviousClosePrice") or "—",
-        "change_pct": _number_from_text(basic.get("fluctuationsRatio")),
+        "name": name,
+        "price": price,
+        "price_text": price_text,
+        "change": change,
+        "change_text": change_text,
+        "change_pct": change_pct,
         "status": basic.get("marketStatus") or "—",
-        "updated_at": basic.get("localTradedAt") or "—",
+        "updated_at": basic.get("localTradedAt") or datetime.now().strftime("%H:%M:%S"),
+        "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "source": source,
+        "live": True,
         "rows": rows,
         "metrics": metrics,
         "deal_trends": (integration.get("dealTrendInfos") or [])[:5],
@@ -1852,7 +1899,7 @@ def api_stock_analysis():
 
 
 _stock_watchlist_cache: tuple[float, list] | None = None
-STOCK_WATCHLIST_CACHE_SECONDS = 20
+STOCK_WATCHLIST_CACHE_SECONDS = max(0.5, float(os.getenv("STOCK_WATCHLIST_CACHE_SECONDS", "2")))
 
 
 def _stock_watchlist_items() -> list[dict]:
@@ -1893,7 +1940,7 @@ def api_stocks_portfolio():
 
 
 _stock_ai_cache: tuple[float, dict] | None = None
-STOCK_AI_CACHE_SECONDS = 10
+STOCK_AI_CACHE_SECONDS = max(0.5, float(os.getenv("STOCK_AI_CACHE_SECONDS", "2")))
 
 
 def stock_ai_payload() -> dict:
@@ -1934,7 +1981,8 @@ def stock_ai_payload() -> dict:
         # 관심종목 재무분석을 미리 구워둔다(Pages에서 프록시 없이 즉시·안정 표시).
         # 관심 밖 종목은 브라우저가 프록시로 실시간 조회한다.
         "analysis": _watchlist_analysis(),
-        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "live": True,
     }
 
 
@@ -5354,7 +5402,8 @@ function renderStockQuote(q) {{
     (q.change_text || KRW(change, true)) + (pct == null ? "" : ` (${{PCT(pct)}})`);
   document.getElementById("stock-change").className = colorOf(change);
   document.getElementById("stock-status").textContent = q.status || "—";
-  document.getElementById("stock-updated").textContent = q.updated_at || "—";
+  const qAsOf = q.generated_at ? new Date(q.generated_at).toLocaleTimeString("en-GB", {{ hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false }}) : (q.updated_at || "—");
+  document.getElementById("stock-updated").textContent = (q.source ? q.source + " · " : "") + qAsOf;
   document.getElementById("stock-quote-rows").innerHTML = (q.rows || []).map(r => `
     <div class="quote-row">
       <span class="k">${{r.label || "—"}}</span>
@@ -5477,6 +5526,31 @@ async function loadStock() {{
   }}
 }}
 
+async function loadStockQuoteLive() {{
+  if (document.hidden || window._stockQuoteLoading) return;
+  window._stockQuoteLoading = true;
+  const code = stockCode();
+  document.getElementById("stock-code").value = code;
+  try {{
+    const quoteRes = await fetch(`/api/stocks/quote?code=${{code}}`);
+    const quote = await quoteRes.json();
+    if (!quoteRes.ok) throw new Error(quote.error || "주식 시세 조회 실패");
+    renderStockQuote(quote);
+    document.querySelectorAll("#stock-watchlist .watch-row").forEach(row => {{
+      const cd = row.querySelector(".cd");
+      row.classList.toggle("on", !!cd && cd.textContent.trim() === code);
+    }});
+  }} catch(e) {{
+    const err = document.getElementById("err");
+    if (err) {{
+      err.style.display = "block";
+      err.textContent = e.message || e;
+    }}
+  }} finally {{
+    window._stockQuoteLoading = false;
+  }}
+}}
+
 async function tickStockState() {{
   try {{
     const s = await (await fetch("/api/state")).json();
@@ -5487,6 +5561,7 @@ async function tickStockState() {{
 setupStockPresets(); loadStock(); tickTape(); tickStockState();
 setInterval(tickTape, 15000);
 setInterval(tickStockState, 3000);
+setInterval(loadStockQuoteLive, 2000);
 setInterval(loadStock, 30000);
 
 // ---- AI 자동매매 (국내주식) ----
@@ -5592,8 +5667,8 @@ async function loadStockWatchlist() {{
 
 loadStockAi();
 loadStockWatchlist();
-setInterval(loadStockAi, 20000);
-setInterval(loadStockWatchlist, 20000);
+setInterval(loadStockAi, 2000);
+setInterval(loadStockWatchlist, 2000);
 </script>
 </body></html>"""
 
