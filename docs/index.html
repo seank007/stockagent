@@ -1268,7 +1268,7 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
     <div class="ai-map-legend">
       <span>칸 크기 = 보유 비중</span>
       <span><span style="color:#1fd6a8">■</span> 수익 · <span style="color:#ff5d6c">■</span> 손실 (내 평단 대비, 진할수록 큼)</span>
-      <span class="live-note">● 7초마다 자동 갱신</span>
+      <span class="live-note">● 2초마다 자동 갱신</span>
       <span id="ai-map-note"></span>
     </div>
   </div>
@@ -3156,7 +3156,7 @@ async function loadCoinAiTrades(force=false) {
     let st = await stRes.json();
     let cfg = await cfgRes.json();
     let trades = (await trRes.json()).items || [];
-    let sourceNote = "로컬 봇 실시간 데이터입니다. 계좌·수익률은 7초, 판단 기록은 10초마다 자동 갱신됩니다.";
+    let sourceNote = "로컬 봇 실시간 데이터입니다. 계좌·수익률은 2초, 판단 기록은 10초마다 자동 갱신됩니다.";
     if (cfg.model === "github-pages-static" && window.__aiTradeSnapshot) {
       const snap = window.__aiTradeSnapshot;
       st = snap.state; cfg = snap.config; trades = snap.trades || [];
@@ -3295,7 +3295,7 @@ setInterval(() => { if (!window._coinSection || window._coinSection === "market"
 setInterval(() => { if (window._coinSection === "portfolio") loadCoinPortfolio(); }, 20000);
 setInterval(() => { if (window._coinSection === "news") loadCoinNews(window._coinNewsMapOpen); }, 60000);
 setInterval(() => { if (window._coinSection === "ai") loadCoinAiTrades(); }, 10000);
-setInterval(() => { if (window._coinSection === "ai") loadCoinAiLive(); }, 7000);
+setInterval(() => { if (window._coinSection === "ai") loadCoinAiLive(); }, 2000);
 if (["market", "portfolio", "news", "ai"].includes(coinInitialSection)) {
   setCoinSection(coinInitialSection);
   if (coinInitialSection === "news" && coinInitialParams.get("view") === "map") {

@@ -1,27 +1,130 @@
 /*
  * ai-live.js — GitHub Pages에서 "AI 거래" 탭의 계좌를 실시간으로 보여주는 스크립트.
  *
- * 두 층으로 실시간을 만든다:
- *  1) 시세·수익률: coin-live.js가 유지하는 업비트 웹소켓 시세(window.__coinLive)로
- *     보유코인 평가액·수익률·총자산을 2초마다 브라우저에서 재계산한다.
- *  2) 잔고·거래내역: 업비트 프라이빗 API는 브라우저에서 호출할 수 없으므로,
- *     로컬 봇(scripts/live_sync.py)이 거래 발생 시 push하는 최신 스냅샷 JSON을
- *     raw.githubusercontent.com에서 60초마다 다시 받아 반영한다(Pages 재배포 대기 없음).
- *
- * 정적 목업 fetch 오버라이드·coin-live.js 다음에 로드된다.
+ * 우선순위:
+ *  1) 안전한 로컬/배포 API(localhost:8000 또는 window.STOCKAGENT_LIVE_API_BASE)가
+ *     있으면 그 서버의 /api/portfolio, /api/pnl, /api/state, /api/trades를 직접
+ *     읽는다. 이 경로는 업비트 프라이빗 키를 브라우저에 노출하지 않으면서
+ *     현금·보유수량·평단·수익률을 모두 실시간으로 갱신한다.
+ *  2) API가 없으면 기존처럼 raw.githubusercontent.com의 계좌 스냅샷을 읽고,
+ *     coin-live.js의 업비트 웹소켓 시세로 평가액·수익률만 2초마다 재계산한다.
  */
 (function () {
   "use strict";
 
   var SNAPSHOT_POLL_MS = 60000;
   var RENDER_MS = 2000;
+  var DIRECT_TABLE_POLL_MS = 10000;
+  var DIRECT_PROBE_COOLDOWN_MS = 15000;
+  var HTTP_TIMEOUT_MS = 1800;
 
-  // Pages 호스트(seank007.github.io/stockagent)에서 raw 콘텐츠 주소를 유도한다.
   var owner = /\.github\.io$/.test(location.hostname)
     ? location.hostname.split(".")[0] : "seank007";
   var RAW_BASE = "https://raw.githubusercontent.com/" + owner + "/stockagent/main/docs/data/";
 
+  var liveApiBase = null;
+  var nextProbeAt = 0;
+  var directRendering = false;
+  var directTradesLoading = false;
+  var originalLoadCoinAiTrades = window.loadCoinAiTrades;
+
   function basePf() { return window.__initialCoinPortfolio; }
+
+  function uniquePush(rows, value) {
+    if (value == null) return;
+    value = String(value).trim().replace(/\/+$/, "");
+    if (!value && value !== "") return;
+    if (rows.indexOf(value) === -1) rows.push(value);
+  }
+
+  function configuredApiBase() {
+    try {
+      var params = new URLSearchParams(location.search || "");
+      var fromQuery = params.get("liveApi") || params.get("api");
+      if (fromQuery) {
+        localStorage.setItem("stockagentLiveApiBase", fromQuery);
+        return fromQuery;
+      }
+    } catch (e) {}
+    if (window.STOCKAGENT_LIVE_API_BASE) return window.STOCKAGENT_LIVE_API_BASE;
+    try {
+      return localStorage.getItem("stockagentLiveApiBase");
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function directApiBases() {
+    var bases = [];
+    uniquePush(bases, configuredApiBase());
+    if (!/\.github\.io$/.test(location.hostname) && /^https?:$/.test(location.protocol)) {
+      uniquePush(bases, location.origin);
+    }
+    uniquePush(bases, "http://127.0.0.1:8000");
+    uniquePush(bases, "http://localhost:8000");
+    return bases;
+  }
+
+  function apiUrl(base, path) {
+    var sep = path.indexOf("?") === -1 ? "?" : "&";
+    if (!base) return path + sep + "_live=" + Date.now();
+    return base.replace(/\/+$/, "") + path + sep + "_live=" + Date.now();
+  }
+
+  function baseLabel(base) {
+    return base ? base.replace(/^https?:\/\//, "") : "same-origin";
+  }
+
+  function xhrJson(url, timeoutMs) {
+    return new Promise(function (resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", url, true);
+      xhr.timeout = timeoutMs || HTTP_TIMEOUT_MS;
+      xhr.responseType = "json";
+      xhr.onload = function () {
+        if (xhr.status < 200 || xhr.status >= 300) {
+          reject(new Error("HTTP " + xhr.status));
+          return;
+        }
+        var data = xhr.response;
+        if (data == null && xhr.responseText) {
+          try { data = JSON.parse(xhr.responseText); } catch (e) {}
+        }
+        if (data == null) reject(new Error("empty response"));
+        else resolve(data);
+      };
+      xhr.onerror = function () { reject(new Error("network error")); };
+      xhr.ontimeout = function () { reject(new Error("timeout")); };
+      try { xhr.send(); } catch (e) { reject(e); }
+    });
+  }
+
+  function readDirect(path, validate) {
+    var bases = liveApiBase ? [liveApiBase] : directApiBases();
+    if (!liveApiBase && Date.now() < nextProbeAt) {
+      return Promise.reject(new Error("direct API probe cooling down"));
+    }
+    var idx = 0;
+    function tryNext(lastErr) {
+      if (idx >= bases.length) {
+        liveApiBase = null;
+        nextProbeAt = Date.now() + DIRECT_PROBE_COOLDOWN_MS;
+        return Promise.reject(lastErr || new Error("direct API unavailable"));
+      }
+      var base = bases[idx++];
+      return xhrJson(apiUrl(base, path), HTTP_TIMEOUT_MS).then(function (data) {
+        if (validate && !validate(data)) throw new Error("invalid payload");
+        liveApiBase = base;
+        nextProbeAt = 0;
+        return data;
+      }).catch(tryNext);
+    }
+    return tryNext();
+  }
+
+  function isPortfolioPayload(data) {
+    return !!(data && data.summary && Array.isArray(data.holdings));
+  }
 
   function livePriceOf(market) {
     var prices = window.__coinLive && window.__coinLive.prices;
@@ -29,8 +132,7 @@
     return v && v.price > 0 ? Number(v.price) : null;
   }
 
-  // 스냅샷 잔고 + 웹소켓 실시간가 → 평가액·수익률·비중·총계 재계산
-  function revalue() {
+  function revalueSnapshot() {
     var b = basePf();
     if (!b || !Array.isArray(b.holdings) || !b.holdings.length) return null;
     var p = JSON.parse(JSON.stringify(b));
@@ -65,35 +167,91 @@
     return !document.hidden && window._coinSection === "ai";
   }
 
-  var rendering = false;
-  function render() {
-    if (!aiTabActive() || rendering) return;
-    var p = revalue();
-    if (!p) return;
-    rendering = true;
-    // /api/pnl 목업 라우트는 최신 스냅샷 전역에서 오늘 거래·실현손익을 계산한다.
-    fetch("/api/pnl").then(function (r) { return r.json(); }).catch(function () { return null; })
+  function setNote(pf, mode) {
+    var note = document.getElementById("ai-map-note");
+    if (!note) return;
+    if (pf && pf.account_error) {
+      note.textContent = "계좌 조회 오류: " + pf.account_error;
+      return;
+    }
+    if (mode === "direct") {
+      var asOf = pf && pf.generated_at ? " · 서버 " + pf.generated_at : "";
+      note.textContent = "계좌·수익률 완전 실시간(" + baseLabel(liveApiBase) + ")" + asOf;
+      return;
+    }
+    var snapAt = (basePf() || {}).generated_at;
+    note.textContent = "시세·수익률 실시간(웹소켓) · 잔고·거래내역 "
+      + (snapAt ? snapAt + " 기준(스냅샷 폴백)" : "스냅샷 기준");
+  }
+
+  function renderPortfolio(pf, pnl, mode) {
+    if (!pf || !pf.summary) return;
+    if (typeof renderAiLiveKpis === "function") renderAiLiveKpis(pf, pnl);
+    if (typeof renderAiAccountMap === "function") renderAiAccountMap(pf);
+    var upd = document.getElementById("coin-ai-live-upd");
+    if (upd) {
+      upd.textContent = new Date().toLocaleTimeString("en-GB",
+        { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+    }
+    setNote(pf, mode);
+  }
+
+  function renderSnapshotFallback() {
+    var p = revalueSnapshot();
+    if (!p) return Promise.resolve(false);
+    return fetch("/api/pnl").then(function (r) { return r.json(); }).catch(function () { return null; })
       .then(function (pnl) {
-        try {
-          if (typeof renderAiLiveKpis === "function") renderAiLiveKpis(p, pnl);
-          if (typeof renderAiAccountMap === "function") renderAiAccountMap(p);
-          var upd = document.getElementById("coin-ai-live-upd");
-          if (upd) {
-            upd.textContent = new Date().toLocaleTimeString("en-GB",
-              { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-          }
-          var note = document.getElementById("ai-map-note");
-          if (note) {
-            var asOf = (basePf() || {}).generated_at;
-            note.textContent = "시세·수익률 실시간(웹소켓) · 잔고·거래내역 "
-              + (asOf ? asOf + " 기준(자동 갱신)" : "스냅샷 기준");
-          }
-        } catch (e) { /* 렌더 함수 미로드 등은 다음 틱에 재시도 */ }
-        rendering = false;
+        renderPortfolio(p, pnl, "snapshot");
+        return true;
       });
   }
 
-  // ---- 최신 스냅샷 폴링: 거래·잔고 변경을 재배포 없이 반영 --------------------
+  function render() {
+    if (!aiTabActive() || directRendering) return;
+    directRendering = true;
+    readDirect("/api/portfolio", isPortfolioPayload)
+      .then(function (pf) {
+        window.__initialCoinPortfolio = pf;
+        return readDirect("/api/pnl").catch(function () { return null; })
+          .then(function (pnl) {
+            renderPortfolio(pf, pnl, "direct");
+            return true;
+          });
+      })
+      .catch(renderSnapshotFallback)
+      .finally(function () { directRendering = false; });
+  }
+
+  function loadDirectTrades(force) {
+    if (!aiTabActive() || directTradesLoading) return Promise.resolve(false);
+    directTradesLoading = true;
+    return Promise.all([
+      readDirect("/api/state").catch(function () { return null; }),
+      readDirect("/api/config").catch(function () { return null; }),
+      readDirect("/api/trades?limit=30").catch(function () { return null; })
+    ]).then(function (rows) {
+      var st = rows[0], cfg = rows[1], tr = rows[2];
+      if (!st || !cfg || !tr || typeof renderCoinAiTrades !== "function") {
+        throw new Error("direct trade payload unavailable");
+      }
+      renderCoinAiTrades(st, cfg, tr.items || tr.trades || []);
+      var note = document.getElementById("coin-ai-note");
+      if (note) {
+        note.textContent = "로컬/서버 API 실시간 데이터입니다. 계좌·수익률은 2초, 판단 기록은 10초마다 자동 갱신됩니다.";
+        note.style.color = "";
+      }
+      if (force) render();
+      return true;
+    }).catch(function () {
+      if (typeof originalLoadCoinAiTrades === "function") {
+        originalLoadCoinAiTrades(force);
+      }
+      return false;
+    }).finally(function () {
+      directTradesLoading = false;
+    });
+  }
+
   function fetchJson(url) {
     return fetch(url, { cache: "no-store" }).then(function (res) {
       if (!res.ok) throw new Error("HTTP " + res.status);
@@ -101,10 +259,8 @@
     });
   }
 
-  var polling = false;
   function refreshSnapshots() {
-    if (document.hidden || polling) return;
-    polling = true;
+    if (document.hidden) return;
     var bust = "?t=" + Date.now();
     Promise.allSettled([
       fetchJson(RAW_BASE + "portfolio_snapshot.json" + bust),
@@ -112,8 +268,6 @@
     ]).then(function (results) {
       var pf = results[0].status === "fulfilled" ? results[0].value : null;
       var ai = results[1].status === "fulfilled" ? results[1].value : null;
-      // generated_at("YYYY-MM-DD HH:MM")은 문자열 비교가 시간 비교와 같다.
-      // 페이지에 심어진 것보다 "더 최신"일 때만 교체한다(오래된 캐시로 후퇴 방지).
       var newer = function (a, b) { return a && (!b || String(a) > String(b)); };
       var changed = false;
       if (pf && Array.isArray(pf.holdings) && pf.holdings.length
@@ -127,20 +281,15 @@
       }
       if (changed) {
         render();
-        // 거래 내역·AI 판단 테이블도 새 스냅샷으로 다시 그린다.
-        if (window._coinSection === "ai" && typeof loadCoinAiTrades === "function") {
-          try { loadCoinAiTrades(true); } catch (e) { /* 무시 */ }
-        }
+        if (window._coinSection === "ai") loadDirectTrades(true);
       }
-      polling = false;
     });
   }
 
-  // ---- 기동 ------------------------------------------------------------------
-  if (!basePf()) return; // 스냅샷 없는 페이지(주식 등)에서는 아무것도 안 함
+  if (!basePf()) return;
 
-  // 기존 7초 정적 루프(loadCoinAiLive)를 실시간 버전으로 교체
   window.loadCoinAiLive = render;
+  window.loadCoinAiTrades = loadDirectTrades;
 
   function tick() {
     if (aiTabActive()) {
@@ -150,11 +299,14 @@
       render();
     }
   }
+
   setInterval(tick, RENDER_MS);
+  setInterval(function () { loadDirectTrades(false); }, DIRECT_TABLE_POLL_MS);
   setInterval(refreshSnapshots, SNAPSHOT_POLL_MS);
   document.addEventListener("visibilitychange", function () {
-    if (!document.hidden) { refreshSnapshots(); tick(); }
+    if (!document.hidden) { refreshSnapshots(); tick(); loadDirectTrades(true); }
   });
   tick();
+  loadDirectTrades(true);
   refreshSnapshots();
 })();

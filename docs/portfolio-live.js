@@ -1,14 +1,108 @@
 // GitHub Pages 포트폴리오 실시간 평가.
-// 보유 수량·평단은 배포 시점 스냅샷(window.__initialCoinPortfolio) 기준이고,
-// 시세·평가액·손익은 업비트 공개 API(CORS 허용)로 10초마다 다시 계산한다.
+// 로컬/배포 API가 있으면 현금·보유수량·평단·수익률을 모두 직접 갱신하고,
+// API가 없을 때만 스냅샷 보유분 + 업비트 공개 시세 재평가로 폴백한다.
 (() => {
-  // ai-live.js가 최신 스냅샷으로 전역을 갱신하므로 매번 다시 읽는다.
   const getBase = () => window.__initialCoinPortfolio;
   if (!getBase() || !Array.isArray(getBase().holdings) || !getBase().holdings.length) return;
 
+  const DIRECT_POLL_MS = 2000;
+  const FALLBACK_POLL_MS = 10000;
+  const PROBE_COOLDOWN_MS = 15000;
+  const HTTP_TIMEOUT_MS = 1800;
+  let liveApiBase = null;
+  let nextProbeAt = 0;
+  let loading = false;
   let lastPayload = getBase();
 
-  async function revalue() {
+  function uniquePush(rows, value) {
+    if (value == null) return;
+    value = String(value).trim().replace(/\/+$/, "");
+    if (!value && value !== "") return;
+    if (!rows.includes(value)) rows.push(value);
+  }
+
+  function configuredApiBase() {
+    try {
+      const params = new URLSearchParams(location.search || "");
+      const fromQuery = params.get("liveApi") || params.get("api");
+      if (fromQuery) {
+        localStorage.setItem("stockagentLiveApiBase", fromQuery);
+        return fromQuery;
+      }
+    } catch (e) {}
+    if (window.STOCKAGENT_LIVE_API_BASE) return window.STOCKAGENT_LIVE_API_BASE;
+    try { return localStorage.getItem("stockagentLiveApiBase"); } catch (e) { return null; }
+  }
+
+  function directApiBases() {
+    const bases = [];
+    uniquePush(bases, configuredApiBase());
+    if (!/\.github\.io$/.test(location.hostname) && /^https?:$/.test(location.protocol)) {
+      uniquePush(bases, location.origin);
+    }
+    uniquePush(bases, "http://127.0.0.1:8000");
+    uniquePush(bases, "http://localhost:8000");
+    return bases;
+  }
+
+  function apiUrl(base, path) {
+    const sep = path.includes("?") ? "&" : "?";
+    return (base ? base.replace(/\/+$/, "") : "") + path + sep + "_live=" + Date.now();
+  }
+
+  function baseLabel(base) {
+    return base ? base.replace(/^https?:\/\//, "") : "same-origin";
+  }
+
+  function xhrJson(url) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("GET", url, true);
+      xhr.timeout = HTTP_TIMEOUT_MS;
+      xhr.responseType = "json";
+      xhr.onload = () => {
+        if (xhr.status < 200 || xhr.status >= 300) {
+          reject(new Error("HTTP " + xhr.status));
+          return;
+        }
+        let data = xhr.response;
+        if (data == null && xhr.responseText) {
+          try { data = JSON.parse(xhr.responseText); } catch (e) {}
+        }
+        data == null ? reject(new Error("empty response")) : resolve(data);
+      };
+      xhr.onerror = () => reject(new Error("network error"));
+      xhr.ontimeout = () => reject(new Error("timeout"));
+      try { xhr.send(); } catch (e) { reject(e); }
+    });
+  }
+
+  function readDirectPortfolio() {
+    const bases = liveApiBase ? [liveApiBase] : directApiBases();
+    if (!liveApiBase && Date.now() < nextProbeAt) {
+      return Promise.reject(new Error("direct API probe cooling down"));
+    }
+    let idx = 0;
+    const tryNext = lastErr => {
+      if (idx >= bases.length) {
+        liveApiBase = null;
+        nextProbeAt = Date.now() + PROBE_COOLDOWN_MS;
+        return Promise.reject(lastErr || new Error("direct API unavailable"));
+      }
+      const base = bases[idx++];
+      return xhrJson(apiUrl(base, "/api/portfolio")).then(data => {
+        if (!data || !data.summary || !Array.isArray(data.holdings)) {
+          throw new Error("invalid portfolio payload");
+        }
+        liveApiBase = base;
+        nextProbeAt = 0;
+        return data;
+      }).catch(tryNext);
+    };
+    return tryNext();
+  }
+
+  async function revalueSnapshot() {
     const base = getBase();
     const markets = base.holdings
       .map(h => h.ticker)
@@ -47,23 +141,37 @@
     return p;
   }
 
+  function setNote(text) {
+    const note = document.getElementById("coin-pf-note");
+    if (note) note.textContent = text;
+  }
+
   async function liveLoad() {
-    if (document.hidden || (window._coinSection && window._coinSection !== "portfolio")) return;
+    if (loading || document.hidden || (window._coinSection && window._coinSection !== "portfolio")) return;
+    loading = true;
     try {
-      const p = await revalue();
+      const p = await readDirectPortfolio();
+      window.__initialCoinPortfolio = p;
+      lastPayload = p;
       if (typeof renderCoinPortfolio === "function") renderCoinPortfolio(p);
-      const note = document.getElementById("coin-pf-note");
-      if (note && !note.textContent.includes("실시간")) {
-        note.textContent += " · 수량은 " + (getBase().generated_at || "배포 시점") + " 기준, 시세는 업비트 실시간";
-      }
+      setNote("계좌·수익률 완전 실시간(" + baseLabel(liveApiBase) + ")"
+        + (p.generated_at ? " · 서버 " + p.generated_at : ""));
     } catch (e) {
-      // 시세 조회가 잠깐 실패하면 마지막 값 유지
-      if (typeof renderCoinPortfolio === "function") renderCoinPortfolio(lastPayload);
+      try {
+        const p = await revalueSnapshot();
+        if (typeof renderCoinPortfolio === "function") renderCoinPortfolio(p);
+        setNote("시세·수익률 실시간 · 수량/현금은 "
+          + (getBase().generated_at || "스냅샷") + " 기준");
+      } catch (fallbackError) {
+        if (typeof renderCoinPortfolio === "function") renderCoinPortfolio(lastPayload);
+      }
+    } finally {
+      loading = false;
     }
   }
 
-  // 페이지 내장 loadCoinPortfolio(정적 스냅샷 반환)를 실시간 버전으로 교체
   window.loadCoinPortfolio = liveLoad;
-  setInterval(liveLoad, 10000);
+  setInterval(liveLoad, DIRECT_POLL_MS);
+  setInterval(() => { if (!liveApiBase) liveLoad(); }, FALLBACK_POLL_MS);
   if (!window._coinSection || window._coinSection === "portfolio") liveLoad();
 })();
