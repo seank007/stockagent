@@ -1903,7 +1903,7 @@ STOCK_WATCHLIST_CACHE_SECONDS = max(0.5, float(os.getenv("STOCK_WATCHLIST_CACHE_
 
 
 def _stock_watchlist_items() -> list[dict]:
-    """관심종목(프리셋) 시세 — 네이버, 20초 캐시."""
+    """관심종목(프리셋) 시세 — 네이버, 짧은 캐시."""
     global _stock_watchlist_cache
     now = time.time()
     if _stock_watchlist_cache and now - _stock_watchlist_cache[0] < STOCK_WATCHLIST_CACHE_SECONDS:
@@ -1919,10 +1919,19 @@ def _stock_watchlist_items() -> list[dict]:
     return items
 
 
+def _stock_watchlist_payload() -> dict:
+    generated_at = datetime.now().astimezone()
+    return {
+        "items": _stock_watchlist_items(),
+        "updated_at": generated_at.strftime("%H:%M:%S"),
+        "generated_at": generated_at.isoformat(timespec="seconds"),
+        "live": True,
+    }
+
+
 @app.route("/api/stocks/watchlist")
 def api_stocks_watchlist():
-    return jsonify({"items": _stock_watchlist_items(),
-                    "updated_at": datetime.now().strftime("%H:%M:%S")})
+    return jsonify(_stock_watchlist_payload())
 
 
 @app.route("/api/stocks/portfolio")
@@ -5661,7 +5670,12 @@ async function loadStockWatchlist() {{
   try {{
     const res = await fetch("/api/stocks/watchlist");
     const data = await res.json();
-    if (data && data.items) renderStockWatchlist(data.items, data.updated_at);
+    if (data && data.items) {{
+      const updated = data.generated_at
+        ? new Date(data.generated_at).toLocaleTimeString("en-GB", {{ hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false }})
+        : data.updated_at;
+      renderStockWatchlist(data.items, updated);
+    }}
   }} catch (e) {{ /* 다음 주기에 재시도 */ }}
 }}
 
