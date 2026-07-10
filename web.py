@@ -15,6 +15,7 @@ import hmac
 import html as html_lib
 import io
 import json
+import os
 import re
 import time
 import threading
@@ -103,7 +104,7 @@ COIN_ORDERBOOK_CACHE_SECONDS = 1.2
 COIN_CANDLES_CACHE_SECONDS = 25
 CURRENT_PRICES_CACHE_SECONDS = 1.5
 TICKER_QUOTES_CACHE_SECONDS = 20
-PORTFOLIO_CACHE_SECONDS = 5
+PORTFOLIO_CACHE_SECONDS = max(0.5, float(os.getenv("PORTFOLIO_CACHE_SECONDS", "2")))
 COIN_NEWS_CACHE_SECONDS = 60
 COIN_NEWS_SUMMARY_CACHE_SECONDS = 120
 UPBIT_PUBLIC_MIN_INTERVAL_SECONDS = 0.105
@@ -186,6 +187,34 @@ COIN_NEWS_SUMMARY_SCHEMA = {
     "required": ["headline", "market_mood", "brief", "key_assets", "risks", "watch", "source_note"],
     "additionalProperties": False,
 }
+
+
+def _origin_allowed(origin: str) -> bool:
+    if not origin:
+        return False
+    custom = [
+        item.strip().rstrip("/")
+        for item in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+        if item.strip()
+    ]
+    if custom and origin.rstrip("/") in custom:
+        return True
+    parsed = urllib.parse.urlparse(origin)
+    host = (parsed.hostname or "").lower()
+    if host in {"localhost", "127.0.0.1", "::1"}:
+        return True
+    return origin.rstrip("/") == "https://seank007.github.io"
+
+
+@app.after_request
+def _add_cors_headers(response: Response) -> Response:
+    origin = request.headers.get("Origin", "")
+    if _origin_allowed(origin):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Vary"] = "Origin"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
 
 
 def _broker() -> UpbitBroker:
@@ -1007,19 +1036,31 @@ def _coin_news_summary_payload(force: bool = False, news_limit: int = 30) -> dic
 
 def _portfolio_payload() -> dict:
     snapshot = store.snapshot()
-    portfolio = snapshot.get("portfolio") or {}
-    items = list(portfolio.get("items") or [])
+    portfolio = {}
+    items: list[dict] = []
     manual_items = db.manual_portfolio_items()
     account_error = None
+    broker_attempted = False
 
-    if not items:
+    try:
+        broker = _broker()
+    except Exception as e:  # noqa: BLE001
+        broker = None
+        account_error = str(e)
+
+    if broker is not None and broker.client is not None:
+        broker_attempted = True
         try:
-            portfolio = _broker().get_portfolio()
+            portfolio = broker.get_portfolio()
             items = list(portfolio.get("items") or [])
         except Exception as e:  # noqa: BLE001
             account_error = str(e)
             portfolio = {}
             items = []
+
+    if not items and (not broker_attempted or account_error):
+        portfolio = snapshot.get("portfolio") or {}
+        items = list(portfolio.get("items") or [])
 
     if manual_items:
         tickers = [
@@ -1057,7 +1098,7 @@ def _portfolio_payload() -> dict:
         portfolio["total_principal"] = sum(float(i.get("principal") or 0) for i in items)
         portfolio["total_value"] = sum(float(i.get("current_value") or 0) for i in items)
 
-    if not items:
+    if not items and not broker_attempted:
         positions = [p for p in db.all_positions() if float(p.get("volume") or 0) > 0]
         tickers = [p["ticker"] for p in positions if p.get("ticker")]
         prices = _current_prices(tickers)
@@ -1137,6 +1178,7 @@ def _portfolio_payload() -> dict:
         "holdings": holdings,
         "manual_items": manual_items,
         "account_error": account_error,
+        "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "daily": db.get_daily_pnl(days=30),
         "risk": {
             "max_order_krw": config.MAX_ORDER_KRW,
@@ -3719,7 +3761,7 @@ COIN_HTML = f"""<!doctype html>
     <div class="ai-map-legend">
       <span>칸 크기 = 보유 비중</span>
       <span><span style="color:#1fd6a8">■</span> 수익 · <span style="color:#ff5d6c">■</span> 손실 (내 평단 대비, 진할수록 큼)</span>
-      <span class="live-note">● 7초마다 자동 갱신</span>
+      <span class="live-note">● 2초마다 자동 갱신</span>
       <span id="ai-map-note"></span>
     </div>
   </div>
@@ -4942,7 +4984,7 @@ async function loadCoinAiTrades(force=false) {{
     let st = await stRes.json();
     let cfg = await cfgRes.json();
     let trades = (await trRes.json()).items || [];
-    let sourceNote = "로컬 봇 실시간 데이터입니다. 계좌·수익률은 7초, 판단 기록은 10초마다 자동 갱신됩니다.";
+    let sourceNote = "로컬 봇 실시간 데이터입니다. 계좌·수익률은 2초, 판단 기록은 10초마다 자동 갱신됩니다.";
     if (cfg.model === "github-pages-static" && window.__aiTradeSnapshot) {{
       const snap = window.__aiTradeSnapshot;
       st = snap.state; cfg = snap.config; trades = snap.trades || [];
@@ -5081,7 +5123,7 @@ setInterval(() => {{ if (!window._coinSection || window._coinSection === "market
 setInterval(() => {{ if (window._coinSection === "portfolio") loadCoinPortfolio(); }}, 20000);
 setInterval(() => {{ if (window._coinSection === "news") loadCoinNews(window._coinNewsMapOpen); }}, 60000);
 setInterval(() => {{ if (window._coinSection === "ai") loadCoinAiTrades(); }}, 10000);
-setInterval(() => {{ if (window._coinSection === "ai") loadCoinAiLive(); }}, 7000);
+setInterval(() => {{ if (window._coinSection === "ai") loadCoinAiLive(); }}, 2000);
 if (["market", "portfolio", "news", "ai"].includes(coinInitialSection)) {{
   setCoinSection(coinInitialSection);
   if (coinInitialSection === "news" && coinInitialParams.get("view") === "map") {{
