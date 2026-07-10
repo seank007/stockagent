@@ -77,6 +77,21 @@
     });
   }
 
+  function targetAddressSpace(url) {
+    try {
+      const host = new URL(url, location.href).hostname.toLowerCase();
+      if (host === "localhost" || host === "::1" || /^127\./.test(host)) return "loopback";
+      if (
+        host.endsWith(".local")
+        || /^10\./.test(host)
+        || /^192\.168\./.test(host)
+        || /^169\.254\./.test(host)
+        || /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+      ) return "local";
+    } catch (e) {}
+    return null;
+  }
+
   function directFetchJson(url) {
     const fetchImpl = window.__stockagentNativeFetch || window.fetch;
     if (!fetchImpl) return Promise.reject(new Error("fetch unavailable"));
@@ -85,9 +100,10 @@
     const init = {
       cache: "no-store",
       credentials: "omit",
-      mode: "cors",
-      targetAddressSpace: "local"
+      mode: "cors"
     };
+    const target = targetAddressSpace(url);
+    if (target) init.targetAddressSpace = target;
     if (controller) init.signal = controller.signal;
     return fetchImpl(url, init).then(res => {
       if (!res.ok) throw new Error("HTTP " + res.status);
