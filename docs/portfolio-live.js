@@ -77,6 +77,30 @@
     });
   }
 
+  function directFetchJson(url) {
+    const fetchImpl = window.__stockagentNativeFetch || window.fetch;
+    if (!fetchImpl) return Promise.reject(new Error("fetch unavailable"));
+    const controller = window.AbortController ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS) : null;
+    const init = {
+      cache: "no-store",
+      credentials: "omit",
+      mode: "cors",
+      targetAddressSpace: "local"
+    };
+    if (controller) init.signal = controller.signal;
+    return fetchImpl(url, init).then(res => {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    }).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+  }
+
+  function directRequestJson(url) {
+    return directFetchJson(url).catch(() => xhrJson(url));
+  }
+
   function readDirectPortfolio() {
     const bases = liveApiBase ? [liveApiBase] : directApiBases();
     if (!liveApiBase && Date.now() < nextProbeAt) {
@@ -90,7 +114,7 @@
         return Promise.reject(lastErr || new Error("direct API unavailable"));
       }
       const base = bases[idx++];
-      return xhrJson(apiUrl(base, "/api/portfolio")).then(data => {
+      return directRequestJson(apiUrl(base, "/api/portfolio")).then(data => {
         if (!data || !data.summary || !Array.isArray(data.holdings)) {
           throw new Error("invalid portfolio payload");
         }

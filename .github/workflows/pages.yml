@@ -5,6 +5,9 @@ on:
     branches: ["main"]
     paths:
       - "docs/**"
+      - "web.py"
+      - "scripts/export_github_pages.py"
+      - "requirements.txt"
       - ".github/workflows/pages.yml"
   schedule:
     # 30분마다 재배포해 코인 캔들 스냅샷(docs/data)을 최신으로 따라잡는다.

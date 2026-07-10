@@ -355,9 +355,11 @@ STATIC_API = f"""
   }}
 
   const nativeFetch = window.fetch.bind(window);
+  window.__stockagentNativeFetch = nativeFetch;
   window.fetch = async (input, init={{}}) => {{
     const raw = typeof input === "string" ? input : input.url;
     const url = new URL(raw, window.location.origin);
+    if (url.origin !== window.location.origin) return nativeFetch(input, init);
     const path = url.pathname.replace(/^\\/stockagent/, "");
     if (path.startsWith("/api/")) {{
       const body = JSON.stringify(route(path, url.searchParams, init));

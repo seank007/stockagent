@@ -99,6 +99,32 @@
     });
   }
 
+  function directFetchJson(url, timeoutMs) {
+    var fetchImpl = window.__stockagentNativeFetch || window.fetch;
+    if (!fetchImpl) return Promise.reject(new Error("fetch unavailable"));
+    var controller = window.AbortController ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, timeoutMs || HTTP_TIMEOUT_MS) : null;
+    var init = {
+      cache: "no-store",
+      credentials: "omit",
+      mode: "cors",
+      targetAddressSpace: "local"
+    };
+    if (controller) init.signal = controller.signal;
+    return fetchImpl(url, init).then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    }).finally(function () {
+      if (timer) clearTimeout(timer);
+    });
+  }
+
+  function directRequestJson(url, timeoutMs) {
+    return directFetchJson(url, timeoutMs).catch(function () {
+      return xhrJson(url, timeoutMs);
+    });
+  }
+
   function readDirect(path, validate) {
     var bases = liveApiBase ? [liveApiBase] : directApiBases();
     if (!liveApiBase && Date.now() < nextProbeAt) {
@@ -112,7 +138,7 @@
         return Promise.reject(lastErr || new Error("direct API unavailable"));
       }
       var base = bases[idx++];
-      return xhrJson(apiUrl(base, path), HTTP_TIMEOUT_MS).then(function (data) {
+      return directRequestJson(apiUrl(base, path), HTTP_TIMEOUT_MS).then(function (data) {
         if (validate && !validate(data)) throw new Error("invalid payload");
         liveApiBase = base;
         nextProbeAt = 0;
