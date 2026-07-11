@@ -68,8 +68,14 @@
     if (!/\.github\.io$/.test(location.hostname) && /^https?:$/.test(location.protocol)) {
       uniquePush(bases, location.origin);
     }
-    uniquePush(bases, "http://127.0.0.1:8000");
-    uniquePush(bases, "http://localhost:8000");
+    // 로컬 봇(:8000) 자동 탐색은 로컬/사설망에서만 한다. github.io 같은 공개
+    // 배포본에선 매 폴링마다 ERR_CONNECTION_REFUSED가 콘솔에 쌓이고 폴백만 지연시키므로
+    // 건너뛴다. 공개 페이지에서 로컬 실시간을 쓰려면 STOCKAGENT_LIVE_API_BASE 또는
+    // localStorage.stockagentLiveApiBase로 지정하면 configuredApiBase()가 우선한다.
+    if (!/\.github\.io$/.test(location.hostname)) {
+      uniquePush(bases, "http://127.0.0.1:8000");
+      uniquePush(bases, "http://localhost:8000");
+    }
     return bases;
   }
 
