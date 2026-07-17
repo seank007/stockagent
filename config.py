@@ -5,14 +5,22 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+if os.getenv("PYTHON_DOTENV_DISABLED", "").strip().lower() not in {"1", "true", "yes", "on"}:
+    load_dotenv()
 
 
 def _env_bool(name: str, default: bool) -> bool:
     value = os.getenv(name)
     if value is None:
         return default
-    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "y", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "n", "off"}:
+        return False
+    raise ValueError(
+        f"{name} 값이 잘못됨: {value!r} (true/false 중 하나를 사용하세요)"
+    )
 
 
 def _env_int(name: str, default: int) -> int:
@@ -61,8 +69,8 @@ EFFORT = os.getenv("EFFORT", "medium")  # claude 전용: low | medium | high | m
 # --- 안전장치 ---
 # True면 실제 주문을 내지 않고 "이렇게 매매했을 것"이라는 로그만 남긴다(모의매매).
 # 실거래는 .env에 DRY_RUN=false와 ALLOW_LIVE_TRADING=true를 둘 다 명시해야 한다.
-DRY_RUN = _env_bool("DRY_RUN", False)
-ALLOW_LIVE_TRADING = _env_bool("ALLOW_LIVE_TRADING", True)
+DRY_RUN = _env_bool("DRY_RUN", True)
+ALLOW_LIVE_TRADING = _env_bool("ALLOW_LIVE_TRADING", False)
 
 # --- 대상 종목 ---
 TICKERS = _env_list("TICKERS", ["KRW-BTC", "KRW-SOL"])
@@ -70,6 +78,7 @@ TICKERS = _env_list("TICKERS", ["KRW-BTC", "KRW-SOL"])
 # --- 매매 설정 ---
 CANDLE_INTERVAL = os.getenv("CANDLE_INTERVAL", "minute60")
 CANDLE_COUNT = _env_int("CANDLE_COUNT", 50)
+INTERVAL_SECONDS = _env_int("INTERVAL_SECONDS", 600)
 
 # --- 주문/리스크 한도 ---
 MAX_ORDER_KRW = _env_int("MAX_ORDER_KRW", 10_000)
@@ -143,6 +152,38 @@ def validate() -> None:
             missing.append("UPBIT_SECRET_KEY")
         if not ALLOW_LIVE_TRADING:
             missing.append("ALLOW_LIVE_TRADING=true")
+        if len(WEB_AUTH_TOKEN.strip()) < 16 or _looks_placeholder_key(WEB_AUTH_TOKEN):
+            missing.append("WEB_AUTH_TOKEN(16자 이상)")
+
+    has_private_credentials = any(
+        value and not _looks_placeholder_key(value)
+        for value in (
+            UPBIT_ACCESS_KEY,
+            UPBIT_SECRET_KEY,
+            ANTHROPIC_API_KEY,
+            OPENAI_API_KEY,
+            GEMINI_API_KEY,
+        )
+    )
+    if WEB_HOST not in {"127.0.0.1", "localhost", "::1"} and has_private_credentials:
+        if len(WEB_AUTH_TOKEN.strip()) < 16 or _looks_placeholder_key(WEB_AUTH_TOKEN):
+            missing.append("외부 바인딩 시 WEB_AUTH_TOKEN(16자 이상)")
+
+    invalid = []
+    if INTERVAL_SECONDS < 1:
+        invalid.append("INTERVAL_SECONDS>=1")
+    if CANDLE_COUNT < 20:
+        invalid.append("CANDLE_COUNT>=20")
+    if MIN_ORDER_KRW <= 0 or MAX_ORDER_KRW < MIN_ORDER_KRW:
+        invalid.append("0<MIN_ORDER_KRW<=MAX_ORDER_KRW")
+    if MAX_DAILY_LOSS_KRW <= 0:
+        invalid.append("MAX_DAILY_LOSS_KRW>0")
+    if not 0 <= MIN_CONFIDENCE <= 1:
+        invalid.append("0<=MIN_CONFIDENCE<=1")
+    if MAX_DECISION_WORKERS < 1:
+        invalid.append("MAX_DECISION_WORKERS>=1")
+    if invalid:
+        raise SystemExit("설정값 범위가 잘못되었습니다: " + ", ".join(invalid))
     if missing:
         raise SystemExit(
             "배포 설정이 부족합니다: " + ", ".join(missing) + "\n.env 파일을 확인하세요."

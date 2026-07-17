@@ -704,7 +704,7 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
 
 <script>
 (() => {
-  const DEMO_PORTFOLIO = {"summary": {"total_principal": 300800, "total_value": 120366, "cash_value": 69, "coin_value": 120297, "cash_ratio": 0.1, "unrealized_pnl": -180434, "realized_pnl": 0, "total_pnl": -180434, "total_return_pct": -59.98, "assets_count": 2, "largest_asset": "SOL", "largest_weight": 64.6}, "holdings": [{"currency": "SOL", "ticker": "KRW-SOL", "balance": 0.634, "avg_buy_price": 362436, "principal": 229790, "current_price": 122000, "current_value": 77348, "return_pct": -66.34, "weight": 64.6, "unrealized_pnl": -152442, "realized_pnl": 0, "trades_count": 0, "buy_count": 0, "sell_count": 0, "last_trade_at": null}, {"currency": "BTC", "ticker": "KRW-BTC", "balance": 0.000457, "avg_buy_price": 155373956, "principal": 70940, "current_price": 93005000, "current_value": 42501, "return_pct": -40.09, "weight": 35.4, "unrealized_pnl": -28439, "realized_pnl": 0, "trades_count": 0, "buy_count": 0, "sell_count": 0, "last_trade_at": null}, {"currency": "KRW", "ticker": "KRW", "balance": 69, "avg_buy_price": 1, "principal": 69, "current_price": 1, "current_value": 69, "return_pct": 0, "weight": 0.1, "unrealized_pnl": 0, "realized_pnl": 0, "trades_count": 0, "buy_count": 0, "sell_count": 0, "last_trade_at": null}], "manual_items": [], "account_error": null, "daily": [], "risk": {"max_order_krw": 10000, "max_daily_loss_krw": 30000, "min_confidence": 0.6}};
+  const DEMO_PORTFOLIO = {"data_mode": "demo", "generated_at": null, "summary": {"total_principal": 1000000, "total_value": 1025000, "cash_value": 400000, "coin_value": 625000, "cash_ratio": 39.0, "unrealized_pnl": 25000, "realized_pnl": 0, "total_pnl": 25000, "total_return_pct": 2.5, "assets_count": 3, "largest_asset": "KRW", "largest_weight": 39.0}, "holdings": [{"currency": "KRW", "ticker": "KRW", "balance": 400000, "avg_buy_price": 1, "principal": 400000, "current_price": 1, "current_value": 400000, "return_pct": 0, "weight": 39.0, "unrealized_pnl": 0, "realized_pnl": 0, "trades_count": 0, "buy_count": 0, "sell_count": 0, "last_trade_at": null}, {"currency": "BTC", "ticker": "KRW-BTC", "balance": 0.003, "avg_buy_price": 100000000, "principal": 300000, "current_price": 105000000, "current_value": 315000, "return_pct": 5.0, "weight": 30.7, "unrealized_pnl": 15000, "realized_pnl": 0, "trades_count": 0, "buy_count": 0, "sell_count": 0, "last_trade_at": null}, {"currency": "ETH", "ticker": "KRW-ETH", "balance": 0.1, "avg_buy_price": 3000000, "principal": 300000, "current_price": 3100000, "current_value": 310000, "return_pct": 3.33, "weight": 30.3, "unrealized_pnl": 10000, "realized_pnl": 0, "trades_count": 0, "buy_count": 0, "sell_count": 0, "last_trade_at": null}], "manual_items": [], "account_error": null, "daily": [], "risk": {"max_order_krw": 10000, "max_daily_loss_krw": 30000, "min_confidence": 0.6}};
   const MARKETS = [{"market": "KRW-BTC", "symbol": "BTC", "korean_name": "비트코인", "english_name": "Bitcoin"}, {"market": "KRW-SOL", "symbol": "SOL", "korean_name": "솔라나", "english_name": "Solana"}, {"market": "KRW-ETH", "symbol": "ETH", "korean_name": "이더리움", "english_name": "Ethereum"}, {"market": "KRW-XRP", "symbol": "XRP", "korean_name": "리플", "english_name": "XRP"}, {"market": "KRW-DOGE", "symbol": "DOGE", "korean_name": "도지코인", "english_name": "Dogecoin"}, {"market": "KRW-ADA", "symbol": "ADA", "korean_name": "에이다", "english_name": "Cardano"}, {"market": "KRW-SUI", "symbol": "SUI", "korean_name": "수이", "english_name": "Sui"}, {"market": "KRW-LINK", "symbol": "LINK", "korean_name": "체인링크", "english_name": "Chainlink"}, {"market": "KRW-AVAX", "symbol": "AVAX", "korean_name": "아발란체", "english_name": "Avalanche"}, {"market": "KRW-DOT", "symbol": "DOT", "korean_name": "폴카닷", "english_name": "Polkadot"}, {"market": "KRW-TRX", "symbol": "TRX", "korean_name": "트론", "english_name": "TRON"}, {"market": "KRW-BCH", "symbol": "BCH", "korean_name": "비트코인캐시", "english_name": "Bitcoin Cash"}];
   const PRICES = {
     "KRW-BTC": 93005000, "KRW-ETH": 2586000, "KRW-SOL": 122000,
@@ -784,17 +784,17 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
   }
 
   function state() {
-    // 배포 시점에 심어진 실제 봇 스냅샷이 있으면 그걸 보여준다 (모의 아님).
+    // 공개 Pages에는 검증된 데모 스냅샷만 심는다.
     const snap = window.__aiTradeSnapshot || {};
     const scfg = snap.config || {};
     const sstate = snap.state || {};
-    const liveMode = scfg.allow_live_trading && !scfg.dry_run;
     return {
-      mode: liveMode ? "LIVE" : "DRY_RUN(PAPER)",
-      provider: scfg.provider || "mock",
-      model: scfg.external_trader ? "hermes agent" : (scfg.model || "github-pages-static"),
-      loop_running: true,
-      bot_paused: false,
+      data_mode: "demo",
+      mode: "PUBLIC DEMO",
+      provider: "mock",
+      model: "github-pages-static",
+      loop_running: false,
+      bot_paused: true,
       started_at: "GitHub Pages",
       interval: 600,
       cycle_count: (sstate.history || []).length,
@@ -810,7 +810,7 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
   }
 
   function pnl() {
-    // 배포 스냅샷(또는 ai-live.js가 갱신한 최신 스냅샷)의 실데이터로 계산한다.
+    // 공개 데모 데이터만 계산한다. 실제 계좌 데이터는 정적 파일에 저장하지 않는다.
     const pf = window.__initialCoinPortfolio || DEMO_PORTFOLIO;
     const snap = window.__aiTradeSnapshot || {};
     const trades = snap.trades || [];
@@ -902,15 +902,16 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
   }
 
   function route(path, params, init) {
-    if (path === "/api/config") return {dry_run:true, allow_live_trading:false, provider:"mock", model:"github-pages-static", tickers:["KRW-BTC","KRW-SOL"], coin_markets:MARKETS, intervals:[{value:"minute15",label:"15분"},{value:"minute60",label:"1시간"},{value:"day",label:"일봉"}], risk:{max_order_krw:10000,min_order_krw:5000,max_daily_loss_krw:30000,min_confidence:0.6,cycle_seconds:600}};
+    const readOnly = () => ({__status:405, error:"GitHub Pages 공개 데모는 읽기 전용입니다. 서버 대시보드에서 실행하세요."});
+    if (path === "/api/config") return {data_mode:"demo", capabilities:{live_account:false,trading:false,control:false}, dry_run:true, allow_live_trading:false, provider:"mock", model:"github-pages-static", tickers:["KRW-BTC","KRW-ETH"], coin_markets:MARKETS, intervals:[{value:"minute15",label:"15분"},{value:"minute60",label:"1시간"},{value:"day",label:"일봉"}], risk:{max_order_krw:10000,min_order_krw:5000,max_daily_loss_krw:30000,min_confidence:0.6,cycle_seconds:600}};
     if (path === "/api/state") return state();
     if (path === "/api/pnl") return pnl();
     // ai-live.js가 window.__initialCoinPortfolio를 최신 스냅샷으로 바꿔치기하므로
     // 상수 대신 전역을 읽어 갱신이 전파되게 한다.
     if (path === "/api/portfolio") return clone(window.__initialCoinPortfolio || DEMO_PORTFOLIO);
     if (path === "/api/manual_portfolio") return {items:[]};
-    if (path === "/api/manual_order/preview") return manualOrderPreview(init);
-    if (path === "/api/manual_order") return {...manualOrderPreview(init), result:{dry_run:true}, portfolio: clone(DEMO_PORTFOLIO)};
+    if (path === "/api/manual_order/preview") return readOnly();
+    if (path === "/api/manual_order" || path === "/api/control" || path === "/api/run_ai") return readOnly();
     if (path === "/api/decisions") return {items:state().history};
     if (path === "/api/trades") {
       const snap = window.__aiTradeSnapshot || {};
@@ -936,13 +937,18 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
   }
 
   const nativeFetch = window.fetch.bind(window);
+  window.__stockagentNativeFetch = nativeFetch;
   window.fetch = async (input, init={}) => {
     const raw = typeof input === "string" ? input : input.url;
     const url = new URL(raw, window.location.origin);
+    if (url.origin !== window.location.origin) return nativeFetch(input, init);
     const path = url.pathname.replace(/^\/stockagent/, "");
     if (path.startsWith("/api/")) {
-      const body = JSON.stringify(route(path, url.searchParams, init));
-      return new Response(body, {status:200, headers:{"Content-Type":"application/json; charset=utf-8"}});
+      const payload = route(path, url.searchParams, init);
+      const status = Number(payload.__status || 200);
+      delete payload.__status;
+      const body = JSON.stringify(payload);
+      return new Response(body, {status, headers:{"Content-Type":"application/json; charset=utf-8"}});
     }
     return nativeFetch(input, init);
   };

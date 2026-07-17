@@ -3,8 +3,14 @@ import os
 import tempfile
 
 # config/db import 전에 환경을 잡아둔다.
-os.environ.setdefault("DB_PATH", os.path.join(tempfile.mkdtemp(prefix="stockagent-test-"), "test.db"))
-os.environ.setdefault("DRY_RUN", "true")
-os.environ.setdefault("ALLOW_LIVE_TRADING", "false")
-os.environ.setdefault("AI_PROVIDER", "mock")
-os.environ.setdefault("WEB_AUTH_TOKEN", "")
+_TEST_DIR = tempfile.mkdtemp(prefix="stockagent-test-")
+os.environ.update({
+    "PYTHON_DOTENV_DISABLED": "true",
+    "DB_PATH": os.path.join(_TEST_DIR, "coin.db"),
+    "STOCK_DB_PATH": os.path.join(_TEST_DIR, "stock.db"),
+    "MULTIUSER_DB_PATH": os.path.join(_TEST_DIR, "multiuser.db"),
+    "DRY_RUN": "true",
+    "ALLOW_LIVE_TRADING": "false",
+    "AI_PROVIDER": "mock",
+    "WEB_AUTH_TOKEN": "",
+})

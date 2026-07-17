@@ -28,6 +28,9 @@ FREE_SYSTEM_PROMPT = """당신은 사용자의 업비트 계좌 운용을 전적
 주어진 시세 요약·보조지표·보유 포지션을 보고 매수/매도/관망과 주문 크기를 스스로 결정한다.
 외부에서 강제하는 신뢰도 기준, 주문 한도, 손실 한도는 없다. 전략도 스스로 정한다.
 
+시간당 수익 목표는 포트폴리오 전체 운용의 방향을 정하는 참고 지표다.
+이를 단일 포지션마다 도달 즉시 전량 매도하는 고정 익절 기준으로 사용하지 마라.
+
 운용 방침 (사용자가 명시적으로 지시함):
 - 적극적으로 운용하라. 보유 코인은 묶어두는 자산이 아니라 회전시키는 운용 자본이다.
 - 평단가는 매몰비용이다. 얽매이지 마라. 판단 기준은 '지금 이 자산을 이 가격에 새로 살 것인가'다.
@@ -84,7 +87,8 @@ class DecisionAgent:
     def __init__(self) -> None:
         self.provider = FastFallbackProvider(config.AI_PROVIDER)
 
-    def decide(self, snapshot: dict, position: dict) -> Decision:
+    def _build_request(self, snapshot: dict, position: dict) -> tuple[str, dict, str]:
+        """Build one provider-neutral request without performing an AI call."""
         free = config.FREE_TRADE_MODE
         user_payload: dict = {
             "market": snapshot,
@@ -94,6 +98,10 @@ class DecisionAgent:
             user_payload["exchange_rules"] = {
                 "min_order_krw": config.UPBIT_MIN_ORDER_KRW,
                 "fee_rate": 0.0005,
+            }
+            user_payload["profit_objective"] = {
+                "hourly_target_profit_krw": config.TARGET_PROFIT_KRW,
+                "role": "portfolio_guidance_not_per_position_take_profit",
             }
             prompt = FREE_SYSTEM_PROMPT
             schema = FREE_DECISION_SCHEMA
@@ -107,6 +115,11 @@ class DecisionAgent:
         user_content = "다음 시장 상황을 분석해 매매를 판단하라:\n" + json.dumps(
             user_payload, ensure_ascii=False, indent=2
         )
+        return prompt, schema, user_content
+
+    def decide(self, snapshot: dict, position: dict) -> Decision:
+        free = config.FREE_TRADE_MODE
+        prompt, schema, user_content = self._build_request(snapshot, position)
 
         try:
             data = self.provider.decide(prompt, user_content, schema)

@@ -107,7 +107,8 @@ class UpbitBroker:
     def krw_from_balances(balances: list[dict]) -> float:
         for balance in balances:
             if balance.get("currency") == "KRW":
-                return float(balance.get("balance", 0) or 0) + float(balance.get("locked", 0) or 0)
+                # locked 금액은 이미 다른 주문에 예약되어 새 주문에 사용할 수 없다.
+                return float(balance.get("balance", 0) or 0)
         return 0.0
 
     @staticmethod
@@ -117,9 +118,9 @@ class UpbitBroker:
             if balance.get("currency") != currency:
                 continue
             free = float(balance.get("balance", 0) or 0)
-            locked = float(balance.get("locked", 0) or 0)
             avg_buy_price = float(balance.get("avg_buy_price", 0) or 0)
-            return free + locked, avg_buy_price
+            # 매도 가능 수량에도 기존 주문에 묶인 locked 수량을 포함하지 않는다.
+            return free, avg_buy_price
         return 0.0, 0.0
 
     def get_portfolio(self, balances: list[dict] | None = None) -> dict:
@@ -209,14 +210,24 @@ class UpbitBroker:
 
     # ---------- 주문 ----------
     def buy(self, ticker: str, krw_amount: float) -> dict:
-        if config.DRY_RUN or self.client is None:
+        if config.DRY_RUN:
             return {"dry_run": True, "side": "buy", "ticker": ticker, "krw": krw_amount}
-        return self.client.buy_market_order(ticker, krw_amount)
+        client = self._live_client()
+        return _checked_order(client.buy_market_order(ticker, krw_amount))
 
     def sell(self, ticker: str, volume: float) -> dict:
-        if config.DRY_RUN or self.client is None:
+        if config.DRY_RUN:
             return {"dry_run": True, "side": "sell", "ticker": ticker, "volume": volume}
-        return self.client.sell_market_order(ticker, volume)
+        client = self._live_client()
+        return _checked_order(client.sell_market_order(ticker, volume))
+
+    def _live_client(self):
+        """Enforce the live-trading interlock at the final exchange boundary."""
+        if not config.ALLOW_LIVE_TRADING:
+            raise RuntimeError("실거래 차단됨: ALLOW_LIVE_TRADING=true가 필요합니다.")
+        if self.client is None:
+            raise RuntimeError("실거래 차단됨: 유효한 업비트 API 키가 없습니다.")
+        return self.client
 
 
 def _rsi(close, period: int = 14) -> float:
@@ -241,3 +252,15 @@ def _checked_balances(balances) -> list[dict]:
     if not isinstance(balances, list):
         raise RuntimeError(f"업비트 계좌 조회 응답 형식 오류: {type(balances).__name__}")
     return balances
+
+
+def _checked_order(result) -> dict:
+    """Reject exchange errors before they can be persisted as successful trades."""
+    if isinstance(result, dict) and result.get("error"):
+        err = result.get("error") or {}
+        name = err.get("name") or "upbit_order_error"
+        message = err.get("message") or "업비트 주문 접수 실패"
+        raise RuntimeError(f"{name}: {message}")
+    if not isinstance(result, dict) or not result.get("uuid"):
+        raise RuntimeError("업비트 주문 접수 응답에 주문 UUID가 없습니다.")
+    return result

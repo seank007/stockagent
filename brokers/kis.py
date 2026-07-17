@@ -34,6 +34,8 @@ SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where()) if certifi else
 
 REAL_BASE = "https://openapi.koreainvestment.com:9443"
 PAPER_BASE = "https://openapivts.koreainvestment.com:29443"
+REAL_WEBSOCKET_URL = "ws://ops.koreainvestment.com:21000/tryitout"
+PAPER_WEBSOCKET_URL = "ws://ops.koreainvestment.com:31000/tryitout"
 TOKEN_CACHE = Path.home() / ".stockagent_kis_token.json"
 
 
@@ -112,10 +114,36 @@ class KISBroker:
         self.paper = (os.getenv("KIS_PAPER", "true").strip().lower()
                       in {"1", "true", "yes", "y", "on"})
         self.base = PAPER_BASE if self.paper else REAL_BASE
+        self.websocket_url = PAPER_WEBSOCKET_URL if self.paper else REAL_WEBSOCKET_URL
         self.is_paper_broker = False  # 로컬 가상 브로커 아님 (KIS 모의투자는 실API)
+        self._approval_key = ""
+        self._approval_key_expires_at = 0.0
 
     def is_configured(self) -> bool:
         return bool(self.app_key and self.app_secret and len(self.cano) == 8)
+
+    def is_realtime_configured(self) -> bool:
+        """Realtime quotes need app credentials but not an account number."""
+        return bool(self.app_key and self.app_secret)
+
+    def websocket_approval_key(self) -> str:
+        """Issue and briefly cache the KIS WebSocket approval key."""
+        if not self.is_realtime_configured():
+            raise RuntimeError("KIS 실시간 시세용 APP KEY/SECRET이 설정되지 않았습니다")
+        if self._approval_key and time.time() < self._approval_key_expires_at:
+            return self._approval_key
+
+        res = _http_json(self.base + "/oauth2/Approval", data={
+            "grant_type": "client_credentials",
+            "appkey": self.app_key,
+            "secretkey": self.app_secret,
+        })
+        approval_key = str(res.get("approval_key") or "").strip()
+        if not approval_key:
+            raise RuntimeError("KIS 웹소켓 접속키 발급 응답에 approval_key가 없습니다")
+        self._approval_key = approval_key
+        self._approval_key_expires_at = time.time() + 23 * 60 * 60
+        return approval_key
 
     # --- 토큰 ---
     def _token(self) -> str:

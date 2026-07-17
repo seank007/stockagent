@@ -1,6 +1,6 @@
 """Production entrypoint for stockagent.
 
-Runs the Flask dashboard behind Waitress and starts the trading loop once in
+Runs the Flask dashboard behind Waitress and starts one recurring trading worker in
 the same process. Keep WEB_THREADS modest because this app has shared in-memory
 dashboard state and one trading loop.
 """

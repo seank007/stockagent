@@ -240,13 +240,35 @@ def test_delete_account(mu, monkeypatch):
 
 
 # ------------------------------------------------ 운영자(admin)
-def test_admin_email_grants_admin(mu):
+def test_admin_email_requires_out_of_band_bootstrap(mu):
     accounts, _, _ = mu
     accounts._ADMIN_EMAILS = {"boss@x.com"}
-    boss = accounts.register("boss@x.com", "password123")
+    accounts._ADMIN_BOOTSTRAP_TOKEN = "x" * 32
+
+    with pytest.raises(accounts.AccountError):
+        accounts.register("boss@x.com", "password123")
+    with pytest.raises(accounts.AccountError):
+        accounts.bootstrap_admin("boss@x.com", "password123", "wrong")
+
+    boss = accounts.bootstrap_admin("boss@x.com", "password123", "x" * 32)
     normal = accounts.register("joe@x.com", "password123")
     assert boss["is_admin"] is True
     assert normal["is_admin"] is False
+
+
+def test_admin_email_is_not_promoted_on_login(mu):
+    accounts, _, _ = mu
+    user = accounts.register("future-admin@x.com", "password123")
+    accounts._ADMIN_EMAILS = {"future-admin@x.com"}
+    logged_in = accounts.authenticate("future-admin@x.com", "password123")
+    assert user["is_admin"] is False
+    assert logged_in["is_admin"] is False
+
+
+def test_javascript_email_payload_is_rejected(mu):
+    accounts, _, _ = mu
+    with pytest.raises(accounts.AccountError):
+        accounts.register("x');alert(1);//@a.co", "password123")
 
 
 def test_admin_list_and_actions(mu):
