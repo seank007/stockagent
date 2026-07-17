@@ -15,6 +15,7 @@ import hmac
 import html as html_lib
 import io
 import json
+import math
 import os
 import re
 import ssl
@@ -234,7 +235,7 @@ def _broker() -> UpbitBroker:
 
 
 def start_background_trading() -> threading.Thread | None:
-    """production/dev entrypoint에서 매매 루프를 정확히 한 번만 시작한다."""
+    """production/dev entrypoint에서 반복 매매 워커를 정확히 하나만 시작한다."""
     global _trading_thread
     if not config.RUN_TRADING_LOOP:
         # 외부 트레이더(hermes agent)가 DB에 기록하는 모드: 대시보드용으로 복원만.
@@ -1255,7 +1256,7 @@ def _non_negative_float(value, label: str) -> float:
         number = float(value)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"{label} 숫자를 입력하세요") from exc
-    if number < 0:
+    if not math.isfinite(number) or number < 0:
         raise ValueError(f"{label}은 0 이상이어야 합니다")
     return number
 
@@ -1459,13 +1460,15 @@ def api_config():
             "min_order_krw": config.MIN_ORDER_KRW,
             "max_daily_loss_krw": config.MAX_DAILY_LOSS_KRW,
             "min_confidence": config.MIN_CONFIDENCE,
-            "cycle_seconds": 0,
+            "cycle_seconds": config.INTERVAL_SECONDS,
         },
     })
 
 
 @app.route("/api/control", methods=["POST"])
 def api_control():
+    if not config.RUN_TRADING_LOOP:
+        return jsonify({"error": "외부 트레이더 모드에서는 제어할 수 없습니다."}), 409
     payload = request.get_json(silent=True) or {}
     action = str(payload.get("action", "")).lower()
     if action == "pause":
@@ -1481,23 +1484,40 @@ def api_control():
 
 @app.route("/api/run_ai", methods=["POST"])
 def api_run_ai():
+    from agent.decision import DecisionAgent
+    from main import release_cycle_reservation, reserve_cycle, run_reserved_cycle
+    from risk import RiskManager
+
+    if store.is_paused():
+        return jsonify({"error": "봇이 일시정지 상태입니다. 먼저 재개하세요."}), 409
+
+    broker = _broker()
+    agent = DecisionAgent()
+    risk = RiskManager()
+    if not reserve_cycle():
+        return jsonify({"error": "다른 매매 사이클이 이미 실행 중입니다."}), 409
+
     def _run():
-        broker = _broker()
-        from agent.decision import DecisionAgent
-        from risk import RiskManager
-        agent = DecisionAgent()
-        risk = RiskManager()
-        from main import run_once
         try:
             store.mark_cycle_start()
-            run_once(broker, agent, risk)
-            store.mark_cycle_end(None)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
+            release_cycle_reservation()
             store.set_error(str(e))
             store.mark_cycle_end(None)
+            return
+        try:
+            run_reserved_cycle(broker, agent, risk)
+        except Exception as e:  # noqa: BLE001
+            store.set_error(str(e))
+        finally:
+            store.mark_cycle_end(None)
 
-    threading.Thread(target=_run, daemon=True).start()
-    return jsonify({"ok": True})
+    try:
+        threading.Thread(target=_run, daemon=True, name="stockagent-manual-cycle").start()
+    except Exception:
+        release_cycle_reservation()
+        raise
+    return jsonify({"ok": True, "status": "accepted"}), 202
 
 
 @app.route("/api/pnl")
@@ -6560,6 +6580,7 @@ setInterval(loadTickerTape, 15000);
 
 
 def main() -> None:
+    config.validate()
     start_background_trading()
 
     url = f"http://localhost:{config.WEB_PORT}"

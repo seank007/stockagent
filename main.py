@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
+import threading
 import time
 from datetime import datetime, timedelta
 
@@ -19,6 +20,9 @@ from agent.decision import DecisionAgent
 from brokers.upbit import UpbitBroker
 from risk import RiskManager
 from state import store
+
+
+_cycle_lock = threading.Lock()
 
 
 def log(msg: str) -> None:
@@ -198,11 +202,41 @@ def run_once(broker: UpbitBroker, agent: DecisionAgent, risk: RiskManager) -> No
         pass
 
 
-def trading_loop() -> None:
-    """매매 로직 1회 실행."""
+def reserve_cycle() -> bool:
+    """Atomically reserve the single trading slot for background/manual runs."""
+    return _cycle_lock.acquire(blocking=False)
+
+
+def release_cycle_reservation() -> None:
+    """Release a reservation when a reserved worker could not be started."""
+    _cycle_lock.release()
+
+
+def run_reserved_cycle(broker: UpbitBroker, agent: DecisionAgent, risk: RiskManager) -> None:
+    """Run a previously reserved cycle and always release its slot."""
+    try:
+        run_once(broker, agent, risk)
+    finally:
+        _cycle_lock.release()
+
+
+def try_run_cycle(broker: UpbitBroker, agent: DecisionAgent, risk: RiskManager) -> bool:
+    """Run one cycle when idle; return False instead of overlapping another cycle."""
+    if not reserve_cycle():
+        return False
+    run_reserved_cycle(broker, agent, risk)
+    return True
+
+
+def trading_loop(stop_event=None) -> None:
+    """Run recurring trading cycles while honoring pause and shutdown signals."""
     config.validate()
     mode = "모의매매(DRY_RUN)" if config.DRY_RUN else "⚠️ 실거래"
-    log(f"stockagent 수동/1회 실행 | 모드: {mode} | AI: {config.AI_PROVIDER} | 종목: {config.TICKERS}")
+    interval = max(1, int(config.INTERVAL_SECONDS))
+    log(
+        f"stockagent 자동매매 시작 | 모드: {mode} | AI: {config.AI_PROVIDER} | "
+        f"종목: {config.TICKERS} | 주기: {interval}초"
+    )
 
     try:
         store.hydrate_from_db()
@@ -212,16 +246,31 @@ def trading_loop() -> None:
     broker = UpbitBroker()
     agent = DecisionAgent()
     risk = RiskManager()
+    stop_event = stop_event or threading.Event()
 
     store.set_loop_running(True)
     try:
-        store.mark_cycle_start()
-        run_once(broker, agent, risk)
-        store.mark_cycle_end(None)
-    except Exception as e:  # noqa: BLE001
-        log(f"실행 오류: {e}")
-        store.set_error(str(e))
-        store.mark_cycle_end(None)
+        next_deadline = time.monotonic()
+        while not stop_event.is_set():
+            if store.is_paused():
+                stop_event.wait(0.25)
+                continue
+
+            remaining = next_deadline - time.monotonic()
+            if remaining > 0:
+                stop_event.wait(min(remaining, 0.25))
+                continue
+
+            store.mark_cycle_start()
+            try:
+                if not try_run_cycle(broker, agent, risk):
+                    raise RuntimeError("다른 매매 사이클이 이미 실행 중입니다.")
+            except Exception as e:  # noqa: BLE001
+                log(f"실행 오류: {e}")
+                store.set_error(str(e))
+
+            next_deadline = time.monotonic() + interval
+            store.mark_cycle_end(datetime.now() + timedelta(seconds=interval))
     finally:
         store.set_loop_running(False)
 

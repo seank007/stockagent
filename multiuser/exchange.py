@@ -8,7 +8,7 @@
 검증 방식(업비트 REST + JWT 서명, 외부 의존성은 PyJWT/urllib만 사용):
 - GET /v1/accounts          → 200이면 키 유효(자산조회 가능)
 - GET /v1/withdraws/chance  → 200이면 출금 권한 보유(=거부 대상)
-                              권한 없으면 4xx(out_of_scope 등)로 실패 → 안전
+                              명시적 out_of_scope 응답만 권한 없음으로 인정
 
 fail-closed: 출금 가능 여부를 '확실히 불가'로 판정한 경우에만 can_withdraw=False.
 네트워크/모호한 오류는 안전하게 보수적으로 다룬다(호출부에서 valid+not-withdraw 둘 다 요구).
@@ -104,15 +104,23 @@ def verify_upbit_key(access_key: str, secret_key: str) -> VerifyResult:
             "이 키에는 출금 권한이 있습니다. 보안상 출금 권한 없는 키만 등록할 수 있어요.",
             currencies,
         )
+    error_name = ""
+    if isinstance(w_body, dict) and isinstance(w_body.get("error"), dict):
+        error_name = str(w_body["error"].get("name") or "").strip().lower()
+    if w_status in {401, 403} and error_name == "out_of_scope":
+        return VerifyResult(True, False, "유효한 키(출금 권한 없음) — 등록 가능", currencies)
+
+    # 네트워크, rate limit, 서버 오류, 알 수 없는 4xx를 권한 없음으로 오인하지 않는다.
+    # 출금 불가가 명시적으로 확인되지 않았으므로 fail-closed로 등록을 거부한다.
     if w_status == 0:
-        # 출금 여부를 확인하지 못함 → 보수적으로 '가능'으로 취급해 거부(fail-closed)
-        return VerifyResult(
-            True, True,
-            f"출금 권한 확인에 실패했습니다(잠시 후 재시도). 안전을 위해 등록을 보류합니다: {_msg(w_body)}",
-            currencies,
-        )
-    # 4xx(out_of_scope 등) = 출금 권한 없음 → 안전
-    return VerifyResult(True, False, "유효한 키(출금 권한 없음) — 등록 가능", currencies)
+        detail = "업비트 연결 실패"
+    else:
+        detail = f"업비트 응답 HTTP {w_status}"
+    return VerifyResult(
+        True, True,
+        f"출금 권한 확인에 실패했습니다({detail}). 안전을 위해 등록을 보류합니다: {_msg(w_body)}",
+        currencies,
+    )
 
 
 def _msg(body) -> str:

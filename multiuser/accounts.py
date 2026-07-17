@@ -18,11 +18,15 @@ from .exchange import VerifyResult, verify_upbit_key
 
 SESSION_TTL_HOURS = 24 * 14  # 2주
 _HASH_METHOD = "pbkdf2:sha256"  # 이식성 우선(모든 OpenSSL 빌드에서 동작)
-_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_EMAIL_RE = re.compile(
+    r"^[a-z0-9](?:[a-z0-9._+-]{0,62}[a-z0-9])?@"
+    r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$"
+)
 _MIN_PASSWORD = 8
 
-# 운영자 계정: 환경변수 ADMIN_EMAILS(쉼표 구분)에 있는 이메일은 자동으로 admin 권한.
+# 운영자 이메일은 일반 가입에서 예약하고, 별도 bootstrap token으로만 생성/승격한다.
 _ADMIN_EMAILS = {e.strip().lower() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()}
+_ADMIN_BOOTSTRAP_TOKEN = os.getenv("ADMIN_BOOTSTRAP_TOKEN", "").strip()
 
 
 def _is_admin_email(email: str) -> bool:
@@ -44,8 +48,10 @@ def _iso(dt: datetime) -> str:
 # ---------------------------------------------------------------- 회원
 def register(email: str, password: str, display_name: str | None = None) -> dict:
     email = (email or "").strip().lower()
-    if not _EMAIL_RE.match(email):
+    if len(email) > 254 or not _EMAIL_RE.fullmatch(email):
         raise AccountError("이메일 형식이 올바르지 않습니다.")
+    if _is_admin_email(email):
+        raise AccountError("관리자 예약 이메일은 일반 회원가입을 사용할 수 없습니다.")
     if len(password or "") < _MIN_PASSWORD:
         raise AccountError(f"비밀번호는 최소 {_MIN_PASSWORD}자 이상이어야 합니다.")
 
@@ -59,7 +65,7 @@ def register(email: str, password: str, display_name: str | None = None) -> dict
         cur = conn.execute(
             """INSERT INTO users (email, password_hash, display_name, is_admin, created_at)
                VALUES (?, ?, ?, ?, ?)""",
-            (email, pw_hash, (display_name or "").strip() or None, 1 if _is_admin_email(email) else 0, now),
+            (email, pw_hash, (display_name or "").strip() or None, 0, now),
         )
         user_id = cur.lastrowid
     return _public_user(_get_user_row(user_id))
@@ -76,14 +82,55 @@ def authenticate(email: str, password: str) -> dict | None:
         return None
     if not check_password_hash(row["password_hash"], password or ""):
         return None
-    # 로그인 시 admin 권한을 ADMIN_EMAILS와 동기화(운영 중 지정/해제 반영)
-    want_admin = 1 if _is_admin_email(email) else 0
     with db.lock():
         conn.execute(
-            "UPDATE users SET last_login_at = ?, is_admin = ? WHERE id = ?",
-            (_iso(_now()), want_admin, row["id"]),
+            "UPDATE users SET last_login_at = ? WHERE id = ?",
+            (_iso(_now()), row["id"]),
         )
     return _public_user(_get_user_row(row["id"]))
+
+
+def bootstrap_admin(
+    email: str,
+    password: str,
+    bootstrap_token: str,
+    display_name: str | None = None,
+) -> dict:
+    """Create or promote an admin only with the out-of-band bootstrap secret.
+
+    This function is intentionally not exposed as an HTTP route. Use the local
+    ``scripts/create_admin.py`` command in a trusted deployment shell.
+    """
+    email = (email or "").strip().lower()
+    if len(email) > 254 or not _EMAIL_RE.fullmatch(email):
+        raise AccountError("이메일 형식이 올바르지 않습니다.")
+    if not _is_admin_email(email):
+        raise AccountError("ADMIN_EMAILS에 등록된 이메일만 관리자로 만들 수 있습니다.")
+    if len(_ADMIN_BOOTSTRAP_TOKEN) < 32:
+        raise AccountError("ADMIN_BOOTSTRAP_TOKEN을 32자 이상으로 설정하세요.")
+    if not secrets.compare_digest(str(bootstrap_token or ""), _ADMIN_BOOTSTRAP_TOKEN):
+        raise AccountError("관리자 부트스트랩 토큰이 올바르지 않습니다.")
+    if len(password or "") < _MIN_PASSWORD:
+        raise AccountError(f"비밀번호는 최소 {_MIN_PASSWORD}자 이상이어야 합니다.")
+
+    conn = db.connection()
+    now = _iso(_now())
+    with db.lock():
+        row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        if row:
+            if not check_password_hash(row["password_hash"], password or ""):
+                raise AccountError("기존 계정 비밀번호가 올바르지 않습니다.")
+            conn.execute("UPDATE users SET is_admin = 1 WHERE id = ?", (row["id"],))
+            user_id = row["id"]
+        else:
+            pw_hash = generate_password_hash(password, method=_HASH_METHOD)
+            cur = conn.execute(
+                """INSERT INTO users (email, password_hash, display_name, is_admin, created_at)
+                   VALUES (?, ?, ?, 1, ?)""",
+                (email, pw_hash, (display_name or "").strip() or None, now),
+            )
+            user_id = cur.lastrowid
+    return _public_user(_get_user_row(user_id))
 
 
 def get_user(user_id: int) -> dict | None:
