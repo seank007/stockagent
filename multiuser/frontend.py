@@ -8,6 +8,7 @@ PAGE_HTML = r"""<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<link rel="icon" href="/static/logo.jpg">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>stockagent · 내 자산</title>
 <style>
@@ -65,7 +66,10 @@ PAGE_HTML = r"""<!DOCTYPE html>
 <body>
 <div class="wrap">
   <div class="top">
-    <div class="brand"><b>stockagent</b><span>내 자산 · 자동매매</span></div>
+    <div class="brand">
+      <img src="/static/logo.jpg" alt="logo" style="width:22px;height:22px;border-radius:6px;object-fit:cover;">
+      <b>stockagent</b><span>내 자산 · 자동매매</span>
+    </div>
     <div id="userbar" class="hidden row" style="gap:8px;">
       <span id="userEmail" class="muted"></span>
       <a id="adminLink" class="hidden" href="/admin" style="font-size:12px;color:var(--brand);text-decoration:none;">관리자</a>
@@ -424,6 +428,7 @@ ADMIN_HTML = r"""<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<link rel="icon" href="/static/logo.jpg">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>stockagent · 회원 관리</title>
 <style>

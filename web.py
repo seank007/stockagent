@@ -2191,9 +2191,9 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
          border:1px solid rgba(78,95,125,.38); border-radius:14px;
          background:linear-gradient(135deg,rgba(255,255,255,.08),rgba(255,255,255,.02));
          box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 14px 30px rgba(0,0,0,.18); }
-.brand:before { content:"SA"; display:inline-grid; place-items:center; width:34px; height:34px; border-radius:10px;
-                color:#06100e; background:linear-gradient(135deg,#1fd6a8,#7df7dc); font-size:11px;
-                letter-spacing:.08em; box-shadow:0 0 26px rgba(31,214,168,.28); }
+.brand:before { content:""; display:inline-block; width:34px; height:34px; border-radius:10px;
+                background:url('/static/logo.jpg') center/cover;
+                box-shadow:0 0 26px rgba(31,214,168,.28); }
 .brand:after { content:"MARKET OS"; display:block; margin-left:2px; color:#66758c; font-size:9px; font-weight:800;
                letter-spacing:.18em; }
 .brand .cursor { display:none; }
@@ -3566,7 +3566,7 @@ async function setBotPaused(paused) {
 
 # ===== 코인 전용 페이지 =====
 COIN_HTML = f"""<!doctype html>
-<html lang="en"><head>
+<html lang="en"><head><link rel="icon" href="/static/logo.jpg">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>stockagent · Crypto</title>
@@ -5305,7 +5305,7 @@ async function runAiNow() {{
 
 # ===== 주식 전용 페이지 =====
 STOCKS_HTML = f"""<!doctype html>
-<html lang="en"><head>
+<html lang="en"><head><link rel="icon" href="/static/logo.jpg">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>stockagent · Stocks</title>
@@ -5775,7 +5775,7 @@ setInterval(loadStockWatchlist, 2000);
 
 # ===== 대시보드 페이지 =====
 DASHBOARD_HTML = f"""<!doctype html>
-<html lang="en"><head>
+<html lang="en"><head><link rel="icon" href="/static/logo.jpg">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>stockagent · Terminal</title>
@@ -6366,7 +6366,7 @@ setInterval(loadPortfolioDetail, 15000);
 
 # ===== 분석 페이지 =====
 ANALYZE_HTML = f"""<!doctype html>
-<html lang="en"><head>
+<html lang="en"><head><link rel="icon" href="/static/logo.jpg">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>stockagent · AI Lab</title>
