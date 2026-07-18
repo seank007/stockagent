@@ -119,6 +119,8 @@ class Store:
         with self._lock:
             return {
                 "mode": self.mode,
+                "dry_run": config.DRY_RUN,
+                "allow_live_trading": config.ALLOW_LIVE_TRADING,
                 "provider": self.provider,
                 "model": config.MODELS.get(self.provider, "?"),
                 "krw_balance": self.krw_balance,

@@ -180,14 +180,36 @@
     return v && v.price > 0 ? Number(v.price) : null;
   }
 
+  function holdingMarket(h) {
+    var fallback = h && h.currency && h.currency !== "KRW" ? "KRW-" + h.currency : "";
+    return String(h && h.ticker || fallback).toUpperCase();
+  }
+
+  function portfolioMarkets(pf) {
+    var holdings = pf && Array.isArray(pf.holdings) ? pf.holdings : [];
+    return holdings.map(holdingMarket)
+      .filter(function (ticker) { return ticker.indexOf("KRW-") === 0; });
+  }
+
+  function trackPortfolioMarkets(pf) {
+    var markets = portfolioMarkets(pf);
+    var coinLive = window.__coinLive;
+    if (coinLive && typeof coinLive.trackCodes === "function") {
+      coinLive.trackCodes(markets);
+    } else if (coinLive && typeof coinLive.ensureWs === "function") {
+      coinLive.ensureWs();
+    }
+  }
+
   function revalueSnapshot() {
     var b = basePf();
     if (!b || !Array.isArray(b.holdings) || !b.holdings.length) return null;
+    trackPortfolioMarkets(b);
     var p = JSON.parse(JSON.stringify(b));
     var coinValue = 0;
     p.holdings.forEach(function (h) {
       if (h.currency !== "KRW") {
-        var live = livePriceOf(h.ticker);
+        var live = livePriceOf(holdingMarket(h));
         if (live) {
           h.current_price = live;
           h.current_value = Number(h.balance || 0) * live;
@@ -228,7 +250,19 @@
       return;
     }
     var snapAt = (basePf() || {}).generated_at;
-    note.textContent = "시세·수익률 실시간(웹소켓) · 잔고·거래내역 "
+    var markets = portfolioMarkets(pf || basePf());
+    var liveCount = markets.filter(function (market) { return !!livePriceOf(market); }).length;
+    var coinLive = window.__coinLive;
+    var status = coinLive && typeof coinLive.getStatus === "function"
+      ? coinLive.getStatus() : null;
+    var source = status && status.fresh && markets.length && liveCount === markets.length
+      ? "실시간(웹소켓)"
+      : liveCount > 0
+        ? (status && status.fresh ? "일부 실시간 " : "최근 시세 ")
+          + "(" + liveCount + "/" + markets.length + ")"
+        : status && (status.state === "connecting" || status.state === "reconnecting")
+          ? "스냅샷(연결 중)" : "스냅샷";
+    note.textContent = "시세·수익률 " + source + " · 잔고·거래내역 "
       + (snapAt ? snapAt + " 기준(스냅샷 폴백)" : "스냅샷 기준");
   }
 
@@ -260,6 +294,7 @@
     readDirect("/api/portfolio", isPortfolioPayload)
       .then(function (pf) {
         window.__initialCoinPortfolio = pf;
+        trackPortfolioMarkets(pf);
         return readDirect("/api/pnl").catch(function () { return null; })
           .then(function (pnl) {
             renderPortfolio(pf, pnl, "direct");
@@ -321,6 +356,7 @@
       if (pf && Array.isArray(pf.holdings) && pf.holdings.length
           && newer(pf.generated_at, (basePf() || {}).generated_at)) {
         window.__initialCoinPortfolio = pf;
+        trackPortfolioMarkets(pf);
         changed = true;
       }
       if (ai && newer(ai.generated_at, (window.__aiTradeSnapshot || {}).generated_at)) {
@@ -341,6 +377,7 @@
 
   function tick() {
     if (aiTabActive()) {
+      trackPortfolioMarkets(basePf());
       if (window.__coinLive && typeof window.__coinLive.ensureWs === "function") {
         window.__coinLive.ensureWs();
       }

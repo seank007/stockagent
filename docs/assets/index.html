@@ -780,7 +780,16 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
         bid_size: Number((0.31 + i * 0.037).toFixed(6)),
       };
     });
-    return { ticker, timestamp: Date.now(), total_ask_size: 9.42, total_bid_size: 10.18, units };
+    return {
+      ticker,
+      timestamp: Date.now(),
+      live: false,
+      stale: true,
+      source: "demo-snapshot",
+      total_ask_size: 9.42,
+      total_bid_size: 10.18,
+      units,
+    };
   }
 
   function state() {
@@ -791,6 +800,9 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
     return {
       data_mode: "demo",
       mode: "PUBLIC DEMO",
+      dry_run: true,
+      allow_live_trading: false,
+      capabilities: {live_account:false, trading:false, control:false},
       provider: "mock",
       model: "github-pages-static",
       loop_running: false,
@@ -798,7 +810,7 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
       started_at: "GitHub Pages",
       interval: 600,
       cycle_count: (sstate.history || []).length,
-      last_update: sstate.last_update || new Date().toLocaleTimeString("en-GB", {hour:"2-digit", minute:"2-digit", hour12:false}),
+      last_update: sstate.last_update || snap.generated_at || null,
       today_pnl: 0,
       total_pnl: 0,
       error: null,
@@ -922,7 +934,7 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
     if (path === "/api/coin/quote") return {ticker:params.get("ticker") || "KRW-BTC", price:priceFor(params.get("ticker")), timestamp:now()};
     if (path === "/api/coin/orderbook") return orderbook(params.get("ticker") || "KRW-BTC");
     if (path === "/api/coin/mini_charts") {
-      const tickers = (params.get("tickers") || MARKETS.map(m => m.market).join(",")).split(",").filter(Boolean).slice(0, 24);
+      const tickers = (params.get("tickers") || MARKETS.map(m => m.market).join(",")).split(",").filter(Boolean);
       return {items:tickers.map(t => { const c = candles(t, params.get("interval") || "minute60", params.get("count") || 36); return {ticker:t, symbol:symbol(t), korean_name:(MARKETS.find(m=>m.market===t)||{}).korean_name || symbol(t), english_name:(MARKETS.find(m=>m.market===t)||{}).english_name || symbol(t), price:priceFor(t), change_pct:CHANGES[t] || 0, closes:c.closes, ok:true}; }), interval:params.get("interval") || "minute60", cached:true};
     }
     if (path === "/api/coin/news") return news();
@@ -961,7 +973,7 @@ body.krx-colors .calc-line.big.up b { color:#ff5d6c; } body.krx-colors .calc-lin
 <div class="hd">
   <div class="hd-row">
     <span class="brand" id="brand">stockagent<span class="cursor">_</span></span>
-    <span id="mode-pill" class="pill-live"><span class="dot"></span><span id="mode-text">LIVE · REAL</span></span>
+    <span id="mode-pill" class="pill-dry"><span class="dot"></span><span id="mode-text">MODE · CHECKING</span></span>
     <span class="pill-ai" id="ai-pill">AI - · -</span>
     <span class="pill-bot" id="bot-pill">BOT IDLE</span>
     <div class="head-tools">
@@ -1668,15 +1680,36 @@ function renderChart(svgPriceId, svgRsiId, data) {
   };
 }
 
+function terminalModeInfo(s) {
+  s = s || {};
+  const mode = String(s.mode || "").toUpperCase();
+  const model = String(s.model || "").toLowerCase();
+  const isDemo = s.data_mode === "demo" || mode.includes("DEMO")
+    || model === "github-pages-static";
+  if (isDemo) return { kind:"demo", label:"DEMO · READ ONLY", className:"pill-dry" };
+  if (s.dry_run === true || mode.includes("DRY") || mode.includes("PAPER")) {
+    return { kind:"dry", label:"DRY · PAPER", className:"pill-dry" };
+  }
+  if (s.dry_run === false && s.allow_live_trading === true) {
+    return { kind:"live", label:"LIVE · REAL", className:"pill-live" };
+  }
+  if (s.dry_run === false) {
+    return { kind:"locked", label:"LIVE · LOCKED", className:"pill-dry" };
+  }
+  return { kind:"unknown", label:"MODE · CHECKING", className:"pill-dry" };
+}
+
 function applyTerminalHeader(s) {
-  const isDry = (s.mode || "").includes("DRY");
+  s = s || {};
+  const modeInfo = terminalModeInfo(s);
+  const isSafeMode = modeInfo.kind !== "live";
   const brand = document.querySelector(".brand");
-  if (brand) brand.className = "brand" + (isDry ? " dry" : "");
+  if (brand) brand.className = "brand" + (isSafeMode ? " dry" : "");
 
   const pill = document.getElementById("mode-pill");
   if (pill) {
-    pill.className = isDry ? "pill-dry" : "pill-live";
-    pill.innerHTML = '<span class="dot"></span><span>' + (isDry ? "DRY · PAPER" : "LIVE · REAL") + '</span>';
+    pill.className = modeInfo.className;
+    pill.innerHTML = '<span class="dot"></span><span>' + modeInfo.label + '</span>';
   }
 
   const ai = document.getElementById("ai-pill");
@@ -1696,12 +1729,24 @@ function applyTerminalHeader(s) {
   if (resumeBtn) resumeBtn.disabled = !s.bot_paused;
 
   const upd = document.getElementById("upd");
-  if (upd) upd.textContent = "UPD " + (s.last_update || "—");
+  const useCoinLiveStatus = !!document.getElementById("coin-market-panel")
+    && window.__coinLive && typeof window.__coinLive.refreshStatus === "function";
+  if (upd && !useCoinLiveStatus) {
+    const prefix = modeInfo.kind === "demo" ? "SNAPSHOT " : "UPD ";
+    upd.textContent = prefix + (s.last_update || "—");
+  } else if (useCoinLiveStatus) {
+    window.__coinLive.refreshStatus();
+  }
 
   const foot = document.getElementById("foot");
   if (foot) {
-    foot.textContent = "Started " + s.started_at + " · Interval " + s.interval + "s · " +
-      (isDry ? "DRY_RUN=True (paper)" : "DRY_RUN=False (real)");
+    const suffix = modeInfo.kind === "demo" ? "PUBLIC DEMO · orders disabled"
+      : modeInfo.kind === "dry" ? "DRY_RUN=True (paper)"
+      : modeInfo.kind === "live" ? "LIVE TRADING"
+      : modeInfo.kind === "locked" ? "LIVE ACCOUNT · orders disabled"
+      : "MODE UNVERIFIED · orders disabled";
+    foot.textContent = "Started " + (s.started_at || "—") + " · Interval "
+      + (s.interval || "—") + "s · " + suffix;
   }
 }
 
@@ -2205,5 +2250,5 @@ setInterval(tickHistory, 10000);
 setInterval(loadPortfolioDetail, 15000);
 </script>
 <script src="/stockagent/chart-hts.js"></script>
-<script src="/stockagent/coin-live.js"></script>
+<script src="/stockagent/coin-live.js?v=519f0ca8a786"></script>
 </body></html>

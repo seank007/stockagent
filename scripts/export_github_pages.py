@@ -7,6 +7,7 @@ without publishing account data or secrets.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -24,6 +25,11 @@ os.environ.setdefault("RUN_TRADING_LOOP", "false")
 import web  # noqa: E402
 
 DOCS = ROOT / "docs"
+
+
+def _asset_version(relative: str) -> str:
+    """Return a short content hash so Pages deploys bypass stale browser caches."""
+    return hashlib.sha256((DOCS / relative).read_bytes()).hexdigest()[:12]
 
 
 MARKETS = [
@@ -262,7 +268,16 @@ STATIC_API = f"""
         bid_size: Number((0.31 + i * 0.037).toFixed(6)),
       }};
     }});
-    return {{ ticker, timestamp: Date.now(), total_ask_size: 9.42, total_bid_size: 10.18, units }};
+    return {{
+      ticker,
+      timestamp: Date.now(),
+      live: false,
+      stale: true,
+      source: "demo-snapshot",
+      total_ask_size: 9.42,
+      total_bid_size: 10.18,
+      units,
+    }};
   }}
 
   function state() {{
@@ -273,6 +288,9 @@ STATIC_API = f"""
     return {{
       data_mode: "demo",
       mode: "PUBLIC DEMO",
+      dry_run: true,
+      allow_live_trading: false,
+      capabilities: {{live_account:false, trading:false, control:false}},
       provider: "mock",
       model: "github-pages-static",
       loop_running: false,
@@ -280,7 +298,7 @@ STATIC_API = f"""
       started_at: "GitHub Pages",
       interval: 600,
       cycle_count: (sstate.history || []).length,
-      last_update: sstate.last_update || new Date().toLocaleTimeString("en-GB", {{hour:"2-digit", minute:"2-digit", hour12:false}}),
+      last_update: sstate.last_update || snap.generated_at || null,
       today_pnl: 0,
       total_pnl: 0,
       error: null,
@@ -404,7 +422,7 @@ STATIC_API = f"""
     if (path === "/api/coin/quote") return {{ticker:params.get("ticker") || "KRW-BTC", price:priceFor(params.get("ticker")), timestamp:now()}};
     if (path === "/api/coin/orderbook") return orderbook(params.get("ticker") || "KRW-BTC");
     if (path === "/api/coin/mini_charts") {{
-      const tickers = (params.get("tickers") || MARKETS.map(m => m.market).join(",")).split(",").filter(Boolean).slice(0, 24);
+      const tickers = (params.get("tickers") || MARKETS.map(m => m.market).join(",")).split(",").filter(Boolean);
       return {{items:tickers.map(t => {{ const c = candles(t, params.get("interval") || "minute60", params.get("count") || 36); return {{ticker:t, symbol:symbol(t), korean_name:(MARKETS.find(m=>m.market===t)||{{}}).korean_name || symbol(t), english_name:(MARKETS.find(m=>m.market===t)||{{}}).english_name || symbol(t), price:priceFor(t), change_pct:CHANGES[t] || 0, closes:c.closes, ok:true}}; }}), interval:params.get("interval") || "minute60", cached:true}};
     }}
     if (path === "/api/coin/news") return news();
@@ -448,6 +466,9 @@ COIN_MARKETS_FILE = DOCS / "data" / "coin_markets.json"
 COIN_CANDLE_INTERVALS = ["minute60", "minute15", "day"]
 COIN_CANDLE_COUNT = 120
 COIN_SNAPSHOT_REUSE_SECONDS = 15 * 60  # 로컬 연속 export 시 재수집 생략
+COIN_CANDLE_REFRESH_DEADLINE_SECONDS = max(
+    10.0, float(os.getenv("COIN_CANDLE_REFRESH_DEADLINE_SECONDS", "45"))
+)
 
 
 def _read_json(path: Path) -> dict | None:
@@ -475,6 +496,13 @@ def _snapshot_fresh(path: Path) -> bool:
     return time.time() - ts < COIN_SNAPSHOT_REUSE_SECONDS
 
 
+def _coin_snapshot_refresh_enabled() -> bool:
+    """Allow deterministic local exports while scheduled Pages builds refresh."""
+    return os.getenv("COIN_SNAPSHOT_REFRESH", "true").strip().lower() not in {
+        "0", "false", "no", "off"
+    }
+
+
 def coin_markets_snapshot() -> list[dict]:
     """업비트 KRW 마켓 전체 목록 + 배포 시점 시세 스냅샷.
 
@@ -485,8 +513,11 @@ def coin_markets_snapshot() -> list[dict]:
     """
     import time
 
+    cached = _read_json(COIN_MARKETS_FILE)
+    if not _coin_snapshot_refresh_enabled() and cached and cached.get("markets"):
+        return cached["markets"]
     if _snapshot_fresh(COIN_MARKETS_FILE):
-        return _read_json(COIN_MARKETS_FILE)["markets"]
+        return cached["markets"]
 
     try:
         raw = json.loads(web._urlopen_text(
@@ -557,14 +588,21 @@ def coin_candles_snapshot(markets: list[dict]) -> None:
     import time
     from concurrent.futures import ThreadPoolExecutor
 
+    if not _coin_snapshot_refresh_enabled():
+        return
+
     codes = [m["market"] for m in markets]
     for interval in COIN_CANDLE_INTERVALS:
         out_file = DOCS / "data" / f"coin_candles_{interval}.json"
         if _snapshot_fresh(out_file):
             continue
 
+        deadline = time.monotonic() + COIN_CANDLE_REFRESH_DEADLINE_SECONDS
+
         def one(market: str) -> tuple[str, list[float]]:
             for attempt in range(2):
+                if time.monotonic() >= deadline:
+                    break
                 try:
                     closes = web._upbit_candle_closes(market, interval, COIN_CANDLE_COUNT)
                     if closes:
@@ -573,18 +611,27 @@ def coin_candles_snapshot(markets: list[dict]) -> None:
                     time.sleep(0.4)
             return market, []
 
-        closes_map: dict[str, list[float]] = {}
-        with ThreadPoolExecutor(max_workers=6) as pool:
-            for market, closes in pool.map(one, codes):
-                if closes:
-                    closes_map[market] = closes
+        fresh_closes: dict[str, list[float]] = {}
+        for start in range(0, len(codes), 6):
+            if time.monotonic() >= deadline:
+                break
+            batch = codes[start:start + 6]
+            # 한 배치만 기다리므로 장애 시에도 deadline + 요청 timeout 범위에서 끝난다.
+            with ThreadPoolExecutor(max_workers=len(batch)) as pool:
+                results = pool.map(one, batch)
+                for market, closes in results:
+                    if closes:
+                        fresh_closes[market] = closes
 
-        # 절반도 못 받았으면(네트워크/차단) 기존 스냅샷을 유지한다
-        if len(closes_map) < len(codes) // 2:
-            existing = _read_json(out_file)
-            if existing and existing.get("closes"):
-                continue
-        if not closes_map:
+        existing = _read_json(out_file) or {}
+        closes_map = dict(existing.get("closes") or {})
+        closes_map.update(fresh_closes)
+
+        # 신규 빌드에서 절반도 못 받았으면 불완전한 파일을 만들지 않는다. 기존 파일이
+        # 있으면 성공분만 merge해 나머지 전체 종목의 마지막 정상 캔들을 보존한다.
+        if len(closes_map) < max(1, len(codes) // 2):
+            continue
+        if not fresh_closes:
             continue
 
         out_file.parent.mkdir(parents=True, exist_ok=True)
@@ -593,6 +640,9 @@ def coin_candles_snapshot(markets: list[dict]) -> None:
             "generated_ts": time.time(),
             "interval": interval,
             "count": COIN_CANDLE_COUNT,
+            "fresh_count": len(fresh_closes),
+            "market_count": len(codes),
+            "partial": len(fresh_closes) < len(codes),
             "closes": closes_map,
         }, ensure_ascii=False), encoding="utf-8")
 
@@ -687,7 +737,7 @@ def page(html: str, initial_portfolio: bool = False, stocks_live: bool = False,
     # 업비트 전체 마켓 + 실시간 시세(웹소켓): 목업·chart-hts 다음에 로드
     html = html.replace(
         "</body>",
-        '<script src="/stockagent/coin-live.js"></script>\n</body>',
+        f'<script src="/stockagent/coin-live.js?v={_asset_version("coin-live.js")}"></script>\n</body>',
         1,
     )
     if stocks_live:
@@ -698,16 +748,16 @@ def page(html: str, initial_portfolio: bool = False, stocks_live: bool = False,
             1,
         )
     if initial_portfolio:
-        # 포트폴리오 실시간 평가: 업비트 공개 시세 API(CORS 허용)로 평가액 갱신
+        # 포트폴리오 실시간 평가: coin-live의 공유 웹소켓 시세로 평가액 갱신
         html = html.replace(
             "</body>",
-            '<script src="/stockagent/portfolio-live.js"></script>\n</body>',
+            f'<script src="/stockagent/portfolio-live.js?v={_asset_version("portfolio-live.js")}"></script>\n</body>',
             1,
         )
         # AI 거래 탭 실시간 계좌: 웹소켓 시세 재평가 + 스냅샷 자동 새로고침
         html = html.replace(
             "</body>",
-            '<script src="/stockagent/ai-live.js"></script>\n</body>',
+            f'<script src="/stockagent/ai-live.js?v={_asset_version("ai-live.js")}"></script>\n</body>',
             1,
         )
     return html

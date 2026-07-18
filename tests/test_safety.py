@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 import json
 import re
+import time
 
 import pytest
 
@@ -114,3 +115,89 @@ def test_committed_public_artifacts_are_sanitized():
         assert "raw_result" not in text
         assert not uuid_pattern.search(text)
         assert '"dry_run": false' not in text
+
+
+def test_public_pages_fail_closed_and_version_realtime_assets():
+    pages = (
+        "index.html",
+        "coin/index.html",
+        "stocks/index.html",
+        "assets/index.html",
+        "analyze/index.html",
+    )
+    for relative in pages:
+        text = (export_github_pages.DOCS / relative).read_text(encoding="utf-8")
+        assert re.search(
+            r'id="mode-pill" class="pill-dry">.{0,120}MODE · CHECKING',
+            text,
+        )
+        assert 'data_mode: "demo"' in text
+        assert 'dry_run: true' in text
+        assert 'allow_live_trading: false' in text
+
+    coin_page = (export_github_pages.DOCS / "coin/index.html").read_text(
+        encoding="utf-8"
+    )
+    assert re.search(r'coin-live\.js\?v=[0-9a-f]{12}', coin_page)
+    assert re.search(r'portfolio-live\.js\?v=[0-9a-f]{12}', coin_page)
+    assert re.search(r'ai-live\.js\?v=[0-9a-f]{12}', coin_page)
+
+
+def test_public_realtime_shim_keeps_full_market_access():
+    live_source = (export_github_pages.DOCS / "coin-live.js").read_text(
+        encoding="utf-8"
+    )
+    assert "desiredTickerCodes" in live_source
+    assert ".slice(0, 24)" not in live_source
+    assert "getSubscriptionCodes" in live_source
+    ai_source = (export_github_pages.DOCS / "ai-live.js").read_text(encoding="utf-8")
+    assert "trackPortfolioMarkets" in ai_source
+    assert "coinLive.trackCodes(markets)" in ai_source
+    assert "스냅샷(연결 중)" in ai_source
+    assert "status && status.fresh" in ai_source
+    portfolio_source = (export_github_pages.DOCS / "portfolio-live.js").read_text(
+        encoding="utf-8"
+    )
+    assert "lastTrackedMarketCount" in portfolio_source
+    assert "스냅샷(연결 중)" in portfolio_source
+
+
+def test_runtime_state_exposes_trading_mode_interlocks(monkeypatch):
+    monkeypatch.setattr(config, "DRY_RUN", False)
+    monkeypatch.setattr(config, "ALLOW_LIVE_TRADING", False)
+    snapshot = web.store.snapshot()
+    assert snapshot["dry_run"] is False
+    assert snapshot["allow_live_trading"] is False
+
+
+def test_partial_candle_refresh_preserves_existing_markets(monkeypatch, tmp_path):
+    markets = [{"market": f"KRW-C{i}"} for i in range(6)]
+    existing = {
+        "generated_ts": 0,
+        "closes": {row["market"]: [1, 2, 3] for row in markets},
+    }
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    for interval in export_github_pages.COIN_CANDLE_INTERVALS:
+        (data_dir / f"coin_candles_{interval}.json").write_text(
+            json.dumps(existing), encoding="utf-8"
+        )
+
+    def fake_closes(market, interval, count):
+        if market == "KRW-C0":
+            return [10, 20, 30]
+        raise RuntimeError("simulated upstream outage")
+
+    monkeypatch.setattr(export_github_pages, "DOCS", tmp_path)
+    monkeypatch.setattr(web, "_upbit_candle_closes", fake_closes)
+    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+    export_github_pages.coin_candles_snapshot(markets)
+
+    payload = json.loads(
+        (data_dir / "coin_candles_minute60.json").read_text(encoding="utf-8")
+    )
+    assert len(payload["closes"]) == 6
+    assert payload["closes"]["KRW-C0"] == [10, 20, 30]
+    assert payload["closes"]["KRW-C5"] == [1, 2, 3]
+    assert payload["fresh_count"] == 1
+    assert payload["partial"] is True
