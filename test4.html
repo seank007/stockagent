@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+<body>
+<button onclick="openTradeHistoryModal()">Test Modal</button>
+<div id="trade-history-modal" hidden>
+  <div id="trade-history-rows"></div>
+</div>
+<script>
+window.__aiTradeSnapshot = { trades: [{"id":1,"ticker":"KRW-BTC","side":"buy","krw_amount":10000,"price":1000000,"volume":0.01,"ts":"2026-07-05T22:04:30"}] };
+function route(path, params, init) {
+  if (path === "/api/trades") {
+    const snap = window.__aiTradeSnapshot || {};
+    return {items: snap.trades || []};
+  }
+  return {};
+}
+window.fetch = async (input, init={}) => {
+  const raw = typeof input === "string" ? input : input.url;
+  const url = new URL(raw, "http://localhost");
+  const path = url.pathname.replace(/^\/stockagent/, "");
+  if (path.startsWith("/api/")) {
+    const body = JSON.stringify(route(path, url.searchParams, init));
+    return new Response(body, {status:200, headers:{"Content-Type":"application/json; charset=utf-8"}});
+  }
+  return fetch(input, init);
+};
+function escapeHtml(v) { return String(v??""); }
+function KRW(v) { return String(v); }
+function NUM(v) { return String(v); }
+
+async function openTradeHistoryModal() {
+  const modal = document.getElementById("trade-history-modal");
+  const rowsContainer = document.getElementById("trade-history-rows");
+  if (!modal || !rowsContainer) return;
+  modal.hidden = false;
+  rowsContainer.innerHTML = "로딩 중...";
+
+  let res;
+  let timeoutId;
+  try {
+    const controller = new AbortController();
+    timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    try {
+      res = await fetch("/api/trades?limit=50", { signal: controller.signal });
+    } catch (e) {
+      clearTimeout(timeoutId);
+      rowsContainer.innerHTML = "<div class='muted'>네트워크 오류: " + escapeHtml(e.message) + "</div>";
+      return;
+    }
+    
+    if (!res.ok) {
+      const txt = await res.text().catch(()=>"");
+      clearTimeout(timeoutId);
+      rowsContainer.innerHTML = "<div class='muted'>HTTP " + res.status + "</div>";
+      return;
+    }
+    
+    const data = await res.json();
+    clearTimeout(timeoutId);
+    
+    const trades = Array.isArray(data.items) ? data.items : [];
+    if (trades.length === 0) {
+      rowsContainer.innerHTML = "<div class='muted'>최근 거래 내역이 없습니다.</div>";
+      return;
+    }
+    
+    rowsContainer.innerHTML = trades.map(t => "SUCCESS").join("");
+  } catch (err) {
+    if (timeoutId) clearTimeout(timeoutId);
+    rowsContainer.innerHTML = "<div class='muted'>스크립트 오류: " + escapeHtml(err.message) + "</div>";
+  }
+}
+openTradeHistoryModal().then(() => console.log(document.getElementById("trade-history-rows").innerHTML));
+</script>
+</body></html>

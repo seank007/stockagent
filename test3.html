@@ -1,0 +1,9 @@
+<!doctype html>
+<html><body><script>
+try {
+  new URL("/api/trades?limit=50", "null");
+  document.body.innerHTML = "Success";
+} catch(e) {
+  document.body.innerHTML = e.message;
+}
+</script></body></html>

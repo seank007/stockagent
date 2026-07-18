@@ -20,6 +20,17 @@ class Order:
     reason: str = ""
 
 
+def _as_float(value, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _clip_pct(value) -> float:
+    return max(0.0, min(_as_float(value), 100.0))
+
+
 class RiskManager:
     def evaluate(
         self,
@@ -30,17 +41,8 @@ class RiskManager:
         avg_buy_price: float = 0.0,
     ) -> Order:
         ticker = snapshot["ticker"]
-        price_now = float(snapshot.get("price") or 0)
-
-        # 0) 익절(Take Profit) 강제 매도 로직
-        if coin_balance > 0 and avg_buy_price > 0 and price_now > 0:
-            unrealized_pnl = (price_now - avg_buy_price) * coin_balance
-            target_profit = getattr(config, "TARGET_PROFIT_KRW", 15000)
-            if unrealized_pnl >= target_profit:
-                return Order(
-                    "sell", ticker, volume=coin_balance,
-                    reason=f"평가 수익({unrealized_pnl:,.0f}원)이 목표 금액({target_profit:,.0f}원) 초과 → 강제 익절"
-                )
+        quant_plan = snapshot.get("quant_plan")
+        has_quant_plan = isinstance(quant_plan, dict)
 
         # 자유 모드: AI가 주문 여부·크기를 전적으로 결정. 업비트 최소 주문만 검사.
         if config.FREE_TRADE_MODE:
@@ -65,22 +67,43 @@ class RiskManager:
 
         # 3) 매수
         if decision.action == "BUY":
+            if has_quant_plan and not bool(quant_plan.get("eligible_buy")):
+                flags = ", ".join(str(flag) for flag in quant_plan.get("risk_flags") or [])
+                detail = f" ({flags})" if flags else ""
+                return Order("none", ticker, reason=f"quant plan 매수 불가{detail}")
+
             amount = min(config.MAX_ORDER_KRW * decision.confidence, config.MAX_ORDER_KRW)
+            if has_quant_plan:
+                quant_cap = max(0.0, _as_float(quant_plan.get("max_buy_krw"), 0.0))
+                amount = min(amount, quant_cap)
             if config.DRY_RUN:
                 if amount < config.MIN_ORDER_KRW:
-                    return Order("none", ticker, reason="주문금액이 최소금액 미만")
-                return Order("buy", ticker, krw_amount=round(amount), reason="매수 신호")
+                    reason = "quant plan 주문한도가 최소금액 미만" if has_quant_plan else "주문금액이 최소금액 미만"
+                    return Order("none", ticker, reason=reason)
+                reason = "quant plan 한도 내 매수 신호" if has_quant_plan else "매수 신호"
+                return Order("buy", ticker, krw_amount=round(amount), reason=reason)
             if krw_balance < config.MIN_ORDER_KRW:
                 return Order("none", ticker, reason="원화 잔고 부족")
             amount = min(amount, krw_balance)
             if amount < config.MIN_ORDER_KRW:
                 return Order("none", ticker, reason="주문 가능 금액이 최소금액 미만")
-            return Order("buy", ticker, krw_amount=round(amount), reason="매수 신호")
+            reason = "quant plan 한도 내 매수 신호" if has_quant_plan else "매수 신호"
+            return Order("buy", ticker, krw_amount=round(amount), reason=reason)
 
         # 4) 매도
         if decision.action == "SELL":
             if coin_balance <= 0 and not config.DRY_RUN:
                 return Order("none", ticker, reason="보유 수량 없음")
+            if has_quant_plan:
+                trim_pct = _clip_pct(quant_plan.get("trim_pct"))
+                if trim_pct <= 0:
+                    return Order("none", ticker, reason="quant plan 매도 비중 0% → 관망")
+                return Order(
+                    "sell",
+                    ticker,
+                    volume=coin_balance * trim_pct / 100.0,
+                    reason=f"quant plan 매도 신호 (보유분의 {trim_pct:g}%)",
+                )
             return Order("sell", ticker, volume=coin_balance, reason="매도 신호")
 
         # 5) 관망

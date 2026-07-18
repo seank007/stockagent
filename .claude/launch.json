@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "stockagent-web",
+      "runtimeExecutable": "/Users/seankim/.venvs/stockagent/bin/python",
+      "runtimeArgs": ["-u", "web.py"],
+      "port": 8000
+    },
+    {
+      "name": "pages-static",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8123",
+        "-d",
+        "/private/tmp/claude-501/-Users-seankim-Desktop-007-02-Projects-stockagent/02018701-a632-4714-b9bb-dc96110bfcff/scratchpad/webroot"
+      ],
+      "port": 8123
+    }
+  ]
+}

@@ -1,17 +1,16 @@
 .env
 __pycache__/
 *.pyc
-.venv/
+.venv*/
 venv/
 *.log
 data/
 !docs/data/
-stockagent.db
-stockagent.db-shm
-stockagent.db-wal
-stock_trading.db
-stock_trading.db-shm
-stock_trading.db-wal
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
 # 멀티유저: DB와 암호화 마스터 키는 절대 커밋 금지
 multiuser.db
 multiuser.db-shm

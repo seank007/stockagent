@@ -6,13 +6,14 @@
   if (!getBase() || !Array.isArray(getBase().holdings) || !getBase().holdings.length) return;
 
   const DIRECT_POLL_MS = 2000;
-  const FALLBACK_POLL_MS = 10000;
   const PROBE_COOLDOWN_MS = 15000;
   const HTTP_TIMEOUT_MS = 1800;
   let liveApiBase = null;
   let nextProbeAt = 0;
   let loading = false;
   let lastPayload = getBase();
+  let lastLivePriceCount = 0;
+  let lastTrackedMarketCount = 0;
 
   function uniquePush(rows, value) {
     if (value == null) return;
@@ -148,23 +149,30 @@
     return tryNext();
   }
 
-  async function revalueSnapshot() {
+  function holdingMarket(h) {
+    const fallback = h && h.currency && h.currency !== "KRW" ? "KRW-" + h.currency : "";
+    return String(h && h.ticker || fallback).toUpperCase();
+  }
+
+  function revalueSnapshot() {
     const base = getBase();
     const markets = base.holdings
-      .map(h => h.ticker)
-      .filter(t => typeof t === "string" && t.startsWith("KRW-"));
+      .map(holdingMarket)
+      .filter(t => t.startsWith("KRW-"));
     if (!markets.length) throw new Error("보유 코인 없음");
-    const res = await fetch("https://api.upbit.com/v1/ticker?markets=" + markets.join(","));
-    if (!res.ok) throw new Error("업비트 시세 HTTP " + res.status);
-    const tickers = await res.json();
-    const prices = {};
-    for (const t of tickers) prices[t.market] = Number(t.trade_price);
+    lastTrackedMarketCount = markets.length;
+    const coinLive = window.__coinLive;
+    if (coinLive && typeof coinLive.trackCodes === "function") coinLive.trackCodes(markets);
+    const prices = coinLive && coinLive.prices || {};
 
     const p = JSON.parse(JSON.stringify(base));
     let coinValue = 0;
+    lastLivePriceCount = 0;
     for (const h of p.holdings) {
-      const live = prices[h.ticker];
+      const liveRow = prices[holdingMarket(h)];
+      const live = liveRow && Number(liveRow.price);
       if (live > 0) {
+        lastLivePriceCount += 1;
         h.current_price = live;
         h.current_value = Number(h.balance || 0) * live;
         h.unrealized_pnl = h.current_value - Number(h.principal || 0);
@@ -193,7 +201,7 @@
   }
 
   async function liveLoad() {
-    if (loading || document.hidden || (window._coinSection && window._coinSection !== "portfolio")) return;
+    if (loading || document.hidden || window._coinSection !== "portfolio") return;
     loading = true;
     try {
       const p = await readDirectPortfolio();
@@ -206,7 +214,17 @@
       try {
         const p = await revalueSnapshot();
         if (typeof renderCoinPortfolio === "function") renderCoinPortfolio(p);
-        setNote("시세·수익률 실시간 · 수량/현금은 "
+        const status = window.__coinLive && typeof window.__coinLive.getStatus === "function"
+          ? window.__coinLive.getStatus() : null;
+        const source = status && status.fresh && lastTrackedMarketCount
+          && lastLivePriceCount === lastTrackedMarketCount
+          ? "실시간"
+          : lastLivePriceCount > 0
+            ? (status && status.fresh ? "일부 실시간 " : "최근 시세 ")
+              + "(" + lastLivePriceCount + "/" + lastTrackedMarketCount + ")"
+            : status && (status.state === "connecting" || status.state === "reconnecting")
+              ? "스냅샷(연결 중)" : "스냅샷";
+        setNote("시세·수익률 " + source + " · 수량/현금은 "
           + (getBase().generated_at || "스냅샷") + " 기준");
       } catch (fallbackError) {
         if (typeof renderCoinPortfolio === "function") renderCoinPortfolio(lastPayload);
@@ -218,6 +236,5 @@
 
   window.loadCoinPortfolio = liveLoad;
   setInterval(liveLoad, DIRECT_POLL_MS);
-  setInterval(() => { if (!liveApiBase) liveLoad(); }, FALLBACK_POLL_MS);
-  if (!window._coinSection || window._coinSection === "portfolio") liveLoad();
+  if (window._coinSection === "portfolio") liveLoad();
 })();

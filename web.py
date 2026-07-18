@@ -15,6 +15,7 @@ import hmac
 import html as html_lib
 import io
 import json
+import math
 import os
 import re
 import ssl
@@ -33,7 +34,7 @@ try:
     import certifi
 except Exception:  # noqa: BLE001
     certifi = None
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, jsonify, request, redirect
 
 import config
 import db
@@ -234,7 +235,7 @@ def _broker() -> UpbitBroker:
 
 
 def start_background_trading() -> threading.Thread | None:
-    """production/dev entrypoint에서 매매 루프를 정확히 한 번만 시작한다."""
+    """production/dev entrypoint에서 반복 매매 워커를 정확히 하나만 시작한다."""
     global _trading_thread
     if not config.RUN_TRADING_LOOP:
         # 외부 트레이더(hermes agent)가 DB에 기록하는 모드: 대시보드용으로 복원만.
@@ -253,6 +254,15 @@ def start_background_trading() -> threading.Thread | None:
     )
     _trading_thread.start()
     return _trading_thread
+
+
+def start_multiuser_daemon() -> threading.Thread | None:
+    """멀티유저 데몬을 백그라운드로 시작한다."""
+    try:
+        from multiuser import daemon
+        return daemon.start_daemon()
+    except ImportError:
+        return None
 
 
 def _int_arg(name: str, default: int, min_value: int, max_value: int) -> int:
@@ -1255,7 +1265,7 @@ def _non_negative_float(value, label: str) -> float:
         number = float(value)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"{label} 숫자를 입력하세요") from exc
-    if number < 0:
+    if not math.isfinite(number) or number < 0:
         raise ValueError(f"{label}은 0 이상이어야 합니다")
     return number
 
@@ -1459,13 +1469,15 @@ def api_config():
             "min_order_krw": config.MIN_ORDER_KRW,
             "max_daily_loss_krw": config.MAX_DAILY_LOSS_KRW,
             "min_confidence": config.MIN_CONFIDENCE,
-            "cycle_seconds": 0,
+            "cycle_seconds": config.INTERVAL_SECONDS,
         },
     })
 
 
 @app.route("/api/control", methods=["POST"])
 def api_control():
+    if not config.RUN_TRADING_LOOP:
+        return jsonify({"error": "외부 트레이더 모드에서는 제어할 수 없습니다."}), 409
     payload = request.get_json(silent=True) or {}
     action = str(payload.get("action", "")).lower()
     if action == "pause":
@@ -1481,23 +1493,40 @@ def api_control():
 
 @app.route("/api/run_ai", methods=["POST"])
 def api_run_ai():
+    from agent.decision import DecisionAgent
+    from main import release_cycle_reservation, reserve_cycle, run_reserved_cycle
+    from risk import RiskManager
+
+    if store.is_paused():
+        return jsonify({"error": "봇이 일시정지 상태입니다. 먼저 재개하세요."}), 409
+
+    broker = _broker()
+    agent = DecisionAgent()
+    risk = RiskManager()
+    if not reserve_cycle():
+        return jsonify({"error": "다른 매매 사이클이 이미 실행 중입니다."}), 409
+
     def _run():
-        broker = _broker()
-        from agent.decision import DecisionAgent
-        from risk import RiskManager
-        agent = DecisionAgent()
-        risk = RiskManager()
-        from main import run_once
         try:
             store.mark_cycle_start()
-            run_once(broker, agent, risk)
-            store.mark_cycle_end(None)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
+            release_cycle_reservation()
             store.set_error(str(e))
             store.mark_cycle_end(None)
+            return
+        try:
+            run_reserved_cycle(broker, agent, risk)
+        except Exception as e:  # noqa: BLE001
+            store.set_error(str(e))
+        finally:
+            store.mark_cycle_end(None)
 
-    threading.Thread(target=_run, daemon=True).start()
-    return jsonify({"ok": True})
+    try:
+        threading.Thread(target=_run, daemon=True, name="stockagent-manual-cycle").start()
+    except Exception:
+        release_cycle_reservation()
+        raise
+    return jsonify({"ok": True, "status": "accepted"}), 202
 
 
 @app.route("/api/pnl")
@@ -2084,6 +2113,11 @@ def api_analyze():
 
 # ============ HTML 페이지 ============
 @app.route("/")
+def root_redirect():
+    return redirect("/app")
+
+
+@app.route("/single")
 @app.route("/coin")
 def coin_page():
     return _coin_page_html()
@@ -3357,15 +3391,36 @@ function renderChart(svgPriceId, svgRsiId, data) {
   };
 }
 
+function terminalModeInfo(s) {
+  s = s || {};
+  const mode = String(s.mode || "").toUpperCase();
+  const model = String(s.model || "").toLowerCase();
+  const isDemo = s.data_mode === "demo" || mode.includes("DEMO")
+    || model === "github-pages-static";
+  if (isDemo) return { kind:"demo", label:"DEMO · READ ONLY", className:"pill-dry" };
+  if (s.dry_run === true || mode.includes("DRY") || mode.includes("PAPER")) {
+    return { kind:"dry", label:"DRY · PAPER", className:"pill-dry" };
+  }
+  if (s.dry_run === false && s.allow_live_trading === true) {
+    return { kind:"live", label:"LIVE · REAL", className:"pill-live" };
+  }
+  if (s.dry_run === false) {
+    return { kind:"locked", label:"LIVE · LOCKED", className:"pill-dry" };
+  }
+  return { kind:"unknown", label:"MODE · CHECKING", className:"pill-dry" };
+}
+
 function applyTerminalHeader(s) {
-  const isDry = (s.mode || "").includes("DRY");
+  s = s || {};
+  const modeInfo = terminalModeInfo(s);
+  const isSafeMode = modeInfo.kind !== "live";
   const brand = document.querySelector(".brand");
-  if (brand) brand.className = "brand" + (isDry ? " dry" : "");
+  if (brand) brand.className = "brand" + (isSafeMode ? " dry" : "");
 
   const pill = document.getElementById("mode-pill");
   if (pill) {
-    pill.className = isDry ? "pill-dry" : "pill-live";
-    pill.innerHTML = '<span class="dot"></span><span>' + (isDry ? "DRY · PAPER" : "LIVE · REAL") + '</span>';
+    pill.className = modeInfo.className;
+    pill.innerHTML = '<span class="dot"></span><span>' + modeInfo.label + '</span>';
   }
 
   const ai = document.getElementById("ai-pill");
@@ -3385,12 +3440,24 @@ function applyTerminalHeader(s) {
   if (resumeBtn) resumeBtn.disabled = !s.bot_paused;
 
   const upd = document.getElementById("upd");
-  if (upd) upd.textContent = "UPD " + (s.last_update || "—");
+  const useCoinLiveStatus = !!document.getElementById("coin-market-panel")
+    && window.__coinLive && typeof window.__coinLive.refreshStatus === "function";
+  if (upd && !useCoinLiveStatus) {
+    const prefix = modeInfo.kind === "demo" ? "SNAPSHOT " : "UPD ";
+    upd.textContent = prefix + (s.last_update || "—");
+  } else if (useCoinLiveStatus) {
+    window.__coinLive.refreshStatus();
+  }
 
   const foot = document.getElementById("foot");
   if (foot) {
-    foot.textContent = "Started " + s.started_at + " · Interval " + s.interval + "s · " +
-      (isDry ? "DRY_RUN=True (paper)" : "DRY_RUN=False (real)");
+    const suffix = modeInfo.kind === "demo" ? "PUBLIC DEMO · orders disabled"
+      : modeInfo.kind === "dry" ? "DRY_RUN=True (paper)"
+      : modeInfo.kind === "live" ? "LIVE TRADING"
+      : modeInfo.kind === "locked" ? "LIVE ACCOUNT · orders disabled"
+      : "MODE UNVERIFIED · orders disabled";
+    foot.textContent = "Started " + (s.started_at || "—") + " · Interval "
+      + (s.interval || "—") + "s · " + suffix;
   }
 }
 
@@ -3510,7 +3577,7 @@ COIN_HTML = f"""<!doctype html>
 <div class="hd">
   <div class="hd-row">
     <span class="brand" id="brand">stockagent<span class="cursor">_</span></span>
-    <span id="mode-pill" class="pill-live"><span class="dot"></span><span>LIVE · REAL</span></span>
+    <span id="mode-pill" class="pill-dry"><span class="dot"></span><span>MODE · CHECKING</span></span>
     <span class="pill-ai" id="ai-pill">AI - · -</span>
     <span class="pill-bot" id="bot-pill">BOT IDLE</span>
     <div class="head-tools">
@@ -3581,6 +3648,7 @@ COIN_HTML = f"""<!doctype html>
     <div class="inline-tools">
       <button class="mini-btn" data-coin-page-size="18" onclick="setCoinBoardPageSize(18)">18개</button>
       <button class="mini-btn on" data-coin-page-size="24" onclick="setCoinBoardPageSize(24)">24개</button>
+      <button class="mini-btn" data-coin-page-size="48" onclick="setCoinBoardPageSize(48)">48개</button>
       <button class="mini-btn" onclick="changeCoinBoardPage(-1)">← 이전</button>
       <button class="mini-btn" onclick="changeCoinBoardPage(1)">다음 →</button>
       <button class="mini-btn" onclick="loadCoinMarketBoard(true)">새로고침</button>
@@ -3877,6 +3945,7 @@ COIN_HTML = f"""<!doctype html>
 const coinIntervalLabel = {{ "minute15":"15분", "minute60":"1시간", "day":"일봉" }};
 window._coinTicker = "KRW-BTC";
 window._coinInterval = "minute60";
+window._coinSection = "market";
 window._coinMarkets = [];
 window._coinFilteredMarkets = [];
 window._coinChartData = null;
@@ -3942,7 +4011,7 @@ function renderCoinMarketOptions(markets) {{
   const sel = document.getElementById("coin-ticker");
   if (!sel) return;
   const current = window._coinTicker || "KRW-BTC";
-  let rows = markets && markets.length ? [...markets] : [];
+  let rows = coinCatalogWindow(markets && markets.length ? markets : []);
   const currentMarket = window._coinMarkets.find(m => m.market === current);
   if (currentMarket && !rows.some(m => m.market === current)) rows = [currentMarket, ...rows];
   sel.innerHTML = rows.map(m => `<option value="${{escapeHtml(m.market)}}">${{escapeHtml(coinMarketLabel(m))}}</option>`).join("");
@@ -3950,8 +4019,15 @@ function renderCoinMarketOptions(markets) {{
   const count = document.getElementById("coin-market-count");
   if (count) {{
     const total = window._coinMarkets.length;
-    count.textContent = `${{markets.length}}/${{total}} coins`;
+    count.textContent = `${{(markets || []).length}}/${{total}} coins · 화면 ${{rows.length}}`;
   }}
+}}
+
+function coinCatalogWindow(markets) {{
+  const rows = markets || [];
+  const size = Math.max(1, Number(window._coinBoardPageSize) || 24);
+  const start = Math.max(0, Number(window._coinBoardPage) || 0) * size;
+  return rows.slice(start, start + size);
 }}
 
 function renderCoinMarketDirectory(markets) {{
@@ -3959,8 +4035,8 @@ function renderCoinMarketDirectory(markets) {{
   const count = document.getElementById("coin-directory-count");
   if (!grid) return;
   const total = window._coinMarkets.length;
-  const rows = markets || [];
-  if (count) count.textContent = `${{rows.length}}/${{total}}`;
+  const rows = coinCatalogWindow(markets || []);
+  if (count) count.textContent = `${{(markets || []).length}}/${{total}} · 화면 ${{rows.length}}`;
   grid.innerHTML = rows.map(m => `
     <button class="coin-market-chip${{m.market === window._coinTicker ? " on" : ""}}"
             data-ticker="${{escapeHtml(m.market)}}"
@@ -4090,15 +4166,21 @@ function changeCoinBoardPage(delta) {{
   const size = window._coinBoardPageSize || 24;
   const pages = Math.max(1, Math.ceil(markets.length / size));
   window._coinBoardPage = Math.max(0, Math.min((window._coinBoardPage || 0) + delta, pages - 1));
+  renderCoinMarketOptions(markets);
+  renderCoinMarketDirectory(markets);
   loadCoinMarketBoard();
 }}
 
 function setCoinBoardPageSize(size) {{
-  window._coinBoardPageSize = Math.max(12, Math.min(24, Number(size) || 24));
+  const requested = Number(size);
+  window._coinBoardPageSize = Number.isFinite(requested) && requested > 0
+    ? Math.floor(requested) : 24;
   window._coinBoardPage = 0;
   document.querySelectorAll("[data-coin-page-size]").forEach(b => {{
     b.classList.toggle("on", Number(b.dataset.coinPageSize) === window._coinBoardPageSize);
   }});
+  renderCoinMarketOptions(window._coinFilteredMarkets || []);
+  renderCoinMarketDirectory(window._coinFilteredMarkets || []);
   loadCoinMarketBoard(true);
 }}
 
@@ -4147,18 +4229,21 @@ async function loadCoinMarketBoard(force=false) {{
   try {{
     const chunks = [];
     for (let i = 0; i < pageItems.length; i += 6) chunks.push(pageItems.slice(i, i + 6));
-    const jobs = chunks.map(async chunk => {{
-      const controller = new AbortController();
-      window._coinBoardControllers.push(controller);
-      const tickers = chunk.map(m => m.market).join(",");
-      const url = `/api/coin/mini_charts?tickers=${{encodeURIComponent(tickers)}}&interval=${{window._coinInterval || "minute60"}}&count=36${{force ? "&refresh=1" : ""}}`;
-      const j = await fetchJsonWithTimeout(url, 18000, controller);
-      if (requestId !== window._coinBoardRequestId) return;
-      collected.push(...(j.items || []));
-      renderCoinBoardItems(collected, pageItems, true);
-      updateCoinBoardSelection();
-    }});
-    const settled = await Promise.allSettled(jobs);
+    let chunkIndex = 0;
+    async function loadNextChunk() {{
+      while (chunkIndex < chunks.length) {{
+        const chunk = chunks[chunkIndex++];
+        const controller = new AbortController();
+        window._coinBoardControllers.push(controller);
+        const tickers = chunk.map(m => m.market).join(",");
+        const url = `/api/coin/mini_charts?tickers=${{encodeURIComponent(tickers)}}&interval=${{window._coinInterval || "minute60"}}&count=36${{force ? "&refresh=1" : ""}}`;
+        const j = await fetchJsonWithTimeout(url, 18000, controller);
+        if (requestId !== window._coinBoardRequestId) return;
+        collected.push(...(j.items || []));
+      }}
+    }}
+    const workers = Array.from({{length:Math.min(2, chunks.length)}}, () => loadNextChunk());
+    const settled = await Promise.allSettled(workers);
     if (requestId !== window._coinBoardRequestId) return;
     const failed = settled.find(result => result.status === "rejected");
     if (failed) throw failed.reason;
@@ -4338,8 +4423,9 @@ async function tickCoinOrderbook() {{
     const best = units[0] || {{}};
     const spread = best.ask_price && best.bid_price ? best.ask_price - best.bid_price : null;
     document.getElementById("coin-spread").textContent = spread == null ? "—" : KRW(spread) + " 원";
+    const sourceLabel = j.live === true ? "LIVE" : "SNAPSHOT";
     document.getElementById("coin-ob-total").textContent =
-      `ASK ${{NUM(j.total_ask_size)}} · BID ${{NUM(j.total_bid_size)}}`;
+      `${{sourceLabel}} · ASK ${{NUM(j.total_ask_size)}} · BID ${{NUM(j.total_bid_size)}}`;
     document.getElementById("coin-orderbook-rows").innerHTML = units.map(u => `
       <div class="orderbook-row">
         <span class="down" style="text-align:right;font-weight:700">${{KRW(u.ask_price)}}</span>
@@ -5230,7 +5316,7 @@ STOCKS_HTML = f"""<!doctype html>
 <div class="hd">
   <div class="hd-row">
     <span class="brand" id="brand">stockagent<span class="cursor">_</span></span>
-    <span id="mode-pill" class="pill-live"><span class="dot"></span><span>LIVE · REAL</span></span>
+    <span id="mode-pill" class="pill-dry"><span class="dot"></span><span>MODE · CHECKING</span></span>
     <span class="pill-ai" id="ai-pill">AI - · -</span>
     <span class="pill-bot" id="bot-pill">BOT IDLE</span>
     <div class="head-tools">
@@ -5700,7 +5786,7 @@ DASHBOARD_HTML = f"""<!doctype html>
 <div class="hd">
   <div class="hd-row">
     <span class="brand" id="brand">stockagent<span class="cursor">_</span></span>
-    <span id="mode-pill" class="pill-live"><span class="dot"></span><span id="mode-text">LIVE · REAL</span></span>
+    <span id="mode-pill" class="pill-dry"><span class="dot"></span><span id="mode-text">MODE · CHECKING</span></span>
     <span class="pill-ai" id="ai-pill">AI - · -</span>
     <span class="pill-bot" id="bot-pill">BOT IDLE</span>
     <div class="head-tools">
@@ -6291,7 +6377,7 @@ ANALYZE_HTML = f"""<!doctype html>
 <div class="hd">
   <div class="hd-row">
     <span class="brand" id="brand">stockagent<span class="cursor">_</span></span>
-    <span id="mode-pill" class="pill-live"><span class="dot"></span><span>LIVE · REAL</span></span>
+    <span id="mode-pill" class="pill-dry"><span class="dot"></span><span>MODE · CHECKING</span></span>
     <span class="pill-ai" id="ai-pill">AI - · -</span>
     <span class="pill-bot" id="bot-pill">BOT IDLE</span>
     <div class="head-tools">
@@ -6560,6 +6646,7 @@ setInterval(loadTickerTape, 15000);
 
 
 def main() -> None:
+    config.validate()
     start_background_trading()
 
     url = f"http://localhost:{config.WEB_PORT}"

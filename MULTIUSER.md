@@ -41,6 +41,15 @@ web_auth.register(app)   # /auth/register, /auth/login, /auth/me, /auth/credenti
 ```
 MULTIUSER_MASTER_KEY=<generate_master_key()로 생성한 값>   # 운영 필수
 SESSION_COOKIE_SECURE=true                                # HTTPS 운영
+ADMIN_EMAILS=admin@example.com                            # 일반 가입에서 예약할 관리자 이메일
+ADMIN_BOOTSTRAP_TOKEN=<32자 이상의 임의 비밀값>             # 웹 요청에 노출하지 않음
+```
+
+관리자는 이메일만으로 자동 승격되지 않는다. 신뢰된 배포 셸에서 다음 명령으로
+부트스트랩한다(비밀번호는 프롬프트로 입력).
+
+```bash
+python scripts/create_admin.py admin@example.com
 ```
 
 ## API 요약

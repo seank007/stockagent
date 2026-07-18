@@ -6,7 +6,7 @@
  *  - 마켓 목록·초기 시세·캔들 종가는 export 시점 스냅샷(docs/data/coin_markets.json,
  *    coin_candles_*.json)을 읽고,
  *  - 실시간 가격·전일대비는 업비트 웹소켓(wss://api.upbit.com/websocket/v1, 브라우저
- *    Origin 허용 확인됨) 한 연결로 전 종목을 구독해 갱신한다.
+ *    Origin 허용 확인됨) 한 연결로 현재 화면·선택·보유 종목을 구독해 갱신한다.
  *
  * 기존 UI가 호출하는 /api/config(coin_markets) · /api/coin/mini_charts · /api/candles ·
  * /api/coin/quote · /api/coin/orderbook · /api/ticker_quotes 목업 응답을 대체하며,
@@ -62,33 +62,132 @@
     return candlePromises[key];
   }
 
-  // ---- 업비트 웹소켓: 전 종목 ticker + 선택 종목 orderbook --------------------
+  // ---- 업비트 웹소켓: 현재 화면 + 선택/보유 종목만 ticker, 선택 종목 orderbook ----
+  // 전체 마켓을 한꺼번에 구독하지 않고 현재 필요한 집합만 250ms 디바운스로
+  // 갱신한다. 연결 재시도는 브라우저 Origin 연결 제한을 지키기 위해 최소 11초
+  // 간격으로 수행하고, 연결 내부 구독 메시지는 초당 4회 이하로 제한한다.
   var ws = null;
-  var wsCodes = [];              // 구독할 전체 마켓 코드
+  var wsCodes = [];
   var wsOrderbookCode = null;    // 호가를 구독 중인 마켓
-  var wsRetryMs = 1000;
+  var trackedCodes = [];         // 포트폴리오/AI 화면이 추가로 필요로 하는 종목
+  var wsRetryMs = 11000;
   var wsStarted = false;
-  var wsSuspended = false;       // 백그라운드 탭 절전 중
-  var wsIdleTimer = null;
+  var wsReconnectTimer = null;
+  var wsNextConnectAt = 0;
+  var wsSubscribeTimer = null;
+  var wsLastSubscribeAt = 0;
+  var wsConnectStartedAt = 0;
+  var wsOpenedAt = 0;
+  var lastWsMessageAt = 0;
+  var wsState = "idle";
+  var snapshotGeneratedAt = null;
+  var lastMarketUpdateAt = 0;
+  var lastMarketSource = "snapshot";
+  var uiRefreshTimer = null;
   var livePrices = {};           // market → {price, change_pct, ts}
   var liveOrderbooks = {};       // market → 호가 payload
+  var WS_SUBSCRIBE_INTERVAL_MS = 250;
+  var WS_RECONNECT_MIN_MS = 11000;
+  var WS_DEAD_MS = 30000;
+
+  function uniqueCodes(rows) {
+    var seen = {};
+    return (rows || []).map(function (code) { return String(code || "").toUpperCase(); })
+      .filter(function (code) {
+        if (code.indexOf("KRW-") !== 0 || seen[code]) return false;
+        seen[code] = true;
+        return true;
+      });
+  }
+
+  function visibleMarketCodes() {
+    var rows = [];
+    var cards = document.querySelectorAll("#coin-market-board-grid .coin-mini-card[data-ticker]");
+    for (var i = 0; i < cards.length; i++) rows.push(cards[i].getAttribute("data-ticker"));
+    return rows;
+  }
+
+  function desiredTickerCodes() {
+    return uniqueCodes(TAPE_CODES.concat(
+      [window._coinTicker, wsOrderbookCode], trackedCodes, visibleMarketCodes()
+    ));
+  }
+
+  function sameCodes(a, b) {
+    return a.length === b.length && a.every(function (code, idx) { return code === b[idx]; });
+  }
+
+  function syncSubscriptions(force) {
+    var next = desiredTickerCodes();
+    if (!sameCodes(next, wsCodes)) {
+      wsCodes = next;
+      queueWsSubscribe();
+    } else if (force) {
+      queueWsSubscribe();
+    }
+    return wsCodes.slice();
+  }
+
+  function queueWsSubscribe() {
+    if (!ws || ws.readyState !== WebSocket.OPEN || !wsCodes.length) return;
+    var waitMs = Math.max(0, WS_SUBSCRIBE_INTERVAL_MS - (Date.now() - wsLastSubscribeAt));
+    clearTimeout(wsSubscribeTimer);
+    if (waitMs > 0) {
+      wsSubscribeTimer = setTimeout(wsSubscribe, waitMs);
+      return;
+    }
+    wsSubscribe();
+  }
 
   function wsSubscribe() {
     if (!ws || ws.readyState !== WebSocket.OPEN || !wsCodes.length) return;
     var req = [{ ticket: "stockagent-pages" }, { type: "ticker", codes: wsCodes }];
     if (wsOrderbookCode) req.push({ type: "orderbook", codes: [wsOrderbookCode] });
     req.push({ format: "DEFAULT" });
-    try { ws.send(JSON.stringify(req)); } catch (e) { /* 재연결 루프가 처리 */ }
+    try {
+      ws.send(JSON.stringify(req));
+      wsLastSubscribeAt = Date.now();
+      wsState = "subscribed";
+    } catch (e) { /* 재연결 루프가 처리 */ }
+  }
+
+  function scheduleUiRefresh() {
+    if (uiRefreshTimer) return;
+    uiRefreshTimer = setTimeout(function () {
+      uiRefreshTimer = null;
+      refreshVisibleCards();
+      var selected = livePrices[window._coinTicker || "KRW-BTC"];
+      if (selected && typeof window.applyCoinLivePrice === "function") {
+        window.applyCoinLivePrice(selected.price);
+      } else if (selected && typeof applyCoinLivePrice === "function") {
+        applyCoinLivePrice(selected.price);
+      }
+      refreshStatus();
+    }, 800);
+  }
+
+  function rememberTicker(d, source) {
+    var code = d.code || d.market;
+    var price = d.trade_price;
+    if (!code || price == null) return;
+    var now = Date.now();
+    livePrices[code] = {
+      price: Number(price),
+      change_pct: d.signed_change_rate != null ? Number(d.signed_change_rate) * 100 : null,
+      ts: now,
+      exchange_ts: Number(d.timestamp || now),
+      source: source
+    };
+    lastMarketUpdateAt = now;
+    lastMarketSource = source;
+    scheduleUiRefresh();
   }
 
   function handleMessage(d) {
-    if (!d || !d.code) return;
+    if (!d || d.error) return false;
+    lastWsMessageAt = Date.now();
     if (d.type === "ticker" && d.trade_price != null) {
-      livePrices[d.code] = {
-        price: Number(d.trade_price),
-        change_pct: d.signed_change_rate != null ? Number(d.signed_change_rate) * 100 : null,
-        ts: Date.now()
-      };
+      rememberTicker(d, "websocket");
     } else if (d.type === "orderbook" && Array.isArray(d.orderbook_units)) {
       liveOrderbooks[d.code] = {
         ticker: d.code,
@@ -98,65 +197,181 @@
         units: d.orderbook_units,
         ts: Date.now()
       };
+      lastMarketUpdateAt = Date.now();
+      lastMarketSource = "websocket";
+      refreshStatus();
     }
+    return true;
+  }
+
+  function queueWsConnect() {
+    if (!wsStarted || ws) return;
+    var waitMs = Math.max(0, wsNextConnectAt - Date.now());
+    if (waitMs === 0) {
+      wsConnect();
+      return;
+    }
+    if (wsReconnectTimer) return;
+    wsReconnectTimer = setTimeout(function () {
+      wsReconnectTimer = null;
+      if (wsStarted && !ws) wsConnect();
+    }, waitMs);
   }
 
   function wsConnect() {
-    try { ws = new WebSocket(WS_URL); } catch (e) { scheduleReconnect(); return; }
-    ws.binaryType = "arraybuffer";
-    ws.onopen = function () {
-      wsRetryMs = 1000;
-      wsSubscribe();
+    if (!wsStarted || ws) return;
+    if (Date.now() < wsNextConnectAt) {
+      queueWsConnect();
+      return;
+    }
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = null;
+    wsNextConnectAt = Date.now() + WS_RECONNECT_MIN_MS;
+    wsConnectStartedAt = Date.now();
+    wsState = "connecting";
+    var socket;
+    try { socket = new WebSocket(WS_URL); } catch (e) { scheduleReconnect(); return; }
+    ws = socket;
+    socket.binaryType = "arraybuffer";
+    socket.onopen = function () {
+      if (ws !== socket) return;
+      wsRetryMs = WS_RECONNECT_MIN_MS;
+      wsConnectStartedAt = 0;
+      wsOpenedAt = Date.now();
+      lastWsMessageAt = 0;
+      wsState = "open";
+      syncSubscriptions();
+      queueWsSubscribe();
+      refreshStatus();
     };
-    ws.onmessage = function (ev) {
+    socket.onmessage = function (ev) {
+      if (ws !== socket) return;
       try {
         var text = typeof ev.data === "string"
           ? ev.data
           : new TextDecoder("utf-8").decode(ev.data);
-        handleMessage(JSON.parse(text));
+        var payload = JSON.parse(text);
+        if (payload && payload.error) {
+          wsState = "error";
+          try { socket.close(); } catch (closeError) {}
+          scheduleReconnect(socket);
+          return;
+        }
+        handleMessage(payload);
       } catch (e) { /* 조각 메시지 등은 무시 */ }
     };
-    ws.onclose = scheduleReconnect;
-    ws.onerror = function () { try { ws.close(); } catch (e) {} };
+    socket.onclose = function () { scheduleReconnect(socket); };
+    socket.onerror = function () {
+      if (ws !== socket) return;
+      wsState = "error";
+      try { socket.close(); } catch (e) {}
+      scheduleReconnect(socket);
+    };
   }
 
-  function scheduleReconnect() {
+  function scheduleReconnect(socket) {
+    if (socket && ws !== socket) return;
+    clearTimeout(wsReconnectTimer);
+    clearTimeout(wsSubscribeTimer);
     ws = null;
-    if (wsSuspended) return;  // 백그라운드 절전 중에는 재연결하지 않는다
-    setTimeout(function () { if (wsStarted && !wsSuspended && !ws) wsConnect(); }, wsRetryMs);
-    wsRetryMs = Math.min(wsRetryMs * 2, 30000);
+    wsState = "reconnecting";
+    refreshStatus();
+    wsNextConnectAt = Math.max(
+      wsNextConnectAt,
+      Date.now() + Math.max(WS_RECONNECT_MIN_MS, wsRetryMs)
+    );
+    wsRetryMs = Math.min(wsRetryMs * 2, 60000);
+    queueWsConnect();
   }
 
-  // 백그라운드 탭에서는 1분 후 웹소켓을 끊어 CPU·배터리를 아끼고,
-  // 다시 보이면 즉시 재연결해 카드 시세를 갱신한다.
+  // 백그라운드에서도 시세 연결은 유지하고 DOM 갱신만 생략한다.
   document.addEventListener("visibilitychange", function () {
-    if (document.hidden) {
-      clearTimeout(wsIdleTimer);
-      wsIdleTimer = setTimeout(function () {
-        wsSuspended = true;
-        if (ws) { try { ws.close(); } catch (e) {} ws = null; }
-      }, 60000);
-    } else {
-      clearTimeout(wsIdleTimer);
-      wsSuspended = false;
-      if (wsStarted && !ws) { wsRetryMs = 1000; wsConnect(); }
+    if (!document.hidden) {
+      if (wsStarted && !ws) queueWsConnect();
+      syncSubscriptions();
       refreshVisibleCards();
+      refreshStatus();
     }
   });
 
   function ensureWs() {
-    if (wsStarted) return;
+    if (wsStarted) {
+      syncSubscriptions();
+      if (!ws) queueWsConnect();
+      return;
+    }
     wsStarted = true;
     loadMarkets().then(function (data) {
-      wsCodes = data.markets.map(function (m) { return m.market; });
-      wsConnect();
+      snapshotGeneratedAt = data.generated_at || data.generated_ts || null;
+      syncSubscriptions();
+      queueWsConnect();
     }).catch(function () { wsStarted = false; });
   }
 
   function setOrderbookCode(code) {
     if (wsOrderbookCode === code) return;
     wsOrderbookCode = code;
-    wsSubscribe();
+    // ticker 집합이 같아도 orderbook 타입의 code가 바뀌었으므로 반드시 재전송한다.
+    syncSubscriptions(true);
+  }
+
+  function trackCodes(codes) {
+    trackedCodes = uniqueCodes(codes);
+    syncSubscriptions();
+    ensureWs();
+  }
+
+  function formatMarketTime(value) {
+    if (!value) return "—";
+    var date = value instanceof Date ? value : new Date(
+      typeof value === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(value)
+        ? value.replace(" ", "T") + ":00Z" : value
+    );
+    if (isNaN(date.getTime())) return String(value);
+    return date.toLocaleTimeString("en-GB", {
+      hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false
+    });
+  }
+
+  function refreshStatus() {
+    var upd = document.getElementById("upd");
+    if (!upd) return;
+    var connectionFresh = (wsState === "open" || wsState === "subscribed")
+      && !!lastWsMessageAt && Date.now() - lastWsMessageAt <= WS_DEAD_MS;
+    if (connectionFresh) {
+      upd.textContent = "MARKET LIVE " + formatMarketTime(lastMarketUpdateAt);
+    } else if (lastMarketUpdateAt) {
+      upd.textContent = "MARKET STALE " + formatMarketTime(lastMarketUpdateAt);
+    } else if (snapshotGeneratedAt) {
+      upd.textContent = "SNAPSHOT " + formatMarketTime(snapshotGeneratedAt);
+    } else {
+      upd.textContent = wsState === "connecting" || wsState === "open"
+        ? "MARKET CONNECTING" : "MARKET OFFLINE";
+    }
+  }
+
+  function watchdogWs() {
+    if (!ws) return;
+    if (ws.readyState === WebSocket.CONNECTING || ws.readyState === 0) {
+      if (wsConnectStartedAt && Date.now() - wsConnectStartedAt > WS_DEAD_MS) {
+        wsState = "stale";
+        var connectingSocket = ws;
+        try { connectingSocket.close(); } catch (e) {}
+        scheduleReconnect(connectingSocket);
+      }
+      return;
+    }
+    if (ws.readyState !== WebSocket.OPEN) {
+      scheduleReconnect(ws);
+      return;
+    }
+    var reference = lastWsMessageAt || wsOpenedAt;
+    if (reference && Date.now() - reference > WS_DEAD_MS) {
+      wsState = "stale";
+      var staleSocket = ws;
+      try { staleSocket.close(); } catch (e) {}
+      scheduleReconnect(staleSocket);
+    }
   }
 
   function waitFor(check, timeoutMs) {
@@ -176,6 +391,26 @@
     var live = livePrices[market];
     if (live) return live.price;
     return snap && snap.prices[market] != null ? Number(snap.prices[market]) : null;
+  }
+
+  function marketFreshness(market, snap) {
+    var live = livePrices[market];
+    if (live) {
+      var connectionFresh = (wsState === "open" || wsState === "subscribed")
+        && !!lastWsMessageAt && Date.now() - lastWsMessageAt <= WS_DEAD_MS;
+      return {
+        live: connectionFresh,
+        stale: !connectionFresh,
+        source: live.source,
+        source_at: new Date(live.ts).toISOString()
+      };
+    }
+    return {
+      live: false,
+      stale: true,
+      source: "snapshot",
+      source_at: snap && (snap.generated_at || snap.generated_ts) || null
+    };
   }
 
   function changeOf(market, snap) {
@@ -229,9 +464,9 @@
     var count = Math.max(16, Math.min(Number(params.get("count") || 36), 80));
     var tickers = (params.get("tickers") || "").split(",")
       .map(function (t) { return t.trim().toUpperCase(); })
-      .filter(function (t) { return t.indexOf("KRW-") === 0; })
-      .slice(0, 24);
+      .filter(function (t) { return t.indexOf("KRW-") === 0; });
     ensureWs();
+    syncSubscriptions();
     return Promise.all([
       loadMarkets(),
       loadCandles(interval).catch(function () { return null; }),
@@ -245,6 +480,7 @@
         var meta = byMarket[market] || { symbol: market.replace("KRW-", "") };
         var closes = candles && candles.closes[market] ? candles.closes[market].slice(-count) : [];
         var price = priceOf(market, snap);
+        var freshness = marketFreshness(market, snap);
         if (closes.length && price != null) closes[closes.length - 1] = price;
         if (price == null && closes.length) price = closes[closes.length - 1];
         return {
@@ -255,11 +491,16 @@
           price: price,
           change_pct: changeOf(market, snap),
           closes: closes,
-          ok: closes.length >= 2
+          ok: closes.length >= 2,
+          live: freshness.live,
+          stale: freshness.stale,
+          source: freshness.source,
+          source_at: freshness.source_at
         };
       });
+      var anyLive = items.some(function (item) { return item.live; });
       return jsonResponse({
-        items: items, interval: interval, count: count, live: true,
+        items: items, interval: interval, count: count, live: anyLive, stale: !anyLive,
         generated_at: new Date().toISOString(), cached: false
       });
     });
@@ -277,11 +518,13 @@
       if (!closes || closes.length < 2) throw new Error(ticker + " 캔들 스냅샷 없음");
       closes = closes.slice(-count);
       var price = priceOf(ticker, snap);
+      var freshness = marketFreshness(ticker, snap);
       if (price != null) closes[closes.length - 1] = price;
       return jsonResponse({
         ticker: ticker, interval: interval, closes: closes,
         ma5: sma(closes, 5), ma20: sma(closes, 20), rsi: rsiSeries(closes),
-        cached: false, live: true
+        cached: false, live: freshness.live, stale: freshness.stale,
+        source: freshness.source, source_at: freshness.source_at
       });
     });
   }
@@ -293,12 +536,13 @@
     return loadMarkets().then(function (snap) {
       return waitFor(function () {
         return livePrices[ticker] ? livePrices[ticker].price : null;
-      }, 2500).then(function (live) {
+      }, 1600).then(function (live) {
         var price = live != null ? live : priceOf(ticker, snap);
+        var freshness = marketFreshness(ticker, snap);
         if (price == null) throw new Error(ticker + " 시세 없음");
         return jsonResponse({
-          ticker: ticker, price: price, live: live != null,
-          timestamp: new Date().toISOString()
+          ticker: ticker, price: price, live: freshness.live, stale: freshness.stale,
+          source: freshness.source, timestamp: freshness.source_at
         });
       });
     });
@@ -331,17 +575,23 @@
     ]).then(function (res) {
       var snap = res[0];
       var items = [];
+      var anyLive = false;
       TAPE_CODES.forEach(function (market) {
         var price = priceOf(market, snap);
         if (price == null) return;
+        var freshness = marketFreshness(market, snap);
+        if (freshness.live) anyLive = true;
         items.push({
           sym: market.replace("KRW-", ""),
           price: price,
-          chg_pct: Number((changeOf(market, snap) || 0).toFixed(2))
+          chg_pct: Number((changeOf(market, snap) || 0).toFixed(2)),
+          live: freshness.live,
+          stale: freshness.stale,
+          source_at: freshness.source_at
         });
       });
       if (!items.length) throw new Error("테이프 시세 없음");
-      return jsonResponse({ items: items, live: true });
+      return jsonResponse({ items: items, live: anyLive, stale: !anyLive });
     });
   }
 
@@ -388,7 +638,25 @@
   };
 
   // ai-live.js 등 다른 스크립트가 같은 웹소켓 시세를 재사용할 수 있게 공개한다.
-  window.__coinLive = { prices: livePrices, ensureWs: ensureWs };
+  window.__coinLive = {
+    prices: livePrices,
+    ensureWs: ensureWs,
+    syncSubscriptions: syncSubscriptions,
+    trackCodes: trackCodes,
+    setOrderbookCode: setOrderbookCode,
+    refreshStatus: refreshStatus,
+    checkHealth: watchdogWs,
+    getSubscriptionCodes: function () { return wsCodes.slice(); },
+    getStatus: function () {
+      return {
+        state: wsState,
+        source: lastMarketSource,
+        last_update_at: lastMarketUpdateAt || null,
+        fresh: (wsState === "open" || wsState === "subscribed")
+          && !!lastWsMessageAt && Date.now() - lastWsMessageAt <= WS_DEAD_MS
+      };
+    }
+  };
 
   // 코인 대시보드에서는 미리 연결해 첫 렌더부터 실시간가가 잡히게 한다.
   if (document.getElementById("coin-ticker") || document.getElementById("coin-market-board-grid")) {
@@ -400,6 +668,13 @@
     if (typeof window.loadCoinConfig === "function") {
       loadMarkets().then(function () { window.loadCoinConfig(); }).catch(function () {});
     }
+    var board = document.getElementById("coin-market-board-grid");
+    if (board && window.MutationObserver) {
+      new MutationObserver(function () { syncSubscriptions(); })
+        .observe(board, { childList: true });
+    }
     setInterval(refreshVisibleCards, 2000);
+    setInterval(refreshStatus, 1000);
+    setInterval(watchdogWs, 5000);
   }
 })();

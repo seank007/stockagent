@@ -83,6 +83,14 @@ PAGE_HTML = r"""<!DOCTYPE html>
       <label>이름(선택)</label>
       <input id="fName" autocomplete="name">
     </div>
+    <div id="termsField" class="hidden" style="margin-top:10px;">
+      <label style="display:flex;align-items:flex-start;gap:6px;cursor:pointer;">
+        <input type="checkbox" id="agreeTerms" style="width:auto;margin:2px 0 0;">
+        <span style="font-size:12px;color:var(--ink);line-height:1.4;">
+          (필수) 자동매매 이용에 따른 투자 손실의 책임은 전적으로 본인에게 있으며, 플랫폼은 수익을 보장하거나 손실을 보상하지 않음에 동의합니다.
+        </span>
+      </label>
+    </div>
     <label>이메일</label>
     <input id="fEmail" type="email" autocomplete="email">
     <label>비밀번호 <span class="muted">(8자 이상)</span></label>
@@ -185,13 +193,20 @@ function setMode(m){
   $('tabLogin').classList.toggle('on', m==='login');
   $('tabSignup').classList.toggle('on', m==='signup');
   $('nameField').classList.toggle('hidden', m!=='signup');
+  $('termsField').classList.toggle('hidden', m!=='signup');
   $('authBtn').textContent = m==='login' ? '로그인' : '회원가입';
   $('authErr').textContent='';
 }
 async function submitAuth(){
   $('authErr').textContent='';
   const payload = { email:$('fEmail').value.trim(), password:$('fPassword').value };
-  if(mode==='signup') payload.display_name = $('fName').value.trim();
+  if(mode==='signup') {
+    if(!$('agreeTerms').checked) {
+      $('authErr').textContent='이용약관 및 면책 조항에 동의해야 합니다.';
+      return;
+    }
+    payload.display_name = $('fName').value.trim();
+  }
   $('authBtn').disabled=true;
   const r = await api(mode==='login'?'/auth/login':'/auth/register',
     { method:'POST', body:JSON.stringify(payload) });

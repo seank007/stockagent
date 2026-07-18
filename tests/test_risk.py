@@ -39,11 +39,11 @@ def test_buy_amount_capped_by_max_order():
     assert o.krw_amount <= config.MAX_ORDER_KRW
 
 
-def test_take_profit_forces_sell():
-    # 평가수익 (2000-1000)*100 = 100,000 ≥ 목표 15,000 → 강제 익절
-    o = risk.RiskManager().evaluate(_decision("HOLD", confidence=0.0), _snap(price=2000), 0, 100, 1000)
-    assert o.side == "sell"
-    assert o.volume == 100
+def test_hourly_profit_target_does_not_force_single_position_sell():
+    # TARGET_PROFIT_KRW는 포트폴리오 운용 목표이지 개별 포지션 익절선이 아니다.
+    o = risk.RiskManager().evaluate(_decision("HOLD", confidence=0.8), _snap(price=2000), 0, 100, 1000)
+    assert o.side == "none"
+    assert o.reason == "HOLD"
 
 
 def test_daily_loss_halts_trading():

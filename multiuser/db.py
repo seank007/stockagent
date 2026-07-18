@@ -1,4 +1,4 @@
-"""멀티테넌트 영속화 (SQLite, 단일 봇 DB와 분리).
+"""멀티테넌트 영속화 (SQLite 및 PostgreSQL 지원).
 
 테이블
 - users                : 회원 (이메일 + 비번 해시)
@@ -6,38 +6,78 @@
 - exchange_credentials : 사용자별 거래소 키(시크릿은 vault로 암호화 저장)
 
 단일 사용자 봇의 stockagent.db와는 별도 파일(multiuser.db)을 쓴다.
-거래/판단 이력의 멀티테넌트화(각 테이블에 user_id 추가)는 다음 단계 —
-여기서는 회원/인증/키관리라는 보안 핵심 토대만 담는다.
+DATABASE_URL 환경 변수가 `postgres://` 또는 `postgresql://`로 시작하면
+psycopg2를 사용하여 PostgreSQL에 연결한다.
 """
 from __future__ import annotations
 
 import os
-import sqlite3
 import threading
 
-DB_PATH = os.getenv("MULTIUSER_DB_PATH") or os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "multiuser.db"
-)
-
 _lock = threading.Lock()
-_conn: sqlite3.Connection | None = None
+_conn = None
+_is_postgres = False
 
 
-def _connect() -> sqlite3.Connection:
-    global _conn
+class WrapperConn:
+    """SQLite와 PostgreSQL 간의 인터페이스 차이를 메워주는 래퍼 클래스"""
+    def __init__(self, conn, is_postgres):
+        self.conn = conn
+        self.is_postgres = is_postgres
+
+    def execute(self, sql: str, params=()):
+        if self.is_postgres:
+            # PostgreSQL은 ? 대신 %s 를 파라미터로 사용
+            sql = sql.replace("?", "%s")
+            cur = self.conn.cursor()
+            cur.execute(sql, params)
+            return cur
+        else:
+            return self.conn.execute(sql, params)
+
+    def executescript(self, sql: str):
+        if self.is_postgres:
+            # PostgreSQL용 DDL 호환성 처리
+            sql = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
+            cur = self.conn.cursor()
+            cur.execute(sql)
+            return cur
+        else:
+            return self.conn.executescript(sql)
+
+    def close(self):
+        self.conn.close()
+
+
+def _connect() -> WrapperConn:
+    global _conn, _is_postgres
     if _conn is None:
-        db_dir = os.path.dirname(os.path.abspath(DB_PATH))
-        if db_dir:
-            os.makedirs(db_dir, exist_ok=True)
-        _conn = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None)
-        _conn.row_factory = sqlite3.Row
-        _conn.execute("PRAGMA journal_mode=WAL")
-        _conn.execute("PRAGMA foreign_keys=ON")
-        _init_schema(_conn)
-    return _conn
+        db_url = os.getenv("DATABASE_URL")
+        if db_url and db_url.startswith("postgres"):
+            import psycopg2
+            from psycopg2.extras import DictCursor
+            _is_postgres = True
+            _conn = psycopg2.connect(db_url, cursor_factory=DictCursor)
+            _conn.autocommit = True
+            _init_schema(WrapperConn(_conn, True))
+        else:
+            import sqlite3
+            _is_postgres = False
+            db_path = os.getenv("MULTIUSER_DB_PATH") or os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "multiuser.db"
+            )
+            db_dir = os.path.dirname(os.path.abspath(db_path))
+            if db_dir:
+                os.makedirs(db_dir, exist_ok=True)
+            _conn = sqlite3.connect(db_path, check_same_thread=False, isolation_level=None)
+            _conn.row_factory = sqlite3.Row
+            _conn.execute("PRAGMA journal_mode=WAL")
+            _conn.execute("PRAGMA foreign_keys=ON")
+            _init_schema(WrapperConn(_conn, False))
+    return WrapperConn(_conn, _is_postgres)
 
 
-def _init_schema(conn: sqlite3.Connection) -> None:
+def _init_schema(conn: WrapperConn) -> None:
     conn.executescript(
         """
         CREATE TABLE IF NOT EXISTS users (
@@ -124,7 +164,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     )
 
 
-def connection() -> sqlite3.Connection:
+def connection() -> WrapperConn:
     return _connect()
 
 
@@ -134,7 +174,7 @@ def lock() -> threading.Lock:
 
 def reset_for_tests() -> None:
     """테스트에서 커넥션 캐시를 비운다(DB_PATH를 바꾼 뒤 호출)."""
-    global _conn
+    global _conn, _is_postgres
     with _lock:
         if _conn is not None:
             try:
@@ -142,3 +182,5 @@ def reset_for_tests() -> None:
             except Exception:  # noqa: BLE001
                 pass
         _conn = None
+        _is_postgres = False
+

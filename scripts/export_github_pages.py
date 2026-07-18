@@ -7,6 +7,7 @@ without publishing account data or secrets.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -22,11 +23,13 @@ os.environ.setdefault("AUTO_OPEN_BROWSER", "false")
 os.environ.setdefault("RUN_TRADING_LOOP", "false")
 
 import web  # noqa: E402
-import db  # noqa: E402
-
-from dotenv import dotenv_values  # noqa: E402
 
 DOCS = ROOT / "docs"
+
+
+def _asset_version(relative: str) -> str:
+    """Return a short content hash so Pages deploys bypass stale browser caches."""
+    return hashlib.sha256((DOCS / relative).read_bytes()).hexdigest()[:12]
 
 
 MARKETS = [
@@ -46,32 +49,34 @@ MARKETS = [
 
 
 DEMO_PORTFOLIO = {
+    "data_mode": "demo",
+    "generated_at": None,
     "summary": {
-        "total_principal": 300_800,
-        "total_value": 120_366,
-        "cash_value": 69,
-        "coin_value": 120_297,
-        "cash_ratio": 0.1,
-        "unrealized_pnl": -180_434,
+        "total_principal": 1_000_000,
+        "total_value": 1_025_000,
+        "cash_value": 400_000,
+        "coin_value": 625_000,
+        "cash_ratio": 39.0,
+        "unrealized_pnl": 25_000,
         "realized_pnl": 0,
-        "total_pnl": -180_434,
-        "total_return_pct": -59.98,
-        "assets_count": 2,
-        "largest_asset": "SOL",
-        "largest_weight": 64.6,
+        "total_pnl": 25_000,
+        "total_return_pct": 2.5,
+        "assets_count": 3,
+        "largest_asset": "KRW",
+        "largest_weight": 39.0,
     },
     "holdings": [
         {
-            "currency": "SOL",
-            "ticker": "KRW-SOL",
-            "balance": 0.634,
-            "avg_buy_price": 362_436,
-            "principal": 229_790,
-            "current_price": 122_000,
-            "current_value": 77_348,
-            "return_pct": -66.34,
-            "weight": 64.6,
-            "unrealized_pnl": -152_442,
+            "currency": "KRW",
+            "ticker": "KRW",
+            "balance": 400_000,
+            "avg_buy_price": 1,
+            "principal": 400_000,
+            "current_price": 1,
+            "current_value": 400_000,
+            "return_pct": 0,
+            "weight": 39.0,
+            "unrealized_pnl": 0,
             "realized_pnl": 0,
             "trades_count": 0,
             "buy_count": 0,
@@ -81,14 +86,14 @@ DEMO_PORTFOLIO = {
         {
             "currency": "BTC",
             "ticker": "KRW-BTC",
-            "balance": 0.000457,
-            "avg_buy_price": 155_373_956,
-            "principal": 70_940,
-            "current_price": 93_005_000,
-            "current_value": 42_501,
-            "return_pct": -40.09,
-            "weight": 35.4,
-            "unrealized_pnl": -28_439,
+            "balance": 0.003,
+            "avg_buy_price": 100_000_000,
+            "principal": 300_000,
+            "current_price": 105_000_000,
+            "current_value": 315_000,
+            "return_pct": 5.0,
+            "weight": 30.7,
+            "unrealized_pnl": 15_000,
             "realized_pnl": 0,
             "trades_count": 0,
             "buy_count": 0,
@@ -96,16 +101,16 @@ DEMO_PORTFOLIO = {
             "last_trade_at": None,
         },
         {
-            "currency": "KRW",
-            "ticker": "KRW",
-            "balance": 69,
-            "avg_buy_price": 1,
-            "principal": 69,
-            "current_price": 1,
-            "current_value": 69,
-            "return_pct": 0,
-            "weight": 0.1,
-            "unrealized_pnl": 0,
+            "currency": "ETH",
+            "ticker": "KRW-ETH",
+            "balance": 0.1,
+            "avg_buy_price": 3_000_000,
+            "principal": 300_000,
+            "current_price": 3_100_000,
+            "current_value": 310_000,
+            "return_pct": 3.33,
+            "weight": 30.3,
+            "unrealized_pnl": 10_000,
             "realized_pnl": 0,
             "trades_count": 0,
             "buy_count": 0,
@@ -117,6 +122,70 @@ DEMO_PORTFOLIO = {
     "account_error": None,
     "daily": [],
     "risk": {"max_order_krw": 10_000, "max_daily_loss_krw": 30_000, "min_confidence": 0.6},
+}
+
+DEMO_AI_SNAPSHOT = {
+    "data_mode": "demo",
+    "generated_at": None,
+    "state": {
+        "last_update": None,
+        "loop_running": False,
+        "bot_paused": True,
+        "history": [
+            {
+                "time": "DEMO",
+                "ticker": "KRW-BTC",
+                "price": 105_000_000,
+                "rsi": 50,
+                "trend": "flat",
+                "change_pct": 0,
+                "action": "HOLD",
+                "confidence": 0,
+                "reasoning": "공개 정적 데모에서는 계좌 조회, AI 실행, 주문을 수행하지 않습니다.",
+                "order": "none | public demo",
+            }
+        ],
+    },
+    "config": {
+        "provider": "mock",
+        "model": "github-pages-static",
+        "tickers": ["KRW-BTC", "KRW-ETH"],
+        "dry_run": True,
+        "allow_live_trading": False,
+        "free_trade_mode": False,
+        "external_trader": False,
+        "risk": {
+            "max_order_krw": 10_000,
+            "min_order_krw": 5_000,
+            "max_daily_loss_krw": 30_000,
+            "min_confidence": 0.6,
+            "cycle_seconds": 600,
+        },
+    },
+    "capabilities": {"live_account": False, "trading": False, "control": False},
+    "trades": [],
+}
+
+DEMO_STOCK_SNAPSHOT = {
+    "data_mode": "demo",
+    "generated_at": None,
+    "market": {"open": False, "now": None, "note": "공개 정적 데모"},
+    "mode": "DEMO",
+    "paper": True,
+    "cash": 1_000_000,
+    "total_eval": 1_000_000,
+    "principal": 0,
+    "unrealized_pnl": 0,
+    "today_realized": 0,
+    "today_trades": 0,
+    "total_realized": 0,
+    "holdings": [],
+    "daily": [],
+    "decisions": [],
+    "trades": [],
+    "watchlist": [],
+    "analysis": {},
+    "capabilities": {"live_account": False, "trading": False, "control": False},
 }
 
 
@@ -199,25 +268,37 @@ STATIC_API = f"""
         bid_size: Number((0.31 + i * 0.037).toFixed(6)),
       }};
     }});
-    return {{ ticker, timestamp: Date.now(), total_ask_size: 9.42, total_bid_size: 10.18, units }};
+    return {{
+      ticker,
+      timestamp: Date.now(),
+      live: false,
+      stale: true,
+      source: "demo-snapshot",
+      total_ask_size: 9.42,
+      total_bid_size: 10.18,
+      units,
+    }};
   }}
 
   function state() {{
-    // 배포 시점에 심어진 실제 봇 스냅샷이 있으면 그걸 보여준다 (모의 아님).
+    // 공개 Pages에는 검증된 데모 스냅샷만 심는다.
     const snap = window.__aiTradeSnapshot || {{}};
     const scfg = snap.config || {{}};
     const sstate = snap.state || {{}};
-    const liveMode = scfg.allow_live_trading && !scfg.dry_run;
     return {{
-      mode: liveMode ? "LIVE" : "DRY_RUN(PAPER)",
-      provider: scfg.provider || "mock",
-      model: scfg.external_trader ? "hermes agent" : (scfg.model || "github-pages-static"),
-      loop_running: true,
-      bot_paused: false,
+      data_mode: "demo",
+      mode: "PUBLIC DEMO",
+      dry_run: true,
+      allow_live_trading: false,
+      capabilities: {{live_account:false, trading:false, control:false}},
+      provider: "mock",
+      model: "github-pages-static",
+      loop_running: false,
+      bot_paused: true,
       started_at: "GitHub Pages",
       interval: 600,
       cycle_count: (sstate.history || []).length,
-      last_update: sstate.last_update || new Date().toLocaleTimeString("en-GB", {{hour:"2-digit", minute:"2-digit", hour12:false}}),
+      last_update: sstate.last_update || snap.generated_at || null,
       today_pnl: 0,
       total_pnl: 0,
       error: null,
@@ -229,7 +310,7 @@ STATIC_API = f"""
   }}
 
   function pnl() {{
-    // 배포 스냅샷(또는 ai-live.js가 갱신한 최신 스냅샷)의 실데이터로 계산한다.
+    // 공개 데모 데이터만 계산한다. 실제 계좌 데이터는 정적 파일에 저장하지 않는다.
     const pf = window.__initialCoinPortfolio || DEMO_PORTFOLIO;
     const snap = window.__aiTradeSnapshot || {{}};
     const trades = snap.trades || [];
@@ -321,15 +402,16 @@ STATIC_API = f"""
   }}
 
   function route(path, params, init) {{
-    if (path === "/api/config") return {{dry_run:true, allow_live_trading:false, provider:"mock", model:"github-pages-static", tickers:["KRW-BTC","KRW-SOL"], coin_markets:MARKETS, intervals:[{{value:"minute15",label:"15분"}},{{value:"minute60",label:"1시간"}},{{value:"day",label:"일봉"}}], risk:{{max_order_krw:10000,min_order_krw:5000,max_daily_loss_krw:30000,min_confidence:0.6,cycle_seconds:600}}}};
+    const readOnly = () => ({{__status:405, error:"GitHub Pages 공개 데모는 읽기 전용입니다. 서버 대시보드에서 실행하세요."}});
+    if (path === "/api/config") return {{data_mode:"demo", capabilities:{{live_account:false,trading:false,control:false}}, dry_run:true, allow_live_trading:false, provider:"mock", model:"github-pages-static", tickers:["KRW-BTC","KRW-ETH"], coin_markets:MARKETS, intervals:[{{value:"minute15",label:"15분"}},{{value:"minute60",label:"1시간"}},{{value:"day",label:"일봉"}}], risk:{{max_order_krw:10000,min_order_krw:5000,max_daily_loss_krw:30000,min_confidence:0.6,cycle_seconds:600}}}};
     if (path === "/api/state") return state();
     if (path === "/api/pnl") return pnl();
     // ai-live.js가 window.__initialCoinPortfolio를 최신 스냅샷으로 바꿔치기하므로
     // 상수 대신 전역을 읽어 갱신이 전파되게 한다.
     if (path === "/api/portfolio") return clone(window.__initialCoinPortfolio || DEMO_PORTFOLIO);
     if (path === "/api/manual_portfolio") return {{items:[]}};
-    if (path === "/api/manual_order/preview") return manualOrderPreview(init);
-    if (path === "/api/manual_order") return {{...manualOrderPreview(init), result:{{dry_run:true}}, portfolio: clone(DEMO_PORTFOLIO)}};
+    if (path === "/api/manual_order/preview") return readOnly();
+    if (path === "/api/manual_order" || path === "/api/control" || path === "/api/run_ai") return readOnly();
     if (path === "/api/decisions") return {{items:state().history}};
     if (path === "/api/trades") {{
       const snap = window.__aiTradeSnapshot || {{}};
@@ -340,7 +422,7 @@ STATIC_API = f"""
     if (path === "/api/coin/quote") return {{ticker:params.get("ticker") || "KRW-BTC", price:priceFor(params.get("ticker")), timestamp:now()}};
     if (path === "/api/coin/orderbook") return orderbook(params.get("ticker") || "KRW-BTC");
     if (path === "/api/coin/mini_charts") {{
-      const tickers = (params.get("tickers") || MARKETS.map(m => m.market).join(",")).split(",").filter(Boolean).slice(0, 24);
+      const tickers = (params.get("tickers") || MARKETS.map(m => m.market).join(",")).split(",").filter(Boolean);
       return {{items:tickers.map(t => {{ const c = candles(t, params.get("interval") || "minute60", params.get("count") || 36); return {{ticker:t, symbol:symbol(t), korean_name:(MARKETS.find(m=>m.market===t)||{{}}).korean_name || symbol(t), english_name:(MARKETS.find(m=>m.market===t)||{{}}).english_name || symbol(t), price:priceFor(t), change_pct:CHANGES[t] || 0, closes:c.closes, ok:true}}; }}), interval:params.get("interval") || "minute60", cached:true}};
     }}
     if (path === "/api/coin/news") return news();
@@ -362,8 +444,11 @@ STATIC_API = f"""
     if (url.origin !== window.location.origin) return nativeFetch(input, init);
     const path = url.pathname.replace(/^\\/stockagent/, "");
     if (path.startsWith("/api/")) {{
-      const body = JSON.stringify(route(path, url.searchParams, init));
-      return new Response(body, {{status:200, headers:{{"Content-Type":"application/json; charset=utf-8"}}}});
+      const payload = route(path, url.searchParams, init);
+      const status = Number(payload.__status || 200);
+      delete payload.__status;
+      const body = JSON.stringify(payload);
+      return new Response(body, {{status, headers:{{"Content-Type":"application/json; charset=utf-8"}}}});
     }}
     return nativeFetch(input, init);
   }};
@@ -374,20 +459,6 @@ STATIC_API = f"""
 """
 
 
-def _env_bool(env: dict, name: str, default: bool) -> bool:
-    value = env.get(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
-
-
-def _env_num(env: dict, name: str, default: float) -> float:
-    value = env.get(name)
-    if value is None or not str(value).strip():
-        return default
-    return float(value)
-
-
 SNAPSHOT_FILE = DOCS / "data" / "ai_snapshot.json"
 PORTFOLIO_FILE = DOCS / "data" / "portfolio_snapshot.json"
 STOCK_AI_FILE = DOCS / "data" / "stock_snapshot.json"
@@ -395,6 +466,9 @@ COIN_MARKETS_FILE = DOCS / "data" / "coin_markets.json"
 COIN_CANDLE_INTERVALS = ["minute60", "minute15", "day"]
 COIN_CANDLE_COUNT = 120
 COIN_SNAPSHOT_REUSE_SECONDS = 15 * 60  # 로컬 연속 export 시 재수집 생략
+COIN_CANDLE_REFRESH_DEADLINE_SECONDS = max(
+    10.0, float(os.getenv("COIN_CANDLE_REFRESH_DEADLINE_SECONDS", "45"))
+)
 
 
 def _read_json(path: Path) -> dict | None:
@@ -422,6 +496,13 @@ def _snapshot_fresh(path: Path) -> bool:
     return time.time() - ts < COIN_SNAPSHOT_REUSE_SECONDS
 
 
+def _coin_snapshot_refresh_enabled() -> bool:
+    """Allow deterministic local exports while scheduled Pages builds refresh."""
+    return os.getenv("COIN_SNAPSHOT_REFRESH", "true").strip().lower() not in {
+        "0", "false", "no", "off"
+    }
+
+
 def coin_markets_snapshot() -> list[dict]:
     """업비트 KRW 마켓 전체 목록 + 배포 시점 시세 스냅샷.
 
@@ -432,8 +513,11 @@ def coin_markets_snapshot() -> list[dict]:
     """
     import time
 
+    cached = _read_json(COIN_MARKETS_FILE)
+    if not _coin_snapshot_refresh_enabled() and cached and cached.get("markets"):
+        return cached["markets"]
     if _snapshot_fresh(COIN_MARKETS_FILE):
-        return _read_json(COIN_MARKETS_FILE)["markets"]
+        return cached["markets"]
 
     try:
         raw = json.loads(web._urlopen_text(
@@ -504,14 +588,21 @@ def coin_candles_snapshot(markets: list[dict]) -> None:
     import time
     from concurrent.futures import ThreadPoolExecutor
 
+    if not _coin_snapshot_refresh_enabled():
+        return
+
     codes = [m["market"] for m in markets]
     for interval in COIN_CANDLE_INTERVALS:
         out_file = DOCS / "data" / f"coin_candles_{interval}.json"
         if _snapshot_fresh(out_file):
             continue
 
+        deadline = time.monotonic() + COIN_CANDLE_REFRESH_DEADLINE_SECONDS
+
         def one(market: str) -> tuple[str, list[float]]:
             for attempt in range(2):
+                if time.monotonic() >= deadline:
+                    break
                 try:
                     closes = web._upbit_candle_closes(market, interval, COIN_CANDLE_COUNT)
                     if closes:
@@ -520,18 +611,27 @@ def coin_candles_snapshot(markets: list[dict]) -> None:
                     time.sleep(0.4)
             return market, []
 
-        closes_map: dict[str, list[float]] = {}
-        with ThreadPoolExecutor(max_workers=6) as pool:
-            for market, closes in pool.map(one, codes):
-                if closes:
-                    closes_map[market] = closes
+        fresh_closes: dict[str, list[float]] = {}
+        for start in range(0, len(codes), 6):
+            if time.monotonic() >= deadline:
+                break
+            batch = codes[start:start + 6]
+            # 한 배치만 기다리므로 장애 시에도 deadline + 요청 timeout 범위에서 끝난다.
+            with ThreadPoolExecutor(max_workers=len(batch)) as pool:
+                results = pool.map(one, batch)
+                for market, closes in results:
+                    if closes:
+                        fresh_closes[market] = closes
 
-        # 절반도 못 받았으면(네트워크/차단) 기존 스냅샷을 유지한다
-        if len(closes_map) < len(codes) // 2:
-            existing = _read_json(out_file)
-            if existing and existing.get("closes"):
-                continue
-        if not closes_map:
+        existing = _read_json(out_file) or {}
+        closes_map = dict(existing.get("closes") or {})
+        closes_map.update(fresh_closes)
+
+        # 신규 빌드에서 절반도 못 받았으면 불완전한 파일을 만들지 않는다. 기존 파일이
+        # 있으면 성공분만 merge해 나머지 전체 종목의 마지막 정상 캔들을 보존한다.
+        if len(closes_map) < max(1, len(codes) // 2):
+            continue
+        if not fresh_closes:
             continue
 
         out_file.parent.mkdir(parents=True, exist_ok=True)
@@ -540,117 +640,63 @@ def coin_candles_snapshot(markets: list[dict]) -> None:
             "generated_ts": time.time(),
             "interval": interval,
             "count": COIN_CANDLE_COUNT,
+            "fresh_count": len(fresh_closes),
+            "market_count": len(codes),
+            "partial": len(fresh_closes) < len(codes),
             "closes": closes_map,
         }, ensure_ascii=False), encoding="utf-8")
 
 
+def _demo_snapshot(template: dict) -> dict:
+    """Return a detached, timestamped copy of a public-safe demo payload."""
+    from datetime import datetime, timezone
+
+    payload = json.loads(json.dumps(template, ensure_ascii=False))
+    payload["generated_at"] = datetime.now(timezone.utc).isoformat(timespec="minutes")
+    return payload
+
+
 def portfolio_snapshot() -> dict:
-    """실제 업비트 계좌 스냅샷.
-
-    로컬에서 봇(localhost:8000)이 떠 있으면 실시간 계좌를 받아 저장하고,
-    CI에서는 커밋된 docs/data/portfolio_snapshot.json을 재사용한다.
-    """
-    import urllib.request
-
-    try:
-        with urllib.request.urlopen("http://localhost:8000/api/portfolio", timeout=10) as res:
-            data = json.loads(res.read().decode("utf-8"))
-        if data.get("holdings"):
-            data.pop("cached", None)
-            data["generated_at"] = __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M")
-            PORTFOLIO_FILE.parent.mkdir(parents=True, exist_ok=True)
-            PORTFOLIO_FILE.write_text(
-                json.dumps(data, ensure_ascii=False, default=str), encoding="utf-8"
-            )
-            return data
-    except Exception:  # noqa: BLE001 - CI 등 봇 미가동 환경
-        pass
-    if PORTFOLIO_FILE.exists():
-        return json.loads(PORTFOLIO_FILE.read_text(encoding="utf-8"))
-    return DEMO_PORTFOLIO
+    """Return synthetic data only; public builds must never read a live account."""
+    return _demo_snapshot(DEMO_PORTFOLIO)
 
 
 def ai_trade_snapshot() -> dict:
-    """실제 봇 DB의 최근 AI 판단·주문을 배포 시점 스냅샷으로 내보낸다.
+    """Return synthetic data only; public builds must never read the trading DB."""
+    return _demo_snapshot(DEMO_AI_SNAPSHOT)
 
-    web은 mock 환경변수로 import되므로 실제 운영 모드는 .env에서 직접 읽는다.
-    CI(GitHub Actions)에는 .env와 봇 DB가 없으므로, 로컬 export 때 저장해 둔
-    docs/data/ai_snapshot.json을 그대로 재사용한다.
-    """
-    if not (ROOT / ".env").exists():
-        if SNAPSHOT_FILE.exists():
-            return json.loads(SNAPSHOT_FILE.read_text(encoding="utf-8"))
-        return {
-            "generated_at": None,
-            "state": {"last_update": None, "loop_running": False, "history": []},
-            "config": {"provider": "?", "model": "?", "tickers": [],
-                       "dry_run": True, "allow_live_trading": False, "risk": {}},
-            "trades": [],
-        }
 
-    env = dotenv_values(ROOT / ".env")
-    provider = (env.get("AI_PROVIDER") or "claude").strip().lower()
-    model_defaults = {"claude": "claude-opus-4-8", "openai": "gpt-4o", "gemini": "gemini-2.0-flash"}
-    model = env.get(f"{provider.upper()}_MODEL") or model_defaults.get(provider, provider)
-    tickers = [t.strip().upper() for t in (env.get("TICKERS") or "KRW-BTC,KRW-SOL").split(",") if t.strip()]
+def stock_ai_snapshot() -> dict:
+    """Return synthetic data only; public builds must never read a brokerage account."""
+    return _demo_snapshot(DEMO_STOCK_SNAPSHOT)
 
-    history = []
-    for row in db.recent_decisions(limit=20):
-        ts = str(row.get("ts") or "")
-        history.append({
-            "time": ts.replace("T", " ")[5:16],  # "MM-DD HH:MM"
-            "ticker": row.get("ticker"),
-            "price": row.get("price"),
-            "rsi": row.get("rsi"),
-            "trend": row.get("trend"),
-            "change_pct": row.get("change_pct"),
-            "action": row.get("action"),
-            "confidence": row.get("confidence"),
-            "reasoning": row.get("reasoning"),
-            "order": f"{row.get('order_side') or 'none'} | {row.get('order_reason') or ''}",
-        })
-    last_update = history[0]["time"] if history else None
 
-    snapshot = {
-        "generated_at": __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "state": {"last_update": last_update, "loop_running": True, "history": history},
-        "config": {
-            "provider": provider,
-            "model": model,
-            "tickers": tickers,
-            "dry_run": _env_bool(env, "DRY_RUN", True),
-            "allow_live_trading": _env_bool(env, "ALLOW_LIVE_TRADING", False),
-            "free_trade_mode": _env_bool(env, "FREE_TRADE_MODE", False),
-            "external_trader": not _env_bool(env, "RUN_TRADING_LOOP", True),
-            "risk": {
-                "max_order_krw": _env_num(env, "MAX_ORDER_KRW", 10_000),
-                "min_order_krw": _env_num(env, "MIN_ORDER_KRW", 5_000),
-                "max_daily_loss_krw": _env_num(env, "MAX_DAILY_LOSS_KRW", 30_000),
-                "min_confidence": _env_num(env, "MIN_CONFIDENCE", 0.6),
-                "cycle_seconds": _env_num(env, "INTERVAL_SECONDS", 600),
-            },
-        },
-        "trades": db.recent_trades(limit=50),
+def _assert_public_snapshot_safe(payload: dict, *, name: str) -> None:
+    """Fail the export if a future change tries to publish account/order material."""
+    forbidden_keys = {
+        "access_key", "secret_key", "access_key_enc", "secret_key_enc",
+        "raw_result", "uuid", "order_uuid", "session_token",
     }
-    SNAPSHOT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    SNAPSHOT_FILE.write_text(
-        json.dumps(snapshot, ensure_ascii=False, default=str), encoding="utf-8"
-    )
-    return snapshot
+
+    def walk(value, path: str) -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if str(key).lower() in forbidden_keys:
+                    raise RuntimeError(f"{name}: 공개 금지 필드 발견: {path}.{key}")
+                walk(child, f"{path}.{key}")
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                walk(child, f"{path}[{index}]")
+
+    walk(payload, name)
+    if payload.get("data_mode") != "demo":
+        raise RuntimeError(f"{name}: data_mode=demo만 공개할 수 있습니다.")
 
 
-def stock_ai_snapshot() -> dict | None:
-    """주식 AI 자동매매 스냅샷. 로컬(.env 존재) export에서 생성, CI는 커밋본 재사용."""
-    if not (ROOT / ".env").exists():
-        return _read_json(STOCK_AI_FILE)
-    try:
-        payload = web.stock_ai_payload()
-    except Exception:  # noqa: BLE001 - 주식 모듈 장애가 전체 export를 막지 않게
-        return _read_json(STOCK_AI_FILE)
-    STOCK_AI_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STOCK_AI_FILE.write_text(
-        json.dumps(payload, ensure_ascii=False, default=str), encoding="utf-8")
-    return payload
+def _write_public_snapshot(path: Path, payload: dict, *, name: str) -> None:
+    _assert_public_snapshot_safe(payload, name=name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
 
 def page(html: str, initial_portfolio: bool = False, stocks_live: bool = False,
@@ -691,7 +737,7 @@ def page(html: str, initial_portfolio: bool = False, stocks_live: bool = False,
     # 업비트 전체 마켓 + 실시간 시세(웹소켓): 목업·chart-hts 다음에 로드
     html = html.replace(
         "</body>",
-        '<script src="/stockagent/coin-live.js"></script>\n</body>',
+        f'<script src="/stockagent/coin-live.js?v={_asset_version("coin-live.js")}"></script>\n</body>',
         1,
     )
     if stocks_live:
@@ -702,16 +748,16 @@ def page(html: str, initial_portfolio: bool = False, stocks_live: bool = False,
             1,
         )
     if initial_portfolio:
-        # 포트폴리오 실시간 평가: 업비트 공개 시세 API(CORS 허용)로 평가액 갱신
+        # 포트폴리오 실시간 평가: coin-live의 공유 웹소켓 시세로 평가액 갱신
         html = html.replace(
             "</body>",
-            '<script src="/stockagent/portfolio-live.js"></script>\n</body>',
+            f'<script src="/stockagent/portfolio-live.js?v={_asset_version("portfolio-live.js")}"></script>\n</body>',
             1,
         )
         # AI 거래 탭 실시간 계좌: 웹소켓 시세 재평가 + 스냅샷 자동 새로고침
         html = html.replace(
             "</body>",
-            '<script src="/stockagent/ai-live.js"></script>\n</body>',
+            f'<script src="/stockagent/ai-live.js?v={_asset_version("ai-live.js")}"></script>\n</body>',
             1,
         )
     return html
@@ -725,6 +771,10 @@ def write(path: Path, html: str) -> None:
 def main() -> None:
     snapshot = ai_trade_snapshot()
     pf = portfolio_snapshot()
+    stocks = stock_ai_snapshot()
+    _write_public_snapshot(SNAPSHOT_FILE, snapshot, name="ai_snapshot")
+    _write_public_snapshot(PORTFOLIO_FILE, pf, name="portfolio_snapshot")
+    _write_public_snapshot(STOCK_AI_FILE, stocks, name="stock_snapshot")
     markets = coin_markets_snapshot()
     coin_candles_snapshot(markets)
     write(DOCS / "index.html",
@@ -732,7 +782,7 @@ def main() -> None:
     write(DOCS / "coin" / "index.html",
           page(web.COIN_HTML, initial_portfolio=True, ai_snapshot=snapshot, portfolio=pf))
     write(DOCS / "stocks" / "index.html",
-          page(web.STOCKS_HTML, stocks_live=True, stock_ai=stock_ai_snapshot()))
+          page(web.STOCKS_HTML, stocks_live=True, stock_ai=stocks))
     write(DOCS / "assets" / "index.html", page(web.DASHBOARD_HTML))
     write(DOCS / "analyze" / "index.html", page(web.ANALYZE_HTML))
     write(

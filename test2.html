@@ -1,0 +1,89 @@
+<!doctype html>
+<html>
+<body>
+  <div id="trade-history-modal" class="modal-overlay" hidden>
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-header">
+        <span>거래 내역 (최근 50건)</span>
+        <button class="modal-close" onclick="closeTradeHistoryModal()">&times;</button>
+      </div>
+      <div id="trade-history-rows" style="padding: 10px;">로딩 중...</div>
+    </div>
+  </div>
+  <button onclick="openTradeHistoryModal()">거래 내역(버그수정판)</button>
+  <script>
+    const KRW = (n, signed=false) => n;
+    const NUM = (n, digits=6) => n;
+    function escapeHtml(value) { return value; }
+
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = async (input, init={}) => {
+      const raw = typeof input === "string" ? input : input.url;
+      const url = new URL(raw, window.location.origin);
+      const path = url.pathname.replace(/^\/stockagent/, "");
+      if (path === "/api/trades") {
+        const snap = {"trades": [{"id": 75, "ts": "2026-07-05T22:04:30", "ticker": "KRW-BIRB", "side": "sell", "price": 119.0, "volume": 327.2731804545, "krw_amount": 38945.5084740855, "fee": 19.47275423704275, "realized_pnl": 474.4811162849046, "dry_run": 0}]};
+        // Simulating the mock delay
+        return new Response(JSON.stringify({items: snap.trades}), {status:200, headers:{"Content-Type":"application/json; charset=utf-8"}});
+      }
+      return nativeFetch(input, init);
+    };
+
+    function closeTradeHistoryModal() {
+      const modal = document.getElementById("trade-history-modal");
+      if (modal) modal.hidden = true;
+    }
+
+    async function openTradeHistoryModal() {
+      try {
+        const modal = document.getElementById("trade-history-modal");
+        const rowsContainer = document.getElementById("trade-history-rows");
+        if (!modal || !rowsContainer) return;
+        modal.hidden = false;
+        // rowsContainer.innerHTML = "로딩 중...";
+
+        let res;
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          res = await fetch("/api/trades?limit=50", { signal: controller.signal });
+          clearTimeout(timeoutId);
+        } catch (e) {
+          rowsContainer.innerHTML = "<div class='muted' style='color:#ff8a93'>네트워크 오류(타임아웃 등): " + escapeHtml(e.message) + "</div>";
+          return;
+        }
+
+        if (!res.ok) {
+          const txt = await res.text().catch(()=>"");
+          rowsContainer.innerHTML = "<div class='muted' style='color:#ff8a93'>HTTP " + res.status + " " + escapeHtml(txt) + "</div>";
+          return;
+        }
+
+        const data = await res.json();
+        const trades = data.items || [];
+        if (trades.length === 0) {
+          rowsContainer.innerHTML = "<div class='muted'>최근 거래 내역이 없습니다.</div>";
+          return;
+        }
+        rowsContainer.innerHTML = trades.map(t => {
+          const act = String(t.side || "").toUpperCase();
+          const cls = act === "BUY" ? "up" : act === "SELL" ? "down" : "muted";
+          const time = t.ts ? new Date(t.ts).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }) : (t.timestamp ? new Date(t.timestamp).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—");
+          return `<div style="padding:10px; border-bottom:1px solid #1f2937; display:grid; grid-template-columns: 100px 80px 50px 1fr; gap:10px; align-items:center;">
+            <span class="muted" style="font-size:12px;">${time}</span>
+            <span style="font-weight:700;">${escapeHtml(t.ticker)}</span>
+            <span class="${cls}" style="font-weight:700;">${act}</span>
+            <div style="display:flex; flex-direction:column; align-items:flex-end;">
+              <span style="font-size:13px; font-weight:700;">${KRW(t.krw_amount || 0)}원</span>
+              <span class="muted" style="font-size:11px;">단가 ${KRW(t.price || 0)}원 · 수량 ${NUM(t.volume || 0)}</span>
+            </div>
+          </div>`;
+        }).join("");
+      } catch (err) {
+        const rows = document.getElementById("trade-history-rows");
+        if (rows) rows.innerHTML = "<div class='muted' style='color:#ff8a93'>스크립트 오류: " + escapeHtml(err.message) + "</div>";
+      }
+    }
+  </script>
+</body>
+</html>

@@ -28,6 +28,7 @@ sys.path.insert(0, str(ROOT))
 import config  # noqa: E402
 import db  # noqa: E402
 from brokers.upbit import UpbitBroker  # noqa: E402
+from quant_engine import generate_trade_plan  # noqa: E402
 from risk import Order  # noqa: E402
 
 try:  # pragma: no cover - optional dependency
@@ -38,6 +39,7 @@ except Exception:  # noqa: BLE001
 
 WATCH_STATE_FILE = Path.home() / ".hermes/profiles/stockmaster/scripts/.upbit_watch_state.json"
 TICKER_CHUNK = 80
+MIN_ENTRY_KRW = max(config.UPBIT_MIN_ORDER_KRW * 2, 10_000)
 
 
 def _out(payload: dict) -> None:
@@ -143,6 +145,15 @@ def _watch_candidates(top: int) -> list[dict]:
 
 
 
+def _liquidity_score(summary: dict, max_trade_value: float) -> float:
+    trade_value = float(summary.get("acc_trade_price_24h") or 0.0)
+    if max_trade_value <= 0 or trade_value <= 0:
+        return 0.0
+    ratio = max(0.0, min(1.0, trade_value / max_trade_value))
+    return round(20.0 + 80.0 * (ratio ** 0.5), 2)
+
+
+
 def cmd_scan(broker: UpbitBroker, top: int) -> None:
     balances = broker.get_balances()
     krw = broker.krw_from_balances(balances)
@@ -198,6 +209,50 @@ def cmd_scan(broker: UpbitBroker, top: int) -> None:
     for item in top_value[: max(3, top // 2)]:
         add_candidate(item["ticker"], "top_value")
 
+    position_map: dict[str, tuple[float, float]] = {
+        ticker: broker.position_from_balances(ticker, balances)
+        for ticker in held_tickers
+    }
+    total_equity_krw = krw
+    for ticker in held_tickers:
+        row = by_ticker.get(ticker)
+        coin, _avg = position_map.get(ticker, (0.0, 0.0))
+        if row:
+            total_equity_krw += coin * float(row.get("trade_price") or 0.0)
+
+    max_trade_value = max((float(item.get("acc_trade_price_24h") or 0.0) for item in summaries), default=0.0)
+    quant_ranked: list[dict] = []
+    quant_errors: list[dict] = []
+    for item in watch_candidates:
+        ticker = str(item.get("ticker") or "").upper()
+        coin_balance, avg_buy_price = position_map.get(ticker, (0.0, 0.0))
+        current_price = float(item.get("price") or 0.0)
+        current_position_value = coin_balance * current_price
+        try:
+            snapshot = broker.market_snapshot(ticker)
+            plan = generate_trade_plan(
+                snapshot=snapshot,
+                summary=item,
+                liquidity_score=_liquidity_score(item, max_trade_value),
+                held=bool(item.get("held")),
+                coin_balance=coin_balance,
+                avg_buy_price=avg_buy_price,
+                krw_balance=krw,
+                total_equity_krw=total_equity_krw,
+                current_position_value=current_position_value,
+            )
+            plan["source"] = item.get("source")
+            if item.get("trigger_move_pct") is not None:
+                plan["trigger_move_pct"] = item.get("trigger_move_pct")
+            quant_ranked.append(plan)
+        except Exception as exc:  # noqa: BLE001
+            quant_errors.append({"ticker": ticker, "error": str(exc)})
+
+    quant_ranked.sort(key=lambda x: (float(x.get("execution_priority") or 0.0), float(x.get("long_score") or 0.0)), reverse=True)
+    buy_candidates = [row for row in quant_ranked if row.get("bias") == "BUY" and row.get("eligible_buy")]
+    sell_candidates = [row for row in quant_ranked if row.get("held") and (float(row.get("trim_pct") or 0.0) > 0 or row.get("bias") == "SELL")]
+    hold_candidates = [row for row in quant_ranked if row not in buy_candidates and row not in sell_candidates]
+
     _out({
         "ok": True,
         "market_count": len(all_markets),
@@ -208,6 +263,11 @@ def cmd_scan(broker: UpbitBroker, top: int) -> None:
         "top_losers": top_losers,
         "top_value": top_value,
         "watch_candidates": watch_candidates[:top],
+        "quant_ranked": quant_ranked[:top],
+        "buy_candidates": buy_candidates[:top],
+        "sell_candidates": sell_candidates[:top],
+        "hold_candidates": hold_candidates[:top],
+        "quant_errors": quant_errors[:top],
         "exchange_rules": {"min_order_krw": config.UPBIT_MIN_ORDER_KRW, "fee_rate": 0.0005},
         "recent_trades": db.recent_trades(limit=5),
         "recent_decisions": [
@@ -262,6 +322,11 @@ def cmd_buy(broker: UpbitBroker, ticker: str, amount_arg: str) -> None:
     amount = min(amount, krw)
     if amount < config.UPBIT_MIN_ORDER_KRW:
         _fail(f"매수 금액 {amount:,.0f}원 < 업비트 최소 5,000원 (원화 잔고 {krw:,.0f}원)")
+    if amount < MIN_ENTRY_KRW:
+        _fail(
+            f"매수 금액 {amount:,.0f}원 < 시스템 신규진입 최소 {MIN_ENTRY_KRW:,.0f}원 "
+            f"(소액 포지션 파편화 방지, 잔고 {krw:,.0f}원)"
+        )
     snap = broker.market_snapshot(ticker)
     price = float(snap.get("price") or 0)
     result = broker.buy(ticker, amount)
@@ -285,11 +350,26 @@ def cmd_sell(broker: UpbitBroker, ticker: str, pct_arg: str) -> None:
         _fail(f"{ticker} 보유 수량 없음")
     snap = broker.market_snapshot(ticker)
     price = float(snap.get("price") or 0)
+    total_value = coin * price
     volume = coin * pct / 100.0
     value = volume * price
+    executed_pct = pct
+
+    if value < config.UPBIT_MIN_ORDER_KRW and total_value >= config.UPBIT_MIN_ORDER_KRW and pct < 100.0:
+        volume = coin
+        value = total_value
+        executed_pct = 100.0
+
+    remaining_value = max(0.0, total_value - value)
+    if 0 < remaining_value < config.UPBIT_MIN_ORDER_KRW and total_value >= config.UPBIT_MIN_ORDER_KRW and executed_pct < 100.0:
+        volume = coin
+        value = total_value
+        executed_pct = 100.0
+        remaining_value = 0.0
+
     if value < config.UPBIT_MIN_ORDER_KRW:
         _fail(f"매도 금액 {value:,.0f}원 < 업비트 최소 5,000원 "
-              f"(보유 전량 {coin}개 ≈ {coin * price:,.0f}원, pct를 키워라)")
+              f"(보유 전량 {coin}개 ≈ {total_value:,.0f}원, pct를 키워라)")
     result = broker.sell(ticker, volume)
     if not result or (isinstance(result, dict) and result.get("error")):
         _fail(f"매도 주문이 거래소에서 거절됨: {result!r}")
@@ -298,6 +378,7 @@ def cmd_sell(broker: UpbitBroker, ticker: str, pct_arg: str) -> None:
         dry_run=config.DRY_RUN, raw_result=json.dumps(result, ensure_ascii=False, default=str),
     )
     _out({"ok": True, "side": "sell", "ticker": ticker, "volume": volume,
+          "requested_pct": pct, "executed_pct": executed_pct,
           "approx_krw": round(value), "realized_pnl": info.get("realized_pnl"),
           "exchange_result": result})
 
