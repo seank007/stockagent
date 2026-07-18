@@ -87,6 +87,7 @@ def _init_schema(conn: WrapperConn) -> None:
             display_name  TEXT,
             is_active     INTEGER NOT NULL DEFAULT 1,
             is_admin      INTEGER NOT NULL DEFAULT 0,
+            subscription_tier TEXT NOT NULL DEFAULT 'free',
             created_at    TEXT NOT NULL,
             last_login_at TEXT
         );
@@ -100,6 +101,7 @@ def _init_schema(conn: WrapperConn) -> None:
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
         CREATE INDEX IF NOT EXISTS ix_sessions_user ON sessions(user_id);
+
 
         CREATE TABLE IF NOT EXISTS exchange_credentials (
             id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -162,7 +164,12 @@ def _init_schema(conn: WrapperConn) -> None:
         CREATE INDEX IF NOT EXISTS ix_utr_user ON user_trades(user_id, id DESC);
         """
     )
-
+    
+    # 마이그레이션: 기존 DB에 subscription_tier 컬럼 추가
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN subscription_tier TEXT NOT NULL DEFAULT 'free'")
+    except Exception:
+        pass  # 컬럼이 이미 있거나 지원하지 않으면 무시
 
 def connection() -> WrapperConn:
     return _connect()

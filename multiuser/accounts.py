@@ -376,6 +376,7 @@ def _public_user(row) -> dict | None:
         "email": row["email"],
         "display_name": row["display_name"],
         "is_admin": bool(row["is_admin"]),
+        "subscription_tier": row["subscription_tier"] if "subscription_tier" in row.keys() else "free",
         "created_at": row["created_at"],
     }
 

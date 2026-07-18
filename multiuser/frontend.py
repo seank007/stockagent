@@ -98,6 +98,9 @@ PAGE_HTML = r"""<!DOCTYPE html>
            onkeydown="if(event.key==='Enter')submitAuth()">
     <div class="err" id="authErr"></div>
     <button id="authBtn" style="width:100%;margin-top:6px;" onclick="submitAuth()">로그인</button>
+    <div style="margin-top:12px;text-align:center;font-size:12px;">
+      <a href="#" onclick="alert('현재 비밀번호 찾기 기능은 준비 중입니다. 관리자(admin@example.com)에게 문의해 주세요.');return false;" class="muted" style="text-decoration:underline;">비밀번호를 잊으셨나요?</a>
+    </div>
   </div>
 
   <!-- 로그인 후 -->
@@ -154,6 +157,13 @@ PAGE_HTML = r"""<!DOCTYPE html>
     <div class="card">
       <h2>내 계정</h2>
       <div class="muted" id="acctInfo" style="margin-top:6px;"></div>
+      
+      <div style="margin:16px 0;padding:12px;background:var(--bg);border-radius:6px;border:1px solid var(--border);">
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px;">현재 요금제: <span id="acctTier" style="color:var(--brand);">Free</span></div>
+        <div style="font-size:12px;color:var(--ink);margin-bottom:10px;">Free 요금제는 모의투자 및 수동 1회 실행만 가능합니다. 100% 자동매매를 원하시면 Pro 요금제로 업그레이드하세요.</div>
+        <button class="ghost sm" style="background:var(--brand);color:white;border:none;" onclick="alert('결제 시스템(Portone/Stripe) 연동 준비 중입니다.')">Pro 업그레이드 (준비 중)</button>
+      </div>
+
       <label>이름</label>
       <div class="row" style="gap:8px;">
         <input id="acName" placeholder="이름">
@@ -166,6 +176,24 @@ PAGE_HTML = r"""<!DOCTYPE html>
       <div class="row" style="margin-top:6px;">
         <button class="ghost sm" onclick="changePassword()">비밀번호 변경</button>
         <button class="ghost sm" style="color:var(--up);border-color:#f3c0c2;" onclick="deleteAccount()">회원 탈퇴</button>
+      </div>
+    </div>
+
+    <!-- 과거 내역 (History) -->
+    <div class="card">
+      <div class="row">
+        <h2>최근 기록</h2>
+        <button class="ghost sm" onclick="loadHistory()">새로고침</button>
+      </div>
+      <div class="tabs" style="margin-top:12px;margin-bottom:12px;">
+        <button id="tabHistTrade" class="on" onclick="setHistTab('trade')" style="padding:4px 8px;font-size:13px;">체결 내역</button>
+        <button id="tabHistDecision" onclick="setHistTab('decision')" style="padding:4px 8px;font-size:13px;">AI 판단 로그</button>
+      </div>
+      <div id="histTradeView">
+        <div id="histTrades" class="muted">기록이 없습니다.</div>
+      </div>
+      <div id="histDecisionView" class="hidden">
+        <div id="histDecisions" class="muted">기록이 없습니다.</div>
       </div>
     </div>
 
@@ -226,10 +254,12 @@ async function boot(){
   $('userEmail').textContent = user.email;
   $('userbar').classList.remove('hidden');
   $('adminLink').classList.toggle('hidden', !user.is_admin);
+  const tier = user.subscription_tier || 'Free';
+  $('acctTier').textContent = tier.toUpperCase();
   $('acctInfo').innerHTML = user.email + ' · 가입 ' + (user.created_at||'').slice(0,10) + (user.is_admin?' · <b>관리자</b>':'');
   $('acName').value = user.display_name || '';
   $('authView').classList.add('hidden'); $('dashView').classList.remove('hidden');
-  await refreshKeyStatus(); loadPortfolio(); loadSettings();
+  await refreshKeyStatus(); loadPortfolio(); loadSettings(); loadHistory();
 }
 
 async function saveProfile(){
@@ -337,6 +367,50 @@ async function runOnce(){
        '<div class="rsn">'+(d.reasoning||d.order_reason||'')+'</div></div>';
   }
   $('runResult').innerHTML = h;
+}
+
+let histMode = 'trade';
+function setHistTab(m){
+  histMode = m;
+  $('tabHistTrade').classList.toggle('on', m==='trade');
+  $('tabHistDecision').classList.toggle('on', m==='decision');
+  $('histTradeView').classList.toggle('hidden', m!=='trade');
+  $('histDecisionView').classList.toggle('hidden', m!=='decision');
+}
+async function loadHistory(){
+  $('histTrades').textContent='불러오는 중…';
+  $('histDecisions').textContent='불러오는 중…';
+  const r = await api('/auth/trade/history');
+  if(!r.ok){
+    $('histTrades').textContent='조회 실패';
+    $('histDecisions').textContent='조회 실패';
+    return;
+  }
+  const trades = r.body.trades || [];
+  const decs = r.body.decisions || [];
+
+  if(!trades.length) $('histTrades').textContent='거래 내역이 없습니다.';
+  else {
+    let h='<table style="font-size:12px;"><thead><tr><th>시간</th><th>종목</th><th>구분</th><th>가격</th><th>수량</th><th>금액</th></tr></thead><tbody>';
+    for(const t of trades){
+      h+='<tr><td class="muted">'+(t.ts||'').slice(5,16).replace('T',' ')+'</td><td>'+t.ticker.replace('KRW-','')+'</td>'+
+         '<td>'+badge(t.side)+'</td><td>'+won(t.price)+'</td><td>'+(t.volume||0).toFixed(4)+'</td>'+
+         '<td>'+won(t.krw_amount)+' '+(t.dry_run?'<span class="muted">(모의)</span>':'')+'</td></tr>';
+    }
+    $('histTrades').innerHTML = h+'</tbody></table>';
+  }
+
+  if(!decs.length) $('histDecisions').textContent='AI 판단 기록이 없습니다.';
+  else {
+    let h='';
+    for(const d of decs){
+      h+='<div class="drow"><div class="row" style="font-size:12px;"><div><span class="muted">'+(d.ts||'').slice(5,16).replace('T',' ')+'</span> '+
+         '<b>'+d.ticker.replace('KRW-','')+'</b> '+badge(d.order_side)+'</div>'+
+         '<div>'+won(d.price)+' <span class="muted">(신뢰도 '+(d.confidence||0).toFixed(2)+')</span></div></div>'+
+         '<div class="rsn" style="margin-top:4px;">'+(d.reasoning||'')+'</div></div>';
+    }
+    $('histDecisions').innerHTML = h;
+  }
 }
 
 boot();
