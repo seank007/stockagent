@@ -2197,7 +2197,6 @@ body { font-family:'JetBrains Mono', ui-monospace, monospace; color:#e6ebf2; pad
 .brand:after { content:"MARKET OS"; display:block; margin-left:2px; color:#66758c; font-size:9px; font-weight:800;
                letter-spacing:.18em; }
 .brand .cursor { display:none; }
-.brand.dry:before { background:linear-gradient(135deg,#e0b341,#ffe394); box-shadow:0 0 24px rgba(224,179,65,.22); }
 .pill-live, .pill-dry, .pill-ai, .pill-bot {
   display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 12px; border-radius:999px;
   font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10.5px; font-weight:800; white-space:nowrap;
