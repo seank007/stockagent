@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -728,6 +729,9 @@ def page(html: str, initial_portfolio: bool = False, stocks_live: bool = False,
     html = html.replace('href="/analyze"', 'href="/stockagent/analyze/"')
     html = html.replace('href="/api/export/decisions.csv"', 'href="#"')
     html = html.replace('href="/api/export/trades.csv"', 'href="#"')
+    html = html.replace('href="/static/', 'href="/stockagent/static/')
+    html = html.replace('src="/static/', 'src="/stockagent/static/')
+    html = html.replace("url('/static/", "url('/stockagent/static/")
     # HTS 캔들차트: 인라인 renderChart(선 차트)를 오버라이드하도록 본문 맨 끝에 로드
     html = html.replace(
         "</body>",
@@ -777,6 +781,14 @@ def main() -> None:
     _write_public_snapshot(STOCK_AI_FILE, stocks, name="stock_snapshot")
     markets = coin_markets_snapshot()
     coin_candles_snapshot(markets)
+
+    static_src = ROOT / "static"
+    static_dst = DOCS / "static"
+    if static_src.exists():
+        if static_dst.exists():
+            shutil.rmtree(static_dst)
+        shutil.copytree(static_src, static_dst)
+
     write(DOCS / "index.html",
           page(web.COIN_HTML, initial_portfolio=True, ai_snapshot=snapshot, portfolio=pf))
     write(DOCS / "coin" / "index.html",
